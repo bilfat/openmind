@@ -232,7 +232,7 @@ export function Navbar() {
               {/* Admin Login */}
               <Link
                 href="/admin/login"
-                className={`inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-all duration-300 hover:scale-105 ${
+                className={`hidden sm:inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-all duration-300 hover:scale-105 ${
                   isHeroTransparent
                     ? "border-gold-400/40 text-gold-400 hover:bg-gold-400/10"
                     : "border-navy-900/20 text-navy-900/70 hover:bg-navy-900/5 hover:text-navy-900"

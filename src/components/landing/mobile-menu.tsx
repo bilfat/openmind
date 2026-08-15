@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { Ticket, ExternalLink } from "lucide-react";
+import { Ticket, ExternalLink, LogIn } from "lucide-react";
 
 import { socialLinks } from "@/data/social-links";
 
@@ -67,7 +67,7 @@ export function MobileMenu({ isOpen, onClose, navItems, pathname }: MobileMenuPr
               </div>
 
               {/* CTA */}
-              <div className="border-t border-gold-500/10 p-4">
+              <div className="border-t border-gold-500/10 p-4 space-y-2">
                 <Link
                   href="/tiket"
                   onClick={onClose}
@@ -75,6 +75,14 @@ export function MobileMenu({ isOpen, onClose, navItems, pathname }: MobileMenuPr
                 >
                   <Ticket className="h-4 w-4" />
                   Beli Tiket
+                </Link>
+                <Link
+                  href="/admin/login"
+                  onClick={onClose}
+                  className="flex items-center justify-center gap-2 rounded-xl border border-navy-900/20 px-6 py-3 text-sm font-semibold text-navy-900 transition-all hover:bg-navy-900/5"
+                >
+                  <LogIn className="h-4 w-4" />
+                  Login Admin
                 </Link>
               </div>
 

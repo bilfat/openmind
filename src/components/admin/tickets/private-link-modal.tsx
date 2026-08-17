@@ -11,7 +11,7 @@ import {
   ShieldCheck,
   X,
 } from "lucide-react";
-import { regeneratePrivateToken } from "@/lib/ticket-store";
+
 
 interface PrivateLinkModalProps {
   ticketId: string;
@@ -46,16 +46,30 @@ export function PrivateLinkModal({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleRegenerate = () => {
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const handleRegenerate = async () => {
     setIsRegenerating(true);
-    setTimeout(() => {
-      const newToken = regeneratePrivateToken(ticketId);
-      if (newToken) {
-        onTokenUpdated(newToken);
+    setErrorMsg(null);
+    try {
+      const res = await fetch(`/api/admin/tickets/${ticketId}/invite`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+      const json = await res.json();
+      if (json.success) {
+        onTokenUpdated(json.data.token);
+        setConfirmRegenerate(false);
+      } else {
+        setErrorMsg(json.message || "Gagal memperbarui token.");
       }
+    } catch (err: any) {
+      setErrorMsg(err.message || "Terjadi kesalahan koneksi.");
+    } finally {
       setIsRegenerating(false);
-      setConfirmRegenerate(false);
-    }, 600);
+    }
   };
 
   return (
@@ -117,6 +131,12 @@ export function PrivateLinkModal({
         </div>
 
         {/* Regenerate Section */}
+        {errorMsg && (
+          <div className="rounded-2xl bg-destructive/15 border border-destructive/20 p-4 text-xs font-semibold text-destructive text-center">
+            {errorMsg}
+          </div>
+        )}
+
         {!confirmRegenerate ? (
           <div className="rounded-2xl border border-border bg-secondary/20 p-4 flex items-center justify-between gap-4">
             <div>

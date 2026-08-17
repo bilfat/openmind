@@ -8,32 +8,24 @@ import {
   Calendar,
   Clock,
   MapPin,
-  Sparkles,
   ShieldCheck,
   Printer,
-  Download,
   CalendarPlus,
   CheckCircle2,
-  AlertCircle,
-  User,
-  GraduationCap,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
-
 interface ETicketCardProps {
   order: OrderItem;
 }
 
 export function ETicketCard({ order }: ETicketCardProps) {
   const printRef = useRef<HTMLDivElement>(null);
-
-  const qrPayload = JSON.stringify({
-    orderId: order.orderId,
-    name: order.customerName,
-    nim: order.nim,
-    ticket: order.ticketName,
-    verified: true,
-  });
+  const issuedTicket = order as OrderItem & {
+    ticketCode?: string;
+    qrToken?: string;
+  };
+  const qrValue = issuedTicket.qrToken
+    ? `https://openmind2026.id/ticket/${issuedTicket.qrToken}`
+    : `https://openmind2026.id/ticket/${encodeURIComponent(order.orderId)}`;
 
   const handlePrint = () => {
     window.print();
@@ -181,9 +173,9 @@ export function ETicketCard({ order }: ETicketCardProps) {
 
             {/* QR Code Container */}
             <div className="sm:col-span-5 flex flex-col items-center justify-center p-3 rounded-2xl bg-navy-900 border border-gold-500/30 text-center">
-              <QRCodeDisplay value={qrPayload} size={150} />
+              <QRCodeDisplay value={qrValue} size={150} />
               <span className="mt-2 font-mono text-[11px] font-bold text-gold-400 tracking-wider">
-                {order.orderId}
+                {issuedTicket.ticketCode || order.orderId}
               </span>
               <p className="text-[9px] text-ivory-200/60 mt-0.5">
                 Scan di meja registrasi venue
@@ -191,7 +183,6 @@ export function ETicketCard({ order }: ETicketCardProps) {
             </div>
           </div>
         </div>
-
         {/* Bottom Footer Stub */}
         <div className="border-t border-navy-800/80 bg-navy-900/60 px-6 py-4 flex items-center justify-between text-[11px] text-ivory-200/60">
           <span>Organizer: HIPMI PT Telkom University</span>

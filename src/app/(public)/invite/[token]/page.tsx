@@ -5,10 +5,6 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { TicketType } from "@/data/tickets";
 import {
-  getTicketByPrivateToken,
-  getDerivedTicketStatus,
-} from "@/lib/ticket-store";
-import {
   Lock,
   Sparkles,
   Check,
@@ -27,11 +23,47 @@ export default function PrivateInvitePage() {
   const router = useRouter();
   const token = (params?.token as string) || "";
 
-  const [ticket] = useState<TicketType | null>(() =>
-    token ? getTicketByPrivateToken(token) : null
-  );
+  const [ticket, setTicket] = useState<any | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [derivedStatus, setDerivedStatus] = useState<string>("ACTIVE");
 
-  const loading = false;
+  useEffect(() => {
+    async function validateInvite() {
+      if (!token) {
+        setLoading(false);
+        return;
+      }
+      try {
+        const res = await fetch(`/api/invite/${token}`);
+        const json = await res.json();
+        if (json.success) {
+          const t = json.data;
+          setTicket({
+            id: t.id,
+            name: t.name,
+            description: t.description || "",
+            type: t.ticket_type,
+            quota: Number(t.quota),
+            issued: Number(t.quota) - Number(t.remaining_quota || t.quota),
+            finalPrice: Number(t.final_price),
+            price: Number(t.base_price),
+            discountPercentage: Number(t.discount_percentage),
+            benefits: t.benefits || []
+          });
+          setDerivedStatus(json.derived_status || "ACTIVE");
+        } else {
+          setErrorMsg(json.message || "Tautan undangan tidak valid.");
+        }
+      } catch (err) {
+        console.error("Invite validation error:", err);
+        setErrorMsg("Terjadi kesalahan sistem saat memvalidasi tautan.");
+      } finally {
+        setLoading(false);
+      }
+    }
+    validateInvite();
+  }, [token]);
 
   if (loading) {
     return (
@@ -45,7 +77,7 @@ export default function PrivateInvitePage() {
   }
 
   // State 1: Invalid Token
-  if (!ticket) {
+  if (errorMsg || !ticket) {
     return (
       <div className="min-h-screen bg-navy-950 flex items-center justify-center p-6 text-ivory-100">
         <div className="w-full max-w-md rounded-3xl border border-destructive/40 bg-navy-900/80 p-8 text-center space-y-5 shadow-2xl backdrop-blur-xl">
@@ -57,7 +89,7 @@ export default function PrivateInvitePage() {
               Tautan Undangan Tidak Valid
             </h1>
             <p className="text-xs text-ivory-200/70 mt-2 leading-relaxed font-light">
-              Tautan undangan privat ini tidak ditemukan atau telah diperbarui dengan kode baru oleh panitia OPEN MIND 2026.
+              {errorMsg || "Tautan undangan privat ini tidak ditemukan atau telah diperbarui dengan kode baru oleh panitia OPEN MIND 2026."}
             </p>
           </div>
           <Link
@@ -72,9 +104,8 @@ export default function PrivateInvitePage() {
     );
   }
 
-  const derivedStatus = getDerivedTicketStatus(ticket);
-  const isFree = ticket.type === "FREE";
   const remaining = Math.max(0, ticket.quota - ticket.issued);
+  const isFree = ticket.type === "FREE";
 
   // State 2: Sold Out, Paused, or Expired
   if (derivedStatus !== "ACTIVE") {
@@ -197,7 +228,7 @@ export default function PrivateInvitePage() {
                 HAK AKSES & BENEFIT EKSKLUSIF:
               </span>
               <ul className="space-y-2 text-xs text-ivory-200/90">
-                {ticket.benefits.map((b, i) => (
+                {ticket.benefits.map((b: string, i: number) => (
                   <li key={i} className="flex items-start gap-2.5">
                     <Check className="h-4 w-4 text-gold-400 flex-shrink-0 mt-0.5 stroke-[3]" />
                     <span>{b}</span>

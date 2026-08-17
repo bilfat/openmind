@@ -1,12 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
+import React, { useState, useEffect, Suspense, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { mockTickets, TicketItem } from "@/data/tickets";
-import { StepIndicator } from "@/components/checkout/step-indicator";
-import { saveNewOrder, generateNextOrderId } from "@/lib/order-store";
-import { OrderItem } from "@/data/orders";
 import {
   ShieldCheck,
   Ticket,
@@ -19,560 +15,332 @@ import {
   ArrowRight,
   Sparkles,
   AlertCircle,
+  Tag,
+  Check,
+  X,
+  Loader2,
+  Minus,
+  Plus
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-import { getStoredTickets, getTicketById } from "@/lib/ticket-store";
-import {
-  validateReferralCode,
-  incrementReferralUsage,
-  ValidationResult,
-} from "@/lib/referral-store";
-import { Tag, Check, X, RotateCcw, Loader2 } from "lucide-react";
+interface Participant {
+    fullName: string;
+    email: string;
+    whatsapp: string;
+    nim: string;
+    faculty: string;
+    studyProgram: string;
+    instagram: string;
+}
+
+interface Ticket {
+    id: string;
+    name: string;
+    min_purchase: number;
+    max_purchase: number;
+    final_price: number;
+}
 
 const facultyOptions = [
-  { value: "Fakultas Ilmu Terapan", label: "FIT — Fakultas Ilmu Terapan" },
-  { value: "Fakultas Industri Kreatif", label: "FIK — Fakultas Industri Kreatif" },
-  { value: "Fakultas Informatika", label: "FIF — Fakultas Informatika" },
-  { value: "Fakultas Teknik Elektro", label: "FTE — Fakultas Teknik Elektro" },
-  { value: "Fakultas Rekayasa Industri", label: "FRI — Fakultas Rekayasa Industri" },
-  { value: "Fakultas Ekonomi dan Bisnis", label: "FEB — Fakultas Ekonomi dan Bisnis" },
-  { value: "Fakultas Komunikasi Sosial", label: "FKS — Fakultas Komunikasi Sosial" },
-];
+    { value: "Fakultas Ilmu Terapan", label: "FIT — Fakultas Ilmu Terapan" },
+    { value: "Fakultas Industri Kreatif", label: "FIK — Fakultas Industri Kreatif" },
+    { value: "Fakultas Informatika", label: "FIF — Fakultas Informatika" },
+    { value: "Fakultas Teknik Elektro", label: "FTE — Fakultas Teknik Elektro" },
+    { value: "Fakultas Rekayasa Industri", label: "FRI — Fakultas Rekayasa Industri" },
+    { value: "Fakultas Ekonomi dan Bisnis", label: "FEB — Fakultas Ekonomi dan Bisnis" },
+    { value: "Fakultas Komunikasi Sosial", label: "FKS — Fakultas Komunikasi Sosial" },
+  ];
+  
 
 function CheckoutContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  const ticketParam = searchParams.get("ticket") || "early-bird";
-  const qtyParam = parseInt(searchParams.get("qty") || "1", 10);
+  const [ticket, setTicket] = useState<Ticket | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const [selectedTicket, setSelectedTicket] = useState<TicketItem>(() =>
-    getTicketById(ticketParam) || getStoredTickets()[1] || mockTickets[1]
-  );
-  const [quantity, setQuantity] = useState<number>(() =>
-    Math.max(1, Math.min(5, qtyParam))
-  );
+  const [quantity, setQuantity] = useState(1);
+  const [participants, setParticipants] = useState<Participant[]>([
+    { fullName: '', email: '', whatsapp: '', nim: '', faculty: 'Fakultas Ilmu Terapan', studyProgram: '', instagram: '' }
+  ]);
+  const [formErrors, setFormErrors] = useState<Record<string, string>[]>([]);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  
+  const ticketId = searchParams.get('ticket');
+  const inviteToken = searchParams.get('invite');
 
-  // Referral Code State
-  const [referralInput, setReferralInput] = useState("");
-  const [isValidatingReferral, setIsValidatingReferral] = useState(false);
-  const [appliedReferral, setAppliedReferral] = useState<{
-    code: string;
-    discountAmount: number;
-    description?: string;
-  } | null>(null);
-  const [referralError, setReferralError] = useState<string | null>(null);
-
-  // Form State
-  const [formData, setFormData] = useState({
-    fullName: "",
-    email: "",
-    whatsapp: "",
-    nim: "",
-    faculty: "Fakultas Ilmu Terapan",
-    studyProgram: "",
-    instagram: "",
-  });
-
-  const [errors, setErrors] = useState<Record<string, string>>({});
-
-  const isFree = selectedTicket.type === "FREE";
-  const unitPrice = isFree ? 0 : selectedTicket.finalPrice ?? selectedTicket.price;
-  const subtotalPrice = unitPrice * quantity;
-  const referralDiscount = !isFree && appliedReferral ? appliedReferral.discountAmount : 0;
-  const finalTotalPrice = Math.max(0, subtotalPrice - referralDiscount);
-
-  const handleApplyReferral = () => {
-    const cleanCode = referralInput.trim().toUpperCase();
-    if (!cleanCode) return;
-
-    if (isFree) {
-      setReferralError("Tiket ini gratis. Kode promo hanya dapat digunakan untuk tiket berbayar.");
-      return;
-    }
-
-    setIsValidatingReferral(true);
-    setReferralError(null);
-
-    setTimeout(() => {
-      const result: ValidationResult = validateReferralCode(cleanCode, subtotalPrice);
-      setIsValidatingReferral(false);
-
-      if (result.isValid && result.discountAmount > 0) {
-        setAppliedReferral({
-          code: cleanCode,
-          discountAmount: result.discountAmount,
-          description: result.referral?.description,
-        });
-        setReferralInput("");
-      } else {
-        setReferralError(result.message);
+  useEffect(() => {
+    async function fetchTicketData() {
+      if (!ticketId) {
+        setError("ID tiket tidak ditemukan di URL.");
+        setLoading(false);
+        return;
       }
-    }, 500);
-  };
+      
+      const apiUrl = inviteToken ? `/api/invite/${inviteToken}` : `/api/tickets/public`;
+      
+      try {
+        const res = await fetch(apiUrl);
+        const json = await res.json();
+        if (!json.success) {
+          throw new Error(json.message || "Gagal memuat data tiket.");
+        }
+        
+        let foundTicket: Ticket | undefined;
+        if(inviteToken) {
+            foundTicket = json.data;
+        } else {
+            foundTicket = json.data.find((t: Ticket) => t.id === ticketId);
+        }
 
-  const handleRemoveReferral = () => {
-    setAppliedReferral(null);
-    setReferralError(null);
-    setReferralInput("");
-  };
-
-  const validateForm = () => {
-    const newErrors: Record<string, string> = {};
-    if (!formData.fullName.trim()) newErrors.fullName = "Nama lengkap wajib diisi.";
-    if (!formData.email.trim() || !formData.email.includes("@"))
-      newErrors.email = "Email valid wajib diisi.";
-    if (!formData.whatsapp.trim() || formData.whatsapp.length < 9)
-      newErrors.whatsapp = "Nomor WhatsApp aktif wajib diisi.";
-    if (!formData.nim.trim()) newErrors.nim = "NIM mahasiswa wajib diisi.";
-    if (!formData.faculty) newErrors.faculty = "Fakultas wajib dipilih.";
-    if (!formData.studyProgram.trim())
-      newErrors.studyProgram = "Program studi wajib diisi.";
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validateForm()) return;
-
-    setIsSubmitting(true);
-    const orderId = generateNextOrderId();
-
-    // Increment referral usage count if used
-    if (appliedReferral) {
-      incrementReferralUsage(appliedReferral.code);
+        if (!foundTicket) {
+          throw new Error("Tiket yang diminta tidak ditemukan atau tidak valid.");
+        }
+        
+        setTicket(foundTicket);
+        setQuantity(foundTicket.min_purchase || 1);
+        setParticipants(Array(foundTicket.min_purchase || 1).fill({ fullName: '', email: '', whatsapp: '', nim: '', faculty: 'Fakultas Ilmu Terapan', studyProgram: '', instagram: '' }));
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
     }
+    fetchTicketData();
+  }, [ticketId, inviteToken]);
 
-    const now = new Date();
-    const createdAtStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(
-      2,
-      "0"
-    )}-${String(now.getDate()).padStart(2, "0")} ${String(
-      now.getHours()
-    ).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")} WIB`;
+  const handleQuantityChange = (amount: number) => {
+    if (!ticket) return;
+    const newQuantity = Math.max(ticket.min_purchase, Math.min(ticket.max_purchase, quantity + amount));
+    setQuantity(newQuantity);
 
-    const newOrder: OrderItem = {
-      orderId,
-      customerName: formData.fullName,
-      email: formData.email,
-      whatsapp: formData.whatsapp,
-      nim: formData.nim,
-      faculty: formData.faculty,
-      studyProgram: formData.studyProgram,
-      instagram: formData.instagram ? `@${formData.instagram.replace("@", "")}` : undefined,
-      ticketId: selectedTicket.id,
-      ticketName: selectedTicket.name,
-      ticketCategory: isFree ? "free" : "paid",
-      quantity,
-      totalPrice: finalTotalPrice,
-      paymentStatus: isFree ? "approved" : "pending",
-      paymentMethod: isFree ? "Free Pass" : "Bank BRI Manual Transfer",
-      createdAt: createdAtStr,
-      checkedIn: false,
+    const diff = newQuantity - participants.length;
+    if (diff > 0) {
+        setParticipants(prev => [...prev, ...Array(diff).fill({ fullName: '', email: '', whatsapp: '', nim: '', faculty: 'Fakultas Ilmu Terapan', studyProgram: '', instagram: '' })]);
+    } else if (diff < 0) {
+        setParticipants(prev => prev.slice(0, newQuantity));
+    }
+  };
+
+  const handleParticipantChange = (index: number, field: keyof Participant, value: string) => {
+    const newParticipants = [...participants];
+    newParticipants[index][field] = value;
+    setParticipants(newParticipants);
+  };
+  
+  const validateForms = () => {
+    const errors: Record<string, string>[] = [];
+    let isValid = true;
+    participants.forEach((p, i) => {
+      const pErrors: Record<string, string> = {};
+      if (!p.fullName.trim()) pErrors.fullName = "Nama lengkap wajib diisi.";
+      if (!p.email.trim() || !p.email.includes('@')) pErrors.email = "Email valid wajib diisi.";
+      if (!p.whatsapp.trim() || p.whatsapp.length < 9) pErrors.whatsapp = "Nomor WhatsApp aktif wajib diisi.";
+      if (!p.nim.trim()) pErrors.nim = "NIM mahasiswa wajib diisi.";
+      if (!p.studyProgram.trim()) pErrors.studyProgram = "Program studi wajib diisi.";
+      if(Object.keys(pErrors).length > 0) isValid = false;
+      errors[i] = pErrors;
+    });
+    setFormErrors(errors);
+    return isValid;
+  };
+  
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validateForms() || !ticket) return;
+    
+    setIsSubmitting(true);
+    setCheckoutError(null);
+
+    const payload = {
+      ticketSelections: [{ ticketId: ticket.id, quantity }],
+      participants,
+      inviteToken,
+      // referralCode will be added later
     };
 
-    saveNewOrder(newOrder);
+    try {
+      const res = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const result = await res.json();
 
-    setTimeout(() => {
-      if (isFree) {
+      if (!result.success) {
+        throw new Error(result.message || "Checkout gagal.");
+      }
+      
+      const orderId = result.orderId;
+      const totalAmount = result.total_amount;
+
+      if (totalAmount === 0) {
         router.push(`/success?order=${orderId}&type=free`);
       } else {
         router.push(`/payment?order=${orderId}`);
       }
-    }, 600);
+
+    } catch (err: any) {
+      setCheckoutError(err.message);
+      setIsSubmitting(false);
+    }
   };
+
+  if (loading) return <div className="text-center py-40">Memuat data tiket...</div>;
+  if (error) return <div className="text-center py-40 text-red-500">Error: {error}</div>;
+  if (!ticket) return <div className="text-center py-40">Tiket tidak ditemukan.</div>;
+
+  const unitPrice = ticket.final_price || 0;
+  const subtotal = unitPrice * quantity;
 
   return (
     <div className="pt-24 pb-20">
-      {/* Header */}
-      <section className="bg-secondary/40 border-b border-border py-10 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-4xl mx-auto text-center space-y-2">
-          <h1 className="font-display text-3xl sm:text-4xl lg:text-5xl font-bold text-navy-900">
-            Form Pendaftaran Peserta
-          </h1>
-          <p className="text-sm sm:text-base text-navy-900/70 max-w-xl mx-auto">
-            Isi data diri Anda dengan benar untuk penerbitan E-Ticket OPEN MIND 2026.
-          </p>
-        </div>
-      </section>
+       <section className="bg-secondary/40 border-b border-border py-10 px-4 sm:px-6 lg:px-8">
+         <div className="max-w-4xl mx-auto text-center space-y-2">
+           <h1 className="font-display text-3xl sm:text-4xl lg:text-5xl font-bold text-navy-900">
+             Form Pendaftaran Peserta
+           </h1>
+           <p className="text-sm sm:text-base text-navy-900/70 max-w-xl mx-auto">
+             Isi data diri Anda dengan benar untuk penerbitan E-Ticket OPEN MIND 2026.
+           </p>
+         </div>
+       </section>
 
-      {/* Step Indicator */}
-      <StepIndicator currentStep={1} isFree={isFree} />
-
-      {/* Main Form Layout */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
-          {/* Left: Registration Form */}
           <div className="lg:col-span-7">
             <div className="rounded-3xl border border-border bg-white p-6 sm:p-10 shadow-sm space-y-6">
               <div className="flex items-center justify-between border-b border-border pb-4">
                 <div>
                   <h2 className="font-display text-xl font-bold text-navy-900">
-                    Data Diri Peserta
+                    Data Diri Peserta ({quantity})
                   </h2>
                   <p className="text-xs text-muted-foreground">
-                    Semua kolom bertanda bintang (*) wajib diisi
+                    Semua kolom bertanda bintang (*) wajib diisi.
                   </p>
-                </div>
-                <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-600 border border-emerald-500/20">
-                  <ShieldCheck className="h-3.5 w-3.5" />
-                  <span>Tanpa Akun</span>
                 </div>
               </div>
-
-              <form onSubmit={handleSubmit} className="space-y-5">
-                {/* Nama Lengkap */}
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-navy-900 mb-1.5">
-                    Nama Lengkap *
-                  </label>
-                  <div className="relative">
-                    <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <input
-                      type="text"
-                      placeholder="Masukkan nama lengkap sesuai identitas"
-                      value={formData.fullName}
-                      onChange={(e) =>
-                        setFormData({ ...formData, fullName: e.target.value })
-                      }
-                      className={cn(
-                        "w-full rounded-xl border bg-secondary/20 py-3 pl-10 pr-4 text-sm text-navy-900 placeholder:text-muted-foreground focus:border-gold-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-gold-500/20 transition-all",
-                        errors.fullName ? "border-destructive" : "border-border"
-                      )}
-                    />
-                  </div>
-                  {errors.fullName && (
-                    <p className="mt-1 text-xs text-destructive">{errors.fullName}</p>
-                  )}
-                </div>
-
-                {/* Email & WhatsApp Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-navy-900 mb-1.5">
-                      Email Aktif *
-                    </label>
-                    <div className="relative">
-                      <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <input
-                        type="email"
-                        placeholder="contoh@student.telkomuniversity.ac.id"
-                        value={formData.email}
-                        onChange={(e) =>
-                          setFormData({ ...formData, email: e.target.value })
-                        }
-                        className={cn(
-                          "w-full rounded-xl border bg-secondary/20 py-3 pl-10 pr-4 text-sm text-navy-900 placeholder:text-muted-foreground focus:border-gold-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-gold-500/20 transition-all",
-                          errors.email ? "border-destructive" : "border-border"
-                        )}
-                      />
+              
+              <form onSubmit={handleSubmit} className="space-y-8">
+                {participants.map((p, index) => (
+                  <div key={index} className="space-y-5 border-b border-border pb-6 last:border-b-0">
+                    <h3 className="font-bold text-navy-900 text-base">Peserta #{index + 1}</h3>
+                    
+                    {/* Nama Lengkap */}
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-navy-900 mb-1.5">Nama Lengkap *</label>
+                      <div className="relative">
+                        <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <input type="text" placeholder="Masukkan nama lengkap" value={p.fullName} onChange={e => handleParticipantChange(index, 'fullName', e.target.value)} className={cn("w-full rounded-xl border bg-secondary/20 py-3 pl-10 pr-4", formErrors[index]?.fullName && "border-destructive")} />
+                      </div>
+                      {formErrors[index]?.fullName && <p className="mt-1 text-xs text-destructive">{formErrors[index].fullName}</p>}
                     </div>
-                    {errors.email && (
-                      <p className="mt-1 text-xs text-destructive">{errors.email}</p>
-                    )}
-                  </div>
 
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-navy-900 mb-1.5">
-                      No. WhatsApp *
-                    </label>
-                    <div className="relative">
-                      <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <input
-                        type="tel"
-                        placeholder="08123456789"
-                        value={formData.whatsapp}
-                        onChange={(e) =>
-                          setFormData({ ...formData, whatsapp: e.target.value })
-                        }
-                        className={cn(
-                          "w-full rounded-xl border bg-secondary/20 py-3 pl-10 pr-4 text-sm text-navy-900 placeholder:text-muted-foreground focus:border-gold-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-gold-500/20 transition-all",
-                          errors.whatsapp ? "border-destructive" : "border-border"
-                        )}
-                      />
+                    {/* Email & WA */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-navy-900 mb-1.5">Email *</label>
+                            <div className="relative">
+                                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <input type="email" placeholder="contoh@email.com" value={p.email} onChange={e => handleParticipantChange(index, 'email', e.target.value)} className={cn("w-full rounded-xl border bg-secondary/20 py-3 pl-10 pr-4", formErrors[index]?.email && "border-destructive")} />
+                            </div>
+                            {formErrors[index]?.email && <p className="mt-1 text-xs text-destructive">{formErrors[index].email}</p>}
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-navy-900 mb-1.5">WhatsApp *</label>
+                            <div className="relative">
+                                <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <input type="tel" placeholder="08123456789" value={p.whatsapp} onChange={e => handleParticipantChange(index, 'whatsapp', e.target.value)} className={cn("w-full rounded-xl border bg-secondary/20 py-3 pl-10 pr-4", formErrors[index]?.whatsapp && "border-destructive")} />
+                            </div>
+                            {formErrors[index]?.whatsapp && <p className="mt-1 text-xs text-destructive">{formErrors[index].whatsapp}</p>}
+                        </div>
                     </div>
-                    {errors.whatsapp && (
-                      <p className="mt-1 text-xs text-destructive">{errors.whatsapp}</p>
-                    )}
-                  </div>
-                </div>
+                    {/* NIM */}
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-navy-900 mb-1.5">NIM *</label>
+                       <div className="relative">
+                        <GraduationCap className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <input type="text" placeholder="6706220014" value={p.nim} onChange={e => handleParticipantChange(index, 'nim', e.target.value)} className={cn("w-full rounded-xl border bg-secondary/20 py-3 pl-10 pr-4", formErrors[index]?.nim && "border-destructive")} />
+                      </div>
+                      {formErrors[index]?.nim && <p className="mt-1 text-xs text-destructive">{formErrors[index].nim}</p>}
+                    </div>
 
-                {/* NIM */}
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-navy-900 mb-1.5">
-                    NIM Mahasiswa *
-                  </label>
-                  <div className="relative">
-                    <GraduationCap className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <input
-                      type="text"
-                      placeholder="Contoh: 6706220014"
-                      value={formData.nim}
-                      onChange={(e) =>
-                        setFormData({ ...formData, nim: e.target.value })
-                      }
-                      className={cn(
-                        "w-full rounded-xl border bg-secondary/20 py-3 pl-10 pr-4 text-sm text-navy-900 placeholder:text-muted-foreground focus:border-gold-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-gold-500/20 transition-all",
-                        errors.nim ? "border-destructive" : "border-border"
-                      )}
-                    />
-                  </div>
-                  {errors.nim && (
-                    <p className="mt-1 text-xs text-destructive">{errors.nim}</p>
-                  )}
-                </div>
-
-                {/* Fakultas & Program Studi */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-navy-900 mb-1.5">
-                      Fakultas *
-                    </label>
-                    <div className="relative">
-                      <Building className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                      <select
-                        value={formData.faculty}
-                        onChange={(e) =>
-                          setFormData({ ...formData, faculty: e.target.value })
-                        }
-                        className="w-full rounded-xl border border-border bg-secondary/20 py-3 pl-10 pr-4 text-sm text-navy-900 focus:border-gold-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-gold-500/20 transition-all appearance-none cursor-pointer"
-                      >
-                        {facultyOptions.map((f) => (
-                          <option key={f.value} value={f.value}>
-                            {f.label}
-                          </option>
-                        ))}
-                      </select>
+                    {/* Fakultas & Prodi */}
+                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-navy-900 mb-1.5">Fakultas *</label>
+                             <div className="relative">
+                                <Building className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <select value={p.faculty} onChange={e => handleParticipantChange(index, 'faculty', e.target.value)} className="w-full appearance-none rounded-xl border bg-secondary/20 py-3 pl-10 pr-4">
+                                    {facultyOptions.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+                                </select>
+                            </div>
+                        </div>
+                         <div>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-navy-900 mb-1.5">Prodi *</label>
+                            <div className="relative">
+                                <BookOpen className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <input type="text" placeholder="D3 Sistem Informasi" value={p.studyProgram} onChange={e => handleParticipantChange(index, 'studyProgram', e.target.value)} className={cn("w-full rounded-xl border bg-secondary/20 py-3 pl-10 pr-4", formErrors[index]?.studyProgram && "border-destructive")} />
+                            </div>
+                            {formErrors[index]?.studyProgram && <p className="mt-1 text-xs text-destructive">{formErrors[index].studyProgram}</p>}
+                        </div>
                     </div>
                   </div>
-
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-navy-900 mb-1.5">
-                      Program Studi *
-                    </label>
-                    <div className="relative">
-                      <BookOpen className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <input
-                        type="text"
-                        placeholder="Contoh: D3 Sistem Informasi"
-                        value={formData.studyProgram}
-                        onChange={(e) =>
-                          setFormData({ ...formData, studyProgram: e.target.value })
-                        }
-                        className={cn(
-                          "w-full rounded-xl border bg-secondary/20 py-3 pl-10 pr-4 text-sm text-navy-900 placeholder:text-muted-foreground focus:border-gold-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-gold-500/20 transition-all",
-                          errors.studyProgram ? "border-destructive" : "border-border"
-                        )}
-                      />
-                    </div>
-                    {errors.studyProgram && (
-                      <p className="mt-1 text-xs text-destructive">
-                        {errors.studyProgram}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Username Instagram (Opsional) */}
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-navy-900 mb-1.5">
-                    Username Instagram <span className="text-muted-foreground normal-case font-normal">(Opsional)</span>
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-bold">
-                      @
-                    </span>
-                    <input
-                      type="text"
-                      placeholder="username_instagram"
-                      value={formData.instagram}
-                      onChange={(e) =>
-                        setFormData({ ...formData, instagram: e.target.value })
-                      }
-                      className="w-full rounded-xl border border-border bg-secondary/20 py-3 pl-8 pr-4 text-sm text-navy-900 placeholder:text-muted-foreground focus:border-gold-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-gold-500/20 transition-all"
-                    />
-                  </div>
-                </div>
-
-                {/* Submit Action */}
+                ))}
+                
                 <div className="pt-4 border-t border-border">
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gold-500 py-4 text-base font-bold text-navy-950 hover:bg-gold-400 transition-all shadow-lg shadow-gold-500/20 hover:scale-[1.01] disabled:opacity-50"
-                  >
-                    {isSubmitting ? (
-                      <span>Memproses Data Peserta...</span>
-                    ) : (
-                      <>
-                        <span>{isFree ? "Konfirmasi & Dapatkan E-Ticket" : "Lanjut ke Pembayaran"}</span>
-                        <ArrowRight className="h-5 w-5" />
-                      </>
-                    )}
+                   {checkoutError && <div className="mb-4 text-center text-sm text-destructive bg-destructive/10 p-3 rounded-xl">{checkoutError}</div>}
+                  <button type="submit" disabled={isSubmitting} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gold-500 py-4 text-base font-bold text-navy-950 disabled:opacity-50">
+                    {isSubmitting ? <><Loader2 className="h-5 w-5 animate-spin" /> <span>Memproses...</span></> : (subtotal > 0 ? "Lanjut ke Pembayaran" : "Dapatkan E-Ticket Gratis")}
                   </button>
-                  <p className="text-[11px] text-center text-muted-foreground mt-3">
-                    Dengan melanjutkan, Anda menyetujui seluruh syarat & ketentuan tiket OPEN MIND 2026.
-                  </p>
                 </div>
               </form>
             </div>
           </div>
-
-          {/* Right: Order Summary Sidebar */}
+          
           <div className="lg:col-span-5 sticky top-28">
             <div className="rounded-3xl border border-gold-500/30 bg-navy-950 p-6 sm:p-8 text-ivory-100 shadow-xl space-y-6">
-              <div className="flex items-center justify-between border-b border-navy-800 pb-4">
-                <h3 className="font-display text-lg font-bold text-ivory-100 flex items-center gap-2">
-                  <Ticket className="h-5 w-5 text-gold-400" />
-                  <span>Ringkasan Pesanan</span>
-                </h3>
-                <Link
-                  href="/tiket"
-                  className="text-xs font-semibold text-gold-400 hover:text-gold-300 underline"
-                >
-                  Ubah Tiket
-                </Link>
-              </div>
-
-              {/* Selected Ticket Preview */}
-              <div className="rounded-2xl border border-gold-500/20 bg-navy-900/80 p-5 space-y-3">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-gold-400">
-                      TIKET TERPILIH
-                    </span>
-                    <h4 className="font-display text-xl font-bold text-ivory-100">
-                      {selectedTicket.name}
-                    </h4>
-                  </div>
-                  <span className="rounded-full bg-gold-500/10 border border-gold-500/30 px-2.5 py-1 text-[11px] font-bold text-gold-400">
-                    {quantity} Pax
-                  </span>
+                <div className="flex items-center justify-between border-b border-navy-800 pb-4">
+                    <h3 className="font-display text-lg font-bold text-ivory-100">Ringkasan Pesanan</h3>
+                    <Link href="/tiket" className="text-xs font-semibold text-gold-400">Ubah</Link>
                 </div>
-
-                <div className="flex items-baseline justify-between text-xs text-ivory-200/70 border-t border-navy-800 pt-3">
-                  <span>Harga Satuan:</span>
-                  <span className="font-bold text-ivory-100">
-                    {isFree
-                      ? "Rp 0"
-                      : `Rp ${(selectedTicket.finalPrice ?? selectedTicket.price).toLocaleString("id-ID")}`}
-                  </span>
-                </div>
-              </div>
-
-              {/* Promo / Referral Code Box (Only for Paid Tickets) */}
-              {!isFree && (
-                <div className="rounded-2xl border border-navy-800 bg-navy-900/60 p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold uppercase tracking-wider text-ivory-100 flex items-center gap-1.5">
-                      <Tag className="h-3.5 w-3.5 text-gold-400" />
-                      <span>KODE REFERAL / PROMO</span>
-                    </span>
-                  </div>
-
-                  {!appliedReferral ? (
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          placeholder="Masukkan kode promo..."
-                          value={referralInput}
-                          onChange={(e) => setReferralInput(e.target.value.toUpperCase())}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              e.preventDefault();
-                              handleApplyReferral();
-                            }
-                          }}
-                          className="flex-1 rounded-xl border border-navy-800 bg-navy-950 px-3.5 py-2.5 text-xs font-mono font-bold tracking-wider text-ivory-100 placeholder:text-ivory-200/40 focus:border-gold-500 focus:outline-none"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleApplyReferral}
-                          disabled={isValidatingReferral || !referralInput.trim()}
-                          className="inline-flex items-center gap-1 rounded-xl bg-gold-500 px-4 py-2.5 text-xs font-bold text-navy-950 hover:bg-gold-400 transition-all disabled:opacity-40"
-                        >
-                          {isValidatingReferral ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <span>Terapkan</span>
-                          )}
-                        </button>
-                      </div>
-                      {referralError && (
-                        <p className="text-[11px] text-destructive flex items-center gap-1">
-                          <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
-                          <span>{referralError}</span>
-                        </p>
-                      )}
+                
+                <div className="rounded-2xl border border-gold-500/20 bg-navy-900/80 p-5 space-y-4">
+                    <div>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-gold-400">TIKET TERPILIH</span>
+                        <h4 className="font-display text-xl font-bold text-ivory-100">{ticket.name}</h4>
                     </div>
-                  ) : (
-                    <div className="rounded-xl bg-emerald-500/15 border border-emerald-500/30 p-3 flex items-center justify-between gap-2">
-                      <div>
-                        <span className="font-mono font-black text-xs text-emerald-400 flex items-center gap-1">
-                          <Check className="h-3.5 w-3.5 stroke-[3]" />
-                          <span>{appliedReferral.code}</span>
-                        </span>
-                        <p className="text-[10px] text-emerald-300">
-                          Diskon berhasil diterapkan (- Rp {appliedReferral.discountAmount.toLocaleString("id-ID")})
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleRemoveReferral}
-                        className="rounded-lg p-1.5 text-ivory-200/60 hover:text-destructive hover:bg-destructive/10 transition-colors"
-                        title="Hapus Promo"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
+                    
+                    <div className="flex items-center justify-between text-sm">
+                        <span>Kuantitas:</span>
+                        <div className="flex items-center gap-3 rounded-full bg-navy-950 border border-navy-800 p-1">
+                            <button onClick={() => handleQuantityChange(-1)} disabled={quantity <= ticket.min_purchase} className="p-1.5 rounded-full bg-navy-800 disabled:opacity-30"><Minus className="h-3 w-3" /></button>
+                            <span className="font-bold w-4 text-center">{quantity}</span>
+                            <button onClick={() => handleQuantityChange(1)} disabled={quantity >= ticket.max_purchase} className="p-1.5 rounded-full bg-navy-800 disabled:opacity-30"><Plus className="h-3 w-3" /></button>
+                        </div>
                     </div>
-                  )}
-                </div>
-              )}
-
-              {/* Cost Calculations */}
-              <div className="space-y-2.5 text-sm text-ivory-200/80">
-                <div className="flex justify-between">
-                  <span>Subtotal ({quantity} tiket):</span>
-                  <span>{isFree ? "Rp 0" : `Rp ${subtotalPrice.toLocaleString("id-ID")}`}</span>
                 </div>
 
-                {!isFree && appliedReferral && (
-                  <div className="flex justify-between text-xs text-emerald-400 font-bold">
-                    <span>Potongan Referal ({appliedReferral.code}):</span>
-                    <span>- Rp {appliedReferral.discountAmount.toLocaleString("id-ID")}</span>
-                  </div>
-                )}
-
-                <div className="flex justify-between text-xs text-ivory-200/60">
-                  <span>Biaya Layanan Admin:</span>
-                  <span className="text-emerald-400 font-bold">GRATIS (Rp 0)</span>
+                {/* Pricing summary - all client side calculations are for display only */}
+                <div className="space-y-2.5 text-sm text-ivory-200/80">
+                    <div className="flex justify-between">
+                        <span>Harga Satuan:</span>
+                        <span>Rp {unitPrice.toLocaleString('id-ID')}</span>
+                    </div>
+                    <div className="flex justify-between">
+                        <span>Subtotal:</span>
+                        <span>Rp {subtotal.toLocaleString('id-ID')}</span>
+                    </div>
+                     <div className="border-t border-navy-800 pt-3 flex justify-between items-baseline">
+                        <span className="font-bold text-ivory-100">Estimasi Total:</span>
+                        <span className="font-display text-2xl font-extrabold text-gold-400">Rp {subtotal.toLocaleString('id-ID')}</span>
+                    </div>
+                    <p className="text-[11px] text-ivory-200/50 text-center pt-2">Total tagihan final akan dihitung oleh server saat checkout, termasuk diskon jika ada.</p>
                 </div>
-
-                <div className="border-t border-navy-800 pt-3 flex justify-between items-baseline">
-                  <span className="font-bold text-ivory-100">Total Tagihan:</span>
-                  <span className="font-display text-2xl font-extrabold text-gold-400">
-                    {isFree ? "Rp 0 (GRATIS)" : `Rp ${finalTotalPrice.toLocaleString("id-ID")}`}
-                  </span>
-                </div>
-              </div>
-
-              {/* Free Ticket Note */}
-              {isFree ? (
-                <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-3.5 text-xs text-emerald-300 flex items-start gap-2.5">
-                  <Sparkles className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                  <span>Tiket gratis langsung terbit dan tidak memerlukan langkah transfer pembayaran.</span>
-                </div>
-              ) : (
-                <div className="rounded-xl bg-gold-500/10 border border-gold-500/20 p-3.5 text-xs text-ivory-200/80 flex items-start gap-2.5">
-                  <AlertCircle className="h-4 w-4 text-gold-400 flex-shrink-0 mt-0.5" />
-                  <span>Pembayaran dilakukan via transfer manual ke Bank BRI resmi panitia pada langkah selanjutnya.</span>
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -583,15 +351,7 @@ function CheckoutContent() {
 
 export default function CheckoutPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="pt-32 pb-20 text-center">
-          <p className="text-sm font-semibold text-gold-600 animate-pulse">
-            Memuat Formulir Checkout...
-          </p>
-        </div>
-      }
-    >
+    <Suspense fallback={<div className="text-center py-40">Memuat...</div>}>
       <CheckoutContent />
     </Suspense>
   );

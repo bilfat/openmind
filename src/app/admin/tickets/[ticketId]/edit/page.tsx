@@ -11,10 +11,44 @@ import { ArrowLeft } from "lucide-react";
 export default function EditTicketPage() {
   const params = useParams();
   const ticketId = (params?.ticketId as string) || "";
-  const [ticket] = useState<TicketType | null>(() =>
-    ticketId ? getTicketById(ticketId) : null
-  );
-  const loading = false;
+  const [ticket, setTicket] = useState<any | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchTicket() {
+      if (!ticketId) return;
+      try {
+        const res = await fetch(`/api/admin/tickets/${ticketId}`);
+        const json = await res.json();
+        if (json.success) {
+          const t = json.data;
+          setTicket({
+            id: t.id,
+            name: t.name,
+            description: t.description || "",
+            type: t.ticket_type,
+            visibility: t.visibility,
+            price: Number(t.base_price),
+            discountPercentage: Number(t.discount_percentage),
+            finalPrice: Number(t.final_price),
+            quota: Number(t.quota),
+            issued: Number(t.quota) - Number(t.remaining_quota || t.quota),
+            minPurchase: Number(t.min_purchase),
+            maxPurchase: Number(t.max_purchase),
+            salesStart: t.sales_start_at.substring(0, 16),
+            salesEnd: t.sales_end_at.substring(0, 16),
+            status: t.status,
+            benefits: t.benefits || []
+          });
+        }
+      } catch (err) {
+        console.error("Failed to load ticket:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchTicket();
+  }, [ticketId]);
 
   if (loading) {
     return (

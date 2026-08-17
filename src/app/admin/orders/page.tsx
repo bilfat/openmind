@@ -3,7 +3,9 @@
 import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
-import { getStoredOrders, updateOrderStatus, OrderItem } from "@/lib/order-store";
+import { OrderItem } from "@/lib/order-store";
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import {
   Search,
   Filter,
@@ -21,41 +23,117 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+type ApiOrder = {
+  id: string;
+  order_code: string;
+  status: string;
+  total_amount: number;
+  participant_count: number;
+  participants: Array<{ full_name: string; email: string; nim: string; faculty: string; study_program: string; whatsapp?: string }>;
+  ticket_types: string[];
+  created_at: string;
+};
+
+function toLegacyOrder(order: ApiOrder): OrderItem & { databaseId: string } {
+  const participant = order.participants[0];
+  return {
+    databaseId: order.id,
+    orderId: order.order_code,
+    customerName: participant?.full_name ?? "-",
+    email: participant?.email ?? "-",
+    whatsapp: participant?.whatsapp ?? "-",
+    nim: participant?.nim ?? "-",
+    faculty: participant?.faculty ?? "-",
+    studyProgram: participant?.study_program ?? "-",
+    ticketId: order.ticket_types[0] ?? "-",
+    ticketName: order.ticket_types.join(", ") || "-",
+    ticketCategory: "paid",
+    quantity: order.participant_count,
+    totalPrice: order.total_amount,
+    paymentStatus: order.status.toLowerCase() as "pending" | "approved" | "rejected",
+    createdAt: new Date(order.created_at).toLocaleString("id-ID"),
+    checkedIn: false,
+    checkedInAt: "",
+  };
+}
+
 function OrdersPageContent() {
   const searchParams = useSearchParams();
   const initialStatusParam = searchParams.get("status") || "all";
 
-  const [orders, setOrders] = useState<OrderItem[]>(() => getStoredOrders());
+  const [orders, setOrders] = useState<OrderItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState(initialStatusParam);
   const [ticketFilter, setTicketFilter] = useState("all");
   const [facultyFilter, setFacultyFilter] = useState("all");
-
   const [selectedOrder, setSelectedOrder] = useState<OrderItem | null>(null);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
 
-  const refreshOrders = () => {
-    setOrders(getStoredOrders());
+  const refreshOrders = async () => {
+    const params = new URLSearchParams({ page: "1", limit: "100" });
+    if (searchQuery.trim()) params.set("search", searchQuery.trim());
+    if (statusFilter !== "all") params.set("status", statusFilter.toUpperCase());
+    if (ticketFilter !== "all") params.set("ticket_type", ticketFilter);
+    if (facultyFilter !== "all") params.set("faculty", facultyFilter);
+    const response = await fetch(`/api/admin/orders?${params.toString()}`, { cache: "no-store" });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.message || "Gagal mengambil pesanan.");
+    const nextOrders = (payload.items ?? []) as ApiOrder[];
+    setOrders(nextOrders.map(toLegacyOrder));
   };
 
+  useEffect(() => {
+    // Fetch after the effect commits so the server refresh does not run in the effect body.
+    const refresh = () => { void refreshOrders().catch((error) => console.error(error)); };
+    queueMicrotask(refresh);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery, statusFilter, ticketFilter, facultyFilter]);
 
-  const handleApprove = (orderId: string) => {
-    updateOrderStatus(orderId, "approved");
-    refreshOrders();
-    setSelectedOrder(null);
+  const handleApprove = async (orderId: string) => {
+    try {
+      const res = await fetch(`/api/admin/orders/${orderId}/approve`, {
+        method: "POST"
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.message || "Gagal menyetujui pesanan.");
+        return;
+      }
+      alert("Pesanan berhasil disetujui!");
+      refreshOrders();
+      setSelectedOrder(null);
+    } catch (err: any) {
+      console.error(err);
+      alert("Terjadi kesalahan jaringan.");
+    }
   };
 
-  const handleReject = (orderId: string) => {
-    updateOrderStatus(
-      orderId,
-      "rejected",
-      rejectReason || "Nominal / Bukti transfer tidak valid"
-    );
-    refreshOrders();
-    setRejectModalOpen(false);
-    setSelectedOrder(null);
-    setRejectReason("");
+  const handleReject = async (orderId: string) => {
+    if (!rejectReason.trim()) {
+      alert("Alasan penolakan wajib diisi.");
+      return;
+    }
+    try {
+      const res = await fetch(`/api/admin/orders/${orderId}/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rejectionReason: rejectReason })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.message || "Gagal menolak pesanan.");
+        return;
+      }
+      alert("Pesanan berhasil ditolak!");
+      refreshOrders();
+      setRejectModalOpen(false);
+      setSelectedOrder(null);
+      setRejectReason("");
+    } catch (err: any) {
+      console.error(err);
+      alert("Terjadi kesalahan jaringan.");
+    }
   };
 
   // Filtering
@@ -415,7 +493,7 @@ function OrdersPageContent() {
 
                   <button
                     type="button"
-                    onClick={() => handleApprove(selectedOrder.orderId)}
+                    onClick={() => handleApprove((selectedOrder as OrderItem & { databaseId: string }).databaseId)}
                     className="inline-flex items-center gap-1.5 rounded-2xl bg-emerald-600 px-6 py-3 text-xs font-bold text-white hover:bg-emerald-700 transition-all shadow-md shadow-emerald-600/20"
                   >
                     <CheckCircle2 className="h-4 w-4" />
@@ -434,7 +512,7 @@ function OrdersPageContent() {
               {selectedOrder.paymentStatus === "rejected" && (
                 <button
                   type="button"
-                  onClick={() => handleApprove(selectedOrder.orderId)}
+                  onClick={() => handleApprove((selectedOrder as OrderItem & { databaseId: string }).databaseId)}
                   className="inline-flex items-center gap-1.5 rounded-2xl bg-emerald-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-emerald-700"
                 >
                   <CheckCircle2 className="h-4 w-4" />
@@ -490,7 +568,7 @@ function OrdersPageContent() {
               </button>
               <button
                 type="button"
-                onClick={() => handleReject(selectedOrder.orderId)}
+                onClick={() => handleReject((selectedOrder as OrderItem & { databaseId: string }).databaseId)}
                 className="rounded-xl bg-destructive px-5 py-2 text-xs font-bold text-white hover:bg-destructive/90 shadow-md"
               >
                 Konfirmasi Tolak

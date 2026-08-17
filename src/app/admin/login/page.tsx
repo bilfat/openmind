@@ -10,16 +10,10 @@ import {
   Eye,
   EyeOff,
   ArrowRight,
-  ShieldCheck,
   Sparkles,
   ArrowLeft,
 } from "lucide-react";
-
-import {
-  authenticate,
-  setSession,
-  toAuthUser,
-} from "@/lib/auth";
+import { createClient } from "@/lib/supabase/browser";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -28,8 +22,9 @@ export default function AdminLoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const supabase = createClient();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
       setError("Harap isi alamat email dan kata sandi.");
@@ -39,30 +34,52 @@ export default function AdminLoginPage() {
     setIsLoading(true);
     setError("");
 
-    window.setTimeout(() => {
-      const account = authenticate(email, password);
+    try {
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-      if (!account) {
+      if (authError) {
         setIsLoading(false);
-        setError("Kredensial tidak valid. Silakan gunakan akun demo di bawah.");
+        setError(authError.message || "Kredensial tidak valid.");
         return;
       }
 
-      if (account.status !== "ACTIVE") {
+      const user = data.user;
+      if (!user) {
+        setIsLoading(false);
+        setError("Gagal memproses sesi login.");
+        return;
+      }
+
+      // Check profile status from profiles table
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("status")
+        .eq("id", user.id)
+        .single();
+
+      if (profileError || !profile) {
+        await supabase.auth.signOut();
+        setIsLoading(false);
+        setError("Profil admin tidak ditemukan di database.");
+        return;
+      }
+
+      if (profile.status !== "ACTIVE") {
+        await supabase.auth.signOut();
         setIsLoading(false);
         setError("Akun ini tidak aktif. Silakan hubungi Super Admin.");
         return;
       }
 
-      setSession(toAuthUser(account));
+      // Redirect on successful login
       router.push("/admin/dashboard");
-    }, 600);
-  };
-
-  const handleQuickDemo = (demoEmail: string) => {
-    setEmail(demoEmail);
-    setPassword("password123");
-    setError("");
+    } catch (err: any) {
+      setIsLoading(false);
+      setError(err.message || "Terjadi kesalahan sistem.");
+    }
   };
 
   return (
@@ -114,7 +131,7 @@ export default function AdminLoginPage() {
                 <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gold-400/70" />
                 <input
                   type="email"
-                  placeholder="admin@openmind2026.id"
+                  placeholder="admin@email.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full rounded-xl border border-navy-700 bg-navy-950/80 py-3 pl-10 pr-4 text-sm text-ivory-100 placeholder:text-ivory-200/40 focus:border-gold-500 focus:outline-none focus:ring-2 focus:ring-gold-500/20 transition-all font-medium"
@@ -172,31 +189,6 @@ export default function AdminLoginPage() {
               )}
             </button>
           </form>
-
-          {/* Quick Demo Credentials */}
-          <div className="border-t border-navy-800 pt-5 space-y-2.5">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-gold-400 block text-center">
-              Akses Cepat (Demo Panitia)
-            </span>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => handleQuickDemo("admin@openmind2026.id")}
-                className="rounded-xl border border-navy-700 bg-navy-950 p-2.5 text-left text-xs text-ivory-200/80 hover:border-gold-500/50 hover:text-gold-400 transition-colors"
-              >
-                <strong className="block text-ivory-100 font-semibold">Event Admin</strong>
-                <span className="text-[10px] text-ivory-200/50">admin@openmind2026.id</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickDemo("superadmin@openmind2026.id")}
-                className="rounded-xl border border-navy-700 bg-navy-950 p-2.5 text-left text-xs text-ivory-200/80 hover:border-gold-500/50 hover:text-gold-400 transition-colors"
-              >
-                <strong className="block text-ivory-100 font-semibold">Super Admin</strong>
-                <span className="text-[10px] text-ivory-200/50">superadmin@openmind2026.id</span>
-              </button>
-            </div>
-          </div>
         </motion.div>
       </div>
     </div>

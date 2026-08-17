@@ -1,16 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { TicketType, TicketStatus } from "@/data/tickets";
-import {
-  getTicketById,
-  getDerivedTicketStatus,
-  duplicateTicket,
-  setTicketStatus,
-  archiveTicket,
-} from "@/lib/ticket-store";
+import { TicketStatus } from "@/data/tickets";
 import { TicketPreview } from "@/components/admin/tickets/ticket-preview";
 import { PrivateLinkModal } from "@/components/admin/tickets/private-link-modal";
 import {
@@ -40,9 +33,8 @@ export default function TicketDetailPage() {
   const router = useRouter();
   const ticketId = (params?.ticketId as string) || "";
 
-  const [ticket, setTicket] = useState<TicketType | null>(() =>
-    ticketId ? getTicketById(ticketId) : null
-  );
+  const [ticket, setTicket] = useState<any | null>(null);
+  const [loading, setLoading] = useState(true);
   const [copiedLink, setCopiedLink] = useState(false);
   const [privateModalOpen, setPrivateModalOpen] = useState(false);
   const [actionMenuOpen, setActionMenuOpen] = useState(false);
@@ -53,22 +45,42 @@ export default function TicketDetailPage() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const loadTicket = () => {
-    if (ticketId) {
-      const found = getTicketById(ticketId);
-      setTicket(found);
+  const loadTicket = async () => {
+    if (!ticketId) return;
+    try {
+      const res = await fetch(`/api/admin/tickets/${ticketId}`);
+      const json = await res.json();
+      if (json.success) {
+        setTicket(json.data);
+      }
+    } catch (err) {
+      console.error("Failed to load ticket:", err);
+    } finally {
+      setLoading(false);
     }
   };
 
+  useEffect(() => {
+    loadTicket();
+  }, [ticketId]);
+
+  if (loading) {
+    return (
+      <div className="p-12 text-center text-sm font-semibold text-gold-600 animate-pulse bg-white rounded-3xl border border-border shadow-sm">
+        Memuat detail konfigurasi tiket...
+      </div>
+    );
+  }
+
   if (!ticket) {
     return (
-      <div className="p-12 text-center space-y-4">
-        <p className="text-sm text-muted-foreground">
-          Jenis tiket tidak ditemukan atau telah dihapus.
+      <div className="p-12 text-center space-y-4 bg-white rounded-3xl border border-border shadow-sm">
+        <p className="text-sm text-muted-foreground font-light">
+          Jenis tiket tidak ditemukan atau telah dihapus dari database.
         </p>
         <Link
           href="/admin/tickets"
-          className="inline-flex items-center gap-1.5 rounded-xl bg-gold-500 px-4 py-2 text-xs font-bold text-navy-950"
+          className="inline-flex items-center gap-1.5 rounded-xl bg-gold-500 px-4 py-2 text-xs font-bold text-navy-950 hover:bg-gold-400 transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
           <span>Kembali ke Daftar Tiket</span>
@@ -77,8 +89,22 @@ export default function TicketDetailPage() {
     );
   }
 
+  function getDerivedTicketStatus(t: any): string {
+    if (t.status === "ARCHIVED" || t.status === "DRAFT" || t.status === "PAUSED") {
+      return t.status;
+    }
+    if (t.issued >= t.quota) {
+      return "SOLD_OUT";
+    }
+    const end = new Date(t.sales_end_at).getTime();
+    if (!isNaN(end) && Date.now() > end) {
+      return "EXPIRED";
+    }
+    return "ACTIVE";
+  }
+
   const derivedStatus = getDerivedTicketStatus(ticket);
-  const isFree = ticket.type === "FREE";
+  const isFree = ticket.ticket_type === "FREE";
   const isPrivate = ticket.visibility === "PRIVATE";
   const remaining = Math.max(0, ticket.quota - ticket.issued);
   const salesPercent = Math.min(
@@ -98,29 +124,79 @@ export default function TicketDetailPage() {
     setTimeout(() => setCopiedLink(false), 2000);
   };
 
-  const handleDuplicate = () => {
-    const dup = duplicateTicket(ticket.id);
-    if (dup) {
-      router.push(`/admin/tickets/${dup.id}`);
+  const handleDuplicate = async () => {
+    try {
+      const payload = {
+        name: `${ticket.name} (Copy)`,
+        code: `${ticket.code.slice(0, 5)}CP${Date.now().toString().slice(-3)}`,
+        description: ticket.description,
+        ticket_type: ticket.ticket_type,
+        visibility: ticket.visibility,
+        base_price: Number(ticket.base_price),
+        discount_percentage: Number(ticket.discount_percentage),
+        quota: Number(ticket.quota),
+        min_purchase: Number(ticket.min_purchase),
+        max_purchase: Number(ticket.max_purchase),
+        sales_start_at: ticket.sales_start_at,
+        sales_end_at: ticket.sales_end_at,
+        benefits: ticket.benefits,
+        status: 'DRAFT',
+      };
+      
+      const res = await fetch('/api/admin/tickets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const json = await res.json();
+      if (json.success) {
+        router.push(`/admin/tickets/${json.data.id}`);
+      } else {
+        showToast(`Gagal menduplikasi: ${json.message}`);
+      }
+    } catch (err: any) {
+      showToast(`Gagal menduplikasi: ${err.message}`);
     }
   };
 
-  const handleTogglePause = () => {
-    if (derivedStatus === "PAUSED") {
-      setTicketStatus(ticket.id, "ACTIVE");
-      showToast("Tiket berhasil diaktifkan kembali.");
-    } else {
-      setTicketStatus(ticket.id, "PAUSED");
-      showToast("Penjualan tiket berhasil dihentikan (Paused).");
+  const handleTogglePause = async () => {
+    const nextStatus = derivedStatus === "PAUSED" ? "ACTIVE" : "PAUSED";
+    try {
+      const res = await fetch(`/api/admin/tickets/${ticket.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: nextStatus })
+      });
+      const json = await res.json();
+      if (json.success) {
+        showToast(nextStatus === "ACTIVE" ? "Tiket berhasil diaktifkan kembali." : "Penjualan tiket berhasil dihentikan (Paused).");
+        loadTicket();
+      } else {
+        showToast(`Gagal memperbarui status: ${json.message}`);
+      }
+    } catch (err: any) {
+      showToast(`Gagal memperbarui status: ${err.message}`);
     }
-    loadTicket();
     setActionMenuOpen(false);
   };
 
-  const handleArchive = () => {
-    archiveTicket(ticket.id);
-    showToast("Tiket berhasil diarsipkan.");
-    loadTicket();
+  const handleArchive = async () => {
+    try {
+      const res = await fetch(`/api/admin/tickets/${ticket.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'ARCHIVED' })
+      });
+      const json = await res.json();
+      if (json.success) {
+        showToast("Tiket berhasil diarsipkan.");
+        loadTicket();
+      } else {
+        showToast(`Gagal mengarsipkan: ${json.message}`);
+      }
+    } catch (err: any) {
+      showToast(`Gagal mengarsipkan: ${err.message}`);
+    }
     setActionMenuOpen(false);
   };
 
@@ -153,7 +229,7 @@ export default function TicketDetailPage() {
                     : "bg-gold-500/20 text-gold-700"
                 )}
               >
-                {ticket.type}
+                {ticket.ticket_type}
               </span>
 
               {isPrivate ? (
@@ -387,7 +463,7 @@ export default function TicketDetailPage() {
                   Tipe & Visibilitas
                 </span>
                 <span className="text-navy-900 font-bold">
-                  {ticket.type} · {ticket.visibility}
+                  {ticket.ticket_type} · {ticket.visibility}
                 </span>
               </div>
 
@@ -398,10 +474,10 @@ export default function TicketDetailPage() {
                 <span className="text-navy-900 font-bold">
                   {isFree
                     ? "GRATIS (Rp 0)"
-                    : `Rp ${ticket.finalPrice.toLocaleString("id-ID")}`}{" "}
-                  {ticket.discountPercentage > 0 && (
+                    : `Rp ${Number(ticket.final_price).toLocaleString("id-ID")}`}{" "}
+                  {Number(ticket.discount_percentage) > 0 && (
                     <span className="text-emerald-600 font-semibold">
-                      ({ticket.discountPercentage}% OFF)
+                      ({ticket.discount_percentage}% OFF)
                     </span>
                   )}
                 </span>
@@ -412,7 +488,7 @@ export default function TicketDetailPage() {
                   Batas Pembelian
                 </span>
                 <span className="text-navy-900 font-bold">
-                  {ticket.minPurchase} s/d {ticket.maxPurchase} Tiket / Transaksi
+                  {ticket.min_purchase} s/d {ticket.max_purchase} Tiket / Transaksi
                 </span>
               </div>
             </div>
@@ -424,7 +500,7 @@ export default function TicketDetailPage() {
                 <span>Periode Penjualan:</span>
               </div>
               <p className="text-xs text-navy-900/80 font-mono">
-                {ticket.salesStart.replace("T", " ")} WIB ➔ {ticket.salesEnd.replace("T", " ")} WIB
+                {ticket.sales_start_at.replace("T", " ").replace("Z", "").substring(0, 16)} WIB ➔ {ticket.sales_end_at.replace("T", " ").replace("Z", "").substring(0, 16)} WIB
               </p>
             </div>
 
@@ -434,7 +510,7 @@ export default function TicketDetailPage() {
                 Daftar Hak Akses / Benefit Peserta:
               </span>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {ticket.benefits.map((b, i) => (
+                {ticket.benefits.map((b: string, i: number) => (
                   <div
                     key={i}
                     className="flex items-center gap-2 rounded-xl bg-secondary/30 p-2.5 text-xs text-navy-900"

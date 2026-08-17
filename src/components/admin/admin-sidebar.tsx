@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { getSession, clearSession, AuthUser } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/browser";
 
 interface NavGroup {
   label: string;
@@ -69,22 +69,34 @@ export function AdminSidebar({ mobileOpen = false, onMobileClose }: AdminSidebar
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
-  const [user, setUser] = useState<AuthUser | null>(null);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const supabase = createClient();
 
   useEffect(() => {
-    const session = getSession();
-    setUser(session);
-  }, []);
+    async function fetchUserRole() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-  const isSuperAdmin = user?.role === "SUPER_ADMIN";
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+
+      if (profile) {
+        setIsSuperAdmin(profile.role === "SUPER_ADMIN");
+      }
+    }
+    fetchUserRole();
+  }, [supabase]);
 
   const isActive = (href: string) => {
     if (href === "/admin/dashboard") return pathname === "/admin/dashboard" || pathname === "/admin";
     return pathname.startsWith(href);
   };
 
-  const handleLogout = () => {
-    clearSession();
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     router.push("/admin/login");
   };
 

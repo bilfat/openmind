@@ -2,8 +2,8 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { AuthUser, getSession } from "@/lib/auth";
 import { LogIn } from "lucide-react";
+import { createClient } from "@/lib/supabase/browser";
 
 export function AccessDenied() {
   const router = useRouter();
@@ -41,20 +41,36 @@ export function SessionExpired() {
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [checked, setChecked] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const supabase = createClient();
 
   useEffect(() => {
-    const session = getSession();
-    if (!session || session.status !== "ACTIVE") {
-      router.replace(`/admin/login?returnTo=${encodeURIComponent(pathname)}`);
-      return;
-    }
-    setUser(session);
-    setChecked(true);
-  }, [pathname, router]);
+    async function checkAuth() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.replace(`/admin/login?returnTo=${encodeURIComponent(pathname)}`);
+        return;
+      }
 
-  if (!checked || !user) return <div className="min-h-screen bg-[#F5F3EE]" aria-label="Loading session" />;
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("status")
+        .eq("id", user.id)
+        .single();
+
+      if (!profile || profile.status !== "ACTIVE") {
+        await supabase.auth.signOut();
+        router.replace(`/admin/login?returnTo=${encodeURIComponent(pathname)}`);
+        return;
+      }
+
+      setLoading(false);
+    }
+
+    checkAuth();
+  }, [pathname, router, supabase]);
+
+  if (loading) return <div className="min-h-screen bg-[#F5F3EE]" aria-label="Loading session" />;
   return <>{children}</>;
 }
 
@@ -68,11 +84,38 @@ const SUPER_ADMIN_ROUTES = [
 
 export function RoleGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const user = getSession();
+  const [role, setRole] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const supabase = createClient();
+
+  useEffect(() => {
+    async function fetchRole() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+
+      if (profile) {
+        setRole(profile.role);
+      }
+      setLoading(false);
+    }
+
+    fetchRole();
+  }, [supabase]);
+
   const requiresSuperAdmin = SUPER_ADMIN_ROUTES.some(
     (route) => pathname === route || pathname.startsWith(`${route}/`)
   );
 
-  if (requiresSuperAdmin && user?.role !== "SUPER_ADMIN") return <AccessDenied />;
+  if (loading) return <div className="min-h-screen bg-[#F5F3EE]" aria-label="Checking permissions" />;
+  if (requiresSuperAdmin && role !== "SUPER_ADMIN") return <AccessDenied />;
   return <>{children}</>;
 }

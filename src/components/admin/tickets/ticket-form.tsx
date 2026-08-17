@@ -5,10 +5,6 @@ import { useRouter } from "next/navigation";
 import { TicketType, TicketStatus } from "@/data/tickets";
 import { TicketPreview } from "./ticket-preview";
 import {
-  updateExistingTicket,
-  createNewTicket,
-} from "@/lib/ticket-store";
-import {
   Plus,
   Trash2,
   Lock,
@@ -139,10 +135,9 @@ export function TicketForm({ initialData, isEdit = false }: TicketFormProps) {
     return Object.keys(err).length === 0;
   };
 
-  const handleSubmit = (targetStatus: TicketStatus = "ACTIVE") => {
+  const handleSubmit = async (targetStatus: TicketStatus = "ACTIVE") => {
     if (!validate()) return;
 
-    // If editing price on ticket with existing sales, show confirmation once
     if (
       isEdit &&
       initialData &&
@@ -155,22 +150,54 @@ export function TicketForm({ initialData, isEdit = false }: TicketFormProps) {
     }
 
     setIsSubmitting(true);
+    setErrors({});
 
     const payload = {
-      ...formData,
-      finalPrice,
+      name: formData.name,
+      code: formData.name.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10),
+      description: formData.description,
+      ticket_type: formData.type,
+      visibility: formData.visibility,
+      base_price: formData.price,
+      discount_percentage: formData.discountPercentage,
+      quota: formData.quota,
+      min_purchase: formData.minPurchase,
+      max_purchase: formData.maxPurchase,
+      sales_start_at: new Date(formData.salesStart).toISOString(),
+      sales_end_at: new Date(formData.salesEnd).toISOString(),
+      benefits: formData.benefits,
       status: targetStatus,
     };
 
-    setTimeout(() => {
-      if (isEdit && initialData) {
-        updateExistingTicket(initialData.id, payload);
-        router.push(`/admin/tickets/${initialData.id}`);
-      } else {
-        const created = createNewTicket(payload);
-        router.push(`/admin/tickets/${created.id}`);
+    try {
+      const url = isEdit && initialData
+        ? `/api/admin/tickets/${initialData.id}`
+        : `/api/admin/tickets`;
+      
+      const method = isEdit && initialData ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const json = await res.json();
+
+      if (!json.success) {
+        setErrors({ submit: json.message || 'Gagal menyimpan tiket.' });
+        setIsSubmitting(false);
+        return;
       }
-    }, 600);
+
+      router.push(`/admin/tickets/${json.data.id}`);
+      router.refresh();
+    } catch (err: any) {
+      setErrors({ submit: err.message || 'Terjadi kesalahan sistem.' });
+      setIsSubmitting(false);
+    }
   };
 
   const handleCancel = () => {
@@ -230,6 +257,12 @@ export function TicketForm({ initialData, isEdit = false }: TicketFormProps) {
           </button>
         </div>
       </div>
+
+      {errors.submit && (
+        <div className="rounded-2xl bg-destructive/15 border border-destructive/20 p-4 text-xs font-semibold text-destructive text-center">
+          {errors.submit}
+        </div>
+      )}
 
       {/* Main 60:40 Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">

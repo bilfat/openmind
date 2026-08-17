@@ -1,137 +1,67 @@
 "use client";
-import { useState, useMemo } from "react";
-import { getStoredOrders, OrderItem } from "@/lib/order-store";
-import { mockTickets } from "@/data/tickets";
+
+import { useEffect, useMemo, useState } from "react";
 import { Users, Search, Download } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 
+type ParticipantRow = {
+  id: string;
+  full_name: string;
+  email: string;
+  nim: string;
+  faculty: string;
+  study_program: string;
+  orders: Array<{ order_item_id: string; order?: { order_code: string; status: string }; ticket_type?: { name: string; ticket_type: string }; issued_ticket?: { ticket_code: string; status: string } | null }>;
+};
+
 export default function ParticipantsPage() {
-  const [orders] = useState<OrderItem[]>(getStoredOrders);
+  const [participants, setParticipants] = useState<ParticipantRow[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filters, setFilters] = useState({
-    ticketId: "all",
-    faculty: "all",
-    checkedIn: "all",
-  });
+  const [faculty, setFaculty] = useState("all");
+  const [ticketType, setTicketType] = useState("all");
+  const [loading, setLoading] = useState(true);
 
-  const participants = useMemo(() => {
-    return orders.filter(o => o.paymentStatus === 'approved');
-  }, [orders]);
+   useEffect(() => {
+     const controller = new AbortController();
+     const params = new URLSearchParams({ page: "1", limit: "100" });
+    if (searchTerm.trim()) params.set("search", searchTerm.trim());
+    if (faculty !== "all") params.set("faculty", faculty);
+    if (ticketType !== "all") params.set("ticket_type", ticketType);
+    fetch(`/api/admin/participants?${params.toString()}`, { cache: "no-store", signal: controller.signal })
+      .then(async (response) => {
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.message || "Gagal mengambil data peserta.");
+        setParticipants(payload.items ?? []);
+      })
+      .catch((error) => { if (error.name !== "AbortError") console.error(error); })
+      .finally(() => setLoading(false));
+    return () => controller.abort();
+  }, [searchTerm, faculty, ticketType]);
 
-  const filteredParticipants = useMemo(() => {
-    return participants.filter((p) => {
-      const searchMatch =
-        p.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.nim.includes(searchTerm) ||
-        p.orderId.toLowerCase().includes(searchTerm.toLowerCase());
-      
-      const ticketMatch = filters.ticketId === 'all' || p.ticketId === filters.ticketId;
-      const facultyMatch = filters.faculty === 'all' || p.faculty === filters.faculty;
-      const checkedInMatch = filters.checkedIn === 'all' || (filters.checkedIn === 'yes' && p.checkedIn) || (filters.checkedIn === 'no' && !p.checkedIn);
+  const faculties = useMemo(() => [...new Set(participants.map((participant) => participant.faculty).filter(Boolean))], [participants]);
 
-      return searchMatch && ticketMatch && facultyMatch && checkedInMatch;
-    });
-  }, [participants, searchTerm, filters]);
+  const exportCSV = () => {
+    const rows = participants.map((participant) => [participant.full_name, participant.email, participant.nim, participant.faculty, participant.study_program, participant.orders.map((order) => order.ticket_type?.name ?? "-").join("; ")]);
+    const csv = [["Name", "Email", "NIM", "Faculty", "Study Program", "Tickets"], ...rows].map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(",")).join("\n");
+    const link = document.createElement("a");
+    link.href = `data:text/csv;charset=utf-8,${encodeURIComponent(csv)}`;
+    link.download = "open_mind_2026_participants.csv";
+    link.click();
+  };
 
-  const faculties = useMemo(() => [...new Set(participants.map(p => p.faculty))], [participants]);
-  
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold font-display text-navy-900">Participants</h1>
-        <div className="flex items-center gap-2">
-            <button className="flex items-center gap-2 px-4 py-2 bg-navy-800 text-white rounded-lg text-sm font-semibold hover:bg-navy-700 transition btn-scale touch-target">
-                <Download className="w-4 h-4" />
-                Export CSV
-            </button>
-        </div>
+        <button onClick={exportCSV} className="flex items-center gap-2 px-4 py-2 bg-navy-800 text-white rounded-lg text-sm font-semibold hover:bg-navy-700 transition btn-scale touch-target"><Download className="w-4 h-4" />Export CSV</button>
       </div>
-
       <div className="bg-white p-6 rounded-xl shadow-md">
-        {/* Filters */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search by name, NIM, Order ID..."
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-gold-500 focus:border-gold-500"
-              aria-label="Cari peserta berdasarkan nama, NIM, atau Order ID"
-            />
-          </div>
-          <select 
-            className="w-full px-4 py-2 border rounded-lg focus:ring-gold-500 focus:border-gold-500 bg-white"
-            value={filters.ticketId}
-            onChange={e => setFilters(prev => ({...prev, ticketId: e.target.value}))}
-            aria-label="Filter berdasarkan tipe tiket"
-          >
-            <option value="all">All Ticket Types</option>
-            {mockTickets.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-          </select>
-          <select 
-            className="w-full px-4 py-2 border rounded-lg focus:ring-gold-500 focus:border-gold-500 bg-white"
-            value={filters.faculty}
-            onChange={e => setFilters(prev => ({...prev, faculty: e.target.value}))}
-            aria-label="Filter berdasarkan fakultas"
-          >
-            <option value="all">All Faculties</option>
-            {faculties.map(f => <option key={f} value={f}>{f}</option>)}
-          </select>
-          <select 
-            className="w-full px-4 py-2 border rounded-lg focus:ring-gold-500 focus:border-gold-500 bg-white"
-            value={filters.checkedIn}
-            onChange={e => setFilters(prev => ({...prev, checkedIn: e.target.value}))}
-            aria-label="Filter berdasarkan status check-in"
-            >
-            <option value="all">Check-in Status</option>
-            <option value="yes">Checked-in</option>
-            <option value="no">Not Checked-in</option>
-          </select>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" /><input type="text" placeholder="Search by name, NIM, or email..." value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} className="w-full pl-10 pr-4 py-2 border rounded-lg" aria-label="Cari peserta" /></div>
+          <select value={faculty} onChange={(event) => setFaculty(event.target.value)} className="w-full px-4 py-2 border rounded-lg bg-white" aria-label="Filter fakultas"><option value="all">All Faculties</option>{faculties.map((value) => <option key={value} value={value}>{value}</option>)}</select>
+          <select value={ticketType} onChange={(event) => setTicketType(event.target.value)} className="w-full px-4 py-2 border rounded-lg bg-white" aria-label="Filter tipe tiket"><option value="all">All Ticket Types</option><option value="FREE">Free</option><option value="PAID">Paid</option></select>
         </div>
-        
-        {filteredParticipants.length === 0 ? (
-          <EmptyState
-            icon={Users}
-            title={participants.length === 0 ? "Belum ada peserta" : "Peserta tidak ditemukan"}
-            description={participants.length === 0 
-              ? "Belum ada peserta yang terdaftar. Peserta akan muncul setelah melakukan pembelian tiket."
-              : "Tidak ada peserta yang sesuai dengan filter yang kamu pilih. Coba ubah filter atau kata kunci pencarian."
-            }
-          />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="text-xs text-gray-700 uppercase bg-gray-50">
-                <tr>
-                  <th scope="col" className="px-6 py-3">Name</th>
-                  <th scope="col" className="px-6 py-3">NIM</th>
-                  <th scope="col" className="px-6 py-3">Faculty</th>
-                  <th scope="col" className="px-6 py-3">Ticket</th>
-                  <th scope="col" className="px-6 py-3">Checked-in</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredParticipants.map(p => (
-                  <tr key={p.orderId} className="bg-white border-b hover:bg-gray-50">
-                    <td className="px-6 py-4 font-medium text-gray-900">{p.customerName}</td>
-                    <td className="px-6 py-4">{p.nim}</td>
-                    <td className="px-6 py-4">{p.faculty}</td>
-                    <td className="px-6 py-4">{p.ticketName}</td>
-                    <td className="px-6 py-4">
-                      {p.checkedIn ? (
-                          <span className="px-2 py-1 text-xs font-semibold text-green-800 bg-green-100 rounded-full">Yes at {p.checkedInAt}</span>
-                      ) : (
-                          <span className="px-2 py-1 text-xs font-semibold text-red-800 bg-red-100 rounded-full">No</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        {loading ? <div className="py-12 text-center text-gray-500">Memuat peserta...</div> : participants.length === 0 ? <EmptyState icon={Users} title="Peserta tidak ditemukan" description="Tidak ada peserta yang sesuai dengan filter saat ini." /> : <div className="overflow-x-auto"><table className="w-full text-sm text-left"><thead className="text-xs text-gray-700 uppercase bg-gray-50"><tr><th className="px-6 py-3">Name</th><th className="px-6 py-3">NIM</th><th className="px-6 py-3">Faculty</th><th className="px-6 py-3">Ticket</th><th className="px-6 py-3">Order</th></tr></thead><tbody>{participants.map((participant) => <tr key={participant.id} className="bg-white border-b hover:bg-gray-50"><td className="px-6 py-4 font-medium text-gray-900">{participant.full_name}</td><td className="px-6 py-4">{participant.nim}</td><td className="px-6 py-4">{participant.faculty}</td><td className="px-6 py-4">{participant.orders.map((order) => <div key={order.order_item_id}>{order.ticket_type?.name ?? "-"}{order.issued_ticket ? ` · ${order.issued_ticket.ticket_code}` : " · Unissued"}</div>)}</td><td className="px-6 py-4">{participant.orders.map((order) => order.order?.order_code ?? "-").join(", ")}</td></tr>)}</tbody></table></div>}
       </div>
     </div>
   );

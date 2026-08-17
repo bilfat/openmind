@@ -8,13 +8,6 @@ import {
   TicketVisibility,
   TicketStatus,
 } from "@/data/tickets";
-import {
-  getStoredTickets,
-  getDerivedTicketStatus,
-  duplicateTicket,
-  setTicketStatus,
-  archiveTicket,
-} from "@/lib/ticket-store";
 import { PrivateLinkModal } from "@/components/admin/tickets/private-link-modal";
 import {
   Plus,
@@ -37,8 +30,10 @@ import {
 import { cn } from "@/lib/utils";
 
 export default function AdminTicketsListPage() {
-  const [tickets, setTickets] = useState<TicketType[]>(() => getStoredTickets());
+  const [tickets, setTickets] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [typeFilter, setTypeFilter] = useState<string>("ALL");
   const [visibilityFilter, setVisibilityFilter] = useState<string>("ALL");
@@ -59,36 +54,125 @@ export default function AdminTicketsListPage() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const refreshList = () => {
-    setTickets(getStoredTickets());
+  const refreshList = async () => {
+    try {
+      const res = await fetch("/api/admin/tickets");
+      const json = await res.json();
+      if (json.success) {
+        const mapped = json.data.map((t: any) => ({
+          ...t,
+          type: t.ticket_type,
+          price: Number(t.base_price),
+          finalPrice: Number(t.final_price),
+          discountPercentage: Number(t.discount_percentage),
+          minPurchase: Number(t.min_purchase),
+          maxPurchase: Number(t.max_purchase),
+          salesStart: t.sales_start_at,
+          salesEnd: t.sales_end_at,
+          issued: Number(t.quota) - Number(t.remaining_quota || t.quota)
+        }));
+        setTickets(mapped);
+      }
+    } catch (err) {
+      console.error("Failed to load tickets:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
+  useEffect(() => {
+    refreshList();
+  }, []);
 
-  const handleDuplicate = (id: string) => {
-    const dup = duplicateTicket(id);
-    if (dup) {
-      refreshList();
-      showToast(`Tiket "${dup.name}" berhasil diduplikasi.`);
+  function getDerivedTicketStatus(t: any): TicketStatus {
+    if (t.status === "ARCHIVED" || t.status === "DRAFT" || t.status === "PAUSED") {
+      return t.status;
+    }
+    if (t.issued >= t.quota) {
+      return "SOLD_OUT";
+    }
+    const end = new Date(t.salesEnd).getTime();
+    if (!isNaN(end) && Date.now() > end) {
+      return "EXPIRED";
+    }
+    return "ACTIVE";
+  }
+
+  const handleDuplicate = async (ticket: any) => {
+    try {
+      const payload = {
+        name: `${ticket.name} (Copy)`,
+        code: `${ticket.code.slice(0, 5)}CP${Date.now().toString().slice(-3)}`,
+        description: ticket.description,
+        ticket_type: ticket.ticket_type,
+        visibility: ticket.visibility,
+        base_price: Number(ticket.base_price),
+        discount_percentage: Number(ticket.discount_percentage),
+        quota: Number(ticket.quota),
+        min_purchase: Number(ticket.min_purchase),
+        max_purchase: Number(ticket.max_purchase),
+        sales_start_at: ticket.sales_start_at,
+        sales_end_at: ticket.sales_end_at,
+        benefits: ticket.benefits,
+        status: 'DRAFT',
+      };
+      
+      const res = await fetch('/api/admin/tickets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const json = await res.json();
+      if (json.success) {
+        refreshList();
+        showToast(`Tiket "${payload.name}" berhasil diduplikasi.`);
+      } else {
+        showToast(`Gagal menduplikasi: ${json.message}`);
+      }
+    } catch (err: any) {
+      showToast(`Gagal menduplikasi: ${err.message}`);
     }
     setActionMenuOpen(null);
   };
 
-  const handleTogglePause = (ticket: TicketType, currentDerived: TicketStatus) => {
-    if (currentDerived === "PAUSED") {
-      setTicketStatus(ticket.id, "ACTIVE");
-      showToast(`Tiket "${ticket.name}" telah diaktifkan kembali.`);
-    } else {
-      setTicketStatus(ticket.id, "PAUSED");
-      showToast(`Penjualan tiket "${ticket.name}" sementara dihentikan (Paused).`);
+  const handleTogglePause = async (ticket: any, currentDerived: TicketStatus) => {
+    const nextStatus = currentDerived === "PAUSED" ? "ACTIVE" : "PAUSED";
+    try {
+      const res = await fetch(`/api/admin/tickets/${ticket.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: nextStatus })
+      });
+      const json = await res.json();
+      if (json.success) {
+        showToast(nextStatus === "ACTIVE" ? `Tiket "${ticket.name}" telah diaktifkan kembali.` : `Penjualan tiket "${ticket.name}" sementara dihentikan (Paused).`);
+        refreshList();
+      } else {
+        showToast(`Gagal memperbarui status: ${json.message}`);
+      }
+    } catch (err: any) {
+      showToast(`Gagal memperbarui status: ${err.message}`);
     }
-    refreshList();
     setActionMenuOpen(null);
   };
 
-  const handleArchive = (ticket: TicketType) => {
-    archiveTicket(ticket.id);
-    refreshList();
-    showToast(`Tiket "${ticket.name}" berhasil diarsipkan.`);
+  const handleArchive = async (ticket: any) => {
+    try {
+      const res = await fetch(`/api/admin/tickets/${ticket.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'ARCHIVED' })
+      });
+      const json = await res.json();
+      if (json.success) {
+        showToast(`Tiket "${ticket.name}" berhasil diarsipkan.`);
+        refreshList();
+      } else {
+        showToast(`Gagal mengarsipkan: ${json.message}`);
+      }
+    } catch (err: any) {
+      showToast(`Gagal mengarsipkan: ${err.message}`);
+    }
     setActionMenuOpen(null);
   };
 

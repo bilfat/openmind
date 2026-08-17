@@ -3,7 +3,6 @@
 import React, { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { getOrderByOrderId } from "@/lib/order-store";
 import { OrderItem } from "@/data/orders";
 import { ETicketCard } from "@/components/ticket-view/e-ticket-card";
 import {
@@ -12,20 +11,34 @@ import {
   AlertTriangle,
   ArrowLeft,
   Search,
-  CheckCircle2,
   Home,
-  MessageSquare,
 } from "lucide-react";
-import { contactWhatsApp } from "@/data/social-links";
 
 export default function TicketDetailPage() {
   const params = useParams();
-  const ticketId = (params?.id as string) || "";
+  const token = (params?.id as string) || "";
+  const [order, setOrder] = useState<OrderItem | null>(null);
+  const [loading, setLoading] = useState(() => Boolean(token));
 
-  const [order] = useState<OrderItem | null>(() =>
-    ticketId ? getOrderByOrderId(ticketId) ?? null : null
-  );
-  const loading = false;
+  useEffect(() => {
+    let active = true;
+    if (!token) return;
+    fetch(`/api/tickets/${encodeURIComponent(token)}`)
+      .then(async (response) => {
+        const payload = await response.json();
+        if (!response.ok || !payload.success) throw new Error(payload.message || "Ticket not found");
+        if (active) setOrder(payload.data);
+      })
+      .catch(() => {
+        if (active) setOrder(null);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [token]);
 
   if (loading) {
     return (
@@ -51,7 +64,7 @@ export default function TicketDetailPage() {
             E-Ticket Tidak Ditemukan
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground">
-            Tidak ada tiket dengan kode identifikasi &ldquo;{ticketId}&rdquo;.
+            Tidak ada tiket dengan kode identifikasi &ldquo;{token}&rdquo;.
           </p>
         </div>
         <div className="flex flex-wrap items-center justify-center gap-3">

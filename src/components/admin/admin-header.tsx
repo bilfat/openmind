@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import { Bell, Search, User, Menu } from "lucide-react";
 import { useEffect, useState } from "react";
-import { getSession, AuthUser } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/browser";
 
 const pageTitles: Record<string, string> = {
   "/admin/dashboard": "Dashboard",
@@ -23,12 +23,28 @@ interface AdminHeaderProps {
 
 export function AdminHeader({ onMenuToggle }: AdminHeaderProps) {
   const pathname = usePathname();
-  const [user, setUser] = useState<AuthUser | null>(null);
+  const [displayName, setDisplayName] = useState("Admin");
+  const [displayRole, setDisplayRole] = useState("Admin");
+  const supabase = createClient();
 
   useEffect(() => {
-    const session = getSession();
-    setUser(session);
-  }, []);
+    async function fetchUserData() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name, role")
+        .eq("id", user.id)
+        .single();
+
+      if (profile) {
+        setDisplayName(profile.full_name || user.email?.split("@")[0] || "Admin");
+        setDisplayRole(profile.role === "SUPER_ADMIN" ? "Super Admin" : "Admin");
+      }
+    }
+    fetchUserData();
+  }, [supabase]);
 
   const getTitle = () => {
     for (const [path, title] of Object.entries(pageTitles)) {
@@ -36,9 +52,6 @@ export function AdminHeader({ onMenuToggle }: AdminHeaderProps) {
     }
     return "Admin";
   };
-
-  const displayName = user?.name || "Admin";
-  const displayRole = user?.role === "SUPER_ADMIN" ? "Super Admin" : "Admin";
 
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-white/80 backdrop-blur-lg">

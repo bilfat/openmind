@@ -51,6 +51,27 @@ function TiketPageContent() {
     );
   });
 
+  const [tickets, setTickets] = useState<any[]>([]);
+  const [loadingTickets, setLoadingTickets] = useState(true);
+
+  useEffect(() => {
+    async function fetchTickets() {
+      try {
+        const res = await fetch("/api/tickets/public");
+        const json = await res.json();
+        if (json.success) {
+          setTickets(json.data);
+        }
+      } catch (err) {
+        console.error("Error fetching tickets:", err);
+      } finally {
+        setLoadingTickets(false);
+      }
+    }
+    fetchTickets();
+  }, []);
+
+
   const performSearch = (query: string) => {
     const q = query.trim();
     if (!q) return;
@@ -145,15 +166,42 @@ function TiketPageContent() {
 
             {/* Voucher Cards Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 items-start">
-              {getStoredTickets()
-                .filter((t) => t.visibility === "PUBLIC" && t.status === "ACTIVE")
-                .map((ticket) => (
+              {loadingTickets ? (
+                <div className="col-span-full text-center py-12 text-navy-900/60 font-light">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gold-500 mx-auto mb-4" />
+                  <span>Memuat daftar tiket...</span>
+                </div>
+              ) : tickets.length === 0 ? (
+                <div className="col-span-full text-center py-12 text-navy-900/50 border border-dashed border-border rounded-2xl bg-white/50 p-6">
+                  <span>Tidak ada tiket aktif yang tersedia untuk dibeli saat ini.</span>
+                </div>
+              ) : (
+                tickets.map((t) => (
                   <TicketVoucherCard
-                    key={ticket.id}
-                    ticket={ticket}
-                    featured={ticket.id === "early-bird"}
+                    key={t.id}
+                    ticket={{
+                      id: t.id,
+                      name: t.name,
+                      description: t.description || "",
+                      type: t.ticket_type,
+                      visibility: t.visibility,
+                      price: Number(t.base_price),
+                      discountPercentage: Number(t.discount_percentage),
+                      finalPrice: Number(t.final_price),
+                      quota: Number(t.quota),
+                      issued: Number(t.quota) - Number(t.remaining_quota),
+                      minPurchase: Number(t.min_purchase),
+                      maxPurchase: Number(t.max_purchase),
+                      salesStart: t.sales_start_at,
+                      salesEnd: t.sales_end_at,
+                      status: t.status,
+                      benefits: t.benefits || [],
+                      badge: t.code === "EARLY" ? "Best Seller" : t.base_price === 0 ? "Limited Quota" : "Standard"
+                    }}
+                    featured={t.code === "EARLY"}
                   />
-                ))}
+                ))
+              )}
             </div>
           </section>
 

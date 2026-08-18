@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { broadcastToAllAdmins } from '@/lib/notifications';
 import { z } from 'zod';
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 const RequestSchema = z.object({
   orderId: z.string().uuid('ID order tidak valid.'),
@@ -93,6 +96,20 @@ export async function POST(req: Request) {
         message: submitError.message.includes('VALIDATION_ERROR') ? submitError.message.split('VALIDATION_ERROR:')[1]?.trim() : 'Gagal memproses bukti pembayaran.'
       }, { status: 400 });
     }
+
+    // 6. Notification (FAIL-OPEN): PAYMENT_RECEIVED for all active admins — only after RPC success.
+    // Reuses the existing trusted admin client.
+    await broadcastToAllAdmins({
+      type: 'PAYMENT_RECEIVED',
+      title: 'Bukti Pembayaran Diterima',
+      message: 'Bukti pembayaran untuk sebuah pesanan telah diterima.',
+      link: '/admin/orders',
+      metadata: {
+        order_id: orderId,
+        payment_id: submitResult.paymentId,
+      },
+      client: supabase,
+    });
 
     return NextResponse.json({
       success: true,

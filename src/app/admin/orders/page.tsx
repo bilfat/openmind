@@ -1,40 +1,53 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
+import React, { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { OrderItem } from "@/lib/order-store";
+import { canDeliverTickets, ticketEmailActionLabel, withActionLock } from "@/lib/admin-order-actions";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import {
   Search,
-  Filter,
   Download,
   Eye,
   CheckCircle2,
   XCircle,
   Clock,
-  ChevronDown,
-  ArrowUpDown,
-  Building,
   Ticket,
   AlertCircle,
   FileSpreadsheet,
+  Loader2,
+  Mail,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useToast } from "@/components/ui/toast";
 
 type ApiOrder = {
   id: string;
   order_code: string;
   status: string;
+  source: string;
   total_amount: number;
   participant_count: number;
+  issued_ticket_count: number;
+  has_ticket_email_job: boolean;
   participants: Array<{ full_name: string; email: string; nim: string; faculty: string; study_program: string; whatsapp?: string }>;
   ticket_types: string[];
   created_at: string;
 };
 
-function toLegacyOrder(order: ApiOrder): OrderItem & { databaseId: string } {
+type AdminOrder = OrderItem & {
+  databaseId: string;
+  status: string;
+  source: string;
+  issuedTicketCount: number;
+  hasTicketEmailJob: boolean;
+  paymentProofUrl?: string;
+};
+
+function toLegacyOrder(order: ApiOrder): AdminOrder {
   const participant = order.participants[0];
   return {
     databaseId: order.id,
@@ -50,30 +63,64 @@ function toLegacyOrder(order: ApiOrder): OrderItem & { databaseId: string } {
     ticketCategory: "paid",
     quantity: order.participant_count,
     totalPrice: order.total_amount,
-    paymentStatus: order.status.toLowerCase() as "pending" | "approved" | "rejected",
+    paymentStatus: order.status === "REJECTED"
+      ? "rejected"
+      : order.status === "APPROVED" || order.status === "TICKET_ISSUED"
+        ? "approved"
+        : "pending",
     createdAt: new Date(order.created_at).toLocaleString("id-ID"),
     checkedIn: false,
     checkedInAt: "",
+    status: order.status,
+    source: order.source,
+    issuedTicketCount: order.issued_ticket_count,
+    hasTicketEmailJob: order.has_ticket_email_job,
   };
+}
+
+function statusBadge(status: string) {
+  switch (status) {
+    case "TICKET_ISSUED":
+      return { cls: "bg-emerald-500/15 text-emerald-700", icon: Ticket, label: "TIKET DITERBITKAN" };
+    case "APPROVED":
+      return { cls: "bg-emerald-500/15 text-emerald-700", icon: CheckCircle2, label: "DISETUJUI" };
+    case "WAITING_VERIFICATION":
+      return { cls: "bg-orange-500/15 text-orange-700", icon: Clock, label: "PERLU VERIFIKASI" };
+    case "PENDING_PAYMENT":
+      return { cls: "bg-orange-500/15 text-orange-700", icon: Clock, label: "MENUNGGU PEMBAYARAN" };
+    case "REJECTED":
+      return { cls: "bg-destructive/15 text-destructive", icon: XCircle, label: "DITOLAK" };
+    case "CANCELLED":
+      return { cls: "bg-rose-500/15 text-rose-700", icon: XCircle, label: "DIBATALKAN" };
+    case "EXPIRED":
+      return { cls: "bg-slate-500/15 text-slate-600", icon: Clock, label: "KADALUARSA" };
+    default:
+      return { cls: "bg-secondary/40 text-navy-900", icon: AlertCircle, label: status };
+  }
 }
 
 function OrdersPageContent() {
   const searchParams = useSearchParams();
   const initialStatusParam = searchParams.get("status") || "all";
+  const toast = useToast();
 
-  const [orders, setOrders] = useState<OrderItem[]>([]);
+  const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState(initialStatusParam);
   const [ticketFilter, setTicketFilter] = useState("all");
   const [facultyFilter, setFacultyFilter] = useState("all");
-  const [selectedOrder, setSelectedOrder] = useState<OrderItem | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<AdminOrder | null>(null);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  const [downloadingIds, setDownloadingIds] = useState<Set<string>>(new Set());
+  const [sendingIds, setSendingIds] = useState<Set<string>>(new Set());
+  const [sendConfirmOrder, setSendConfirmOrder] = useState<AdminOrder | null>(null);
+  const actionLocks = useRef<Set<string>>(new Set());
 
   const refreshOrders = async () => {
-    const params = new URLSearchParams({ page: "1", limit: "100" });
+    const params = new URLSearchParams({ page: "1", limit: "50" });
     if (searchQuery.trim()) params.set("search", searchQuery.trim());
-    if (statusFilter !== "all") params.set("status", statusFilter.toUpperCase());
+    if (statusFilter !== "all") params.set("status", statusFilter);
     if (ticketFilter !== "all") params.set("ticket_type", ticketFilter);
     if (facultyFilter !== "all") params.set("faculty", facultyFilter);
     const response = await fetch(`/api/admin/orders?${params.toString()}`, { cache: "no-store" });
@@ -89,6 +136,27 @@ function OrdersPageContent() {
     queueMicrotask(refresh);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery, statusFilter, ticketFilter, facultyFilter]);
+
+  const handleReviewOrder = async (order: AdminOrder) => {
+    try {
+      const res = await fetch(`/api/admin/orders/${order.databaseId}`, { cache: "no-store" });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.message || "Gagal memuat detail pesanan.");
+      }
+      const payments = json.payments || [];
+      const latestPayment = payments[0];
+      const proofUrl = latestPayment?.proof_url || null;
+
+      setSelectedOrder({
+        ...order,
+        paymentProofUrl: proofUrl,
+      });
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || "Gagal memuat detail pesanan.");
+    }
+  };
 
   const handleApprove = async (orderId: string) => {
     try {
@@ -145,7 +213,7 @@ function OrdersPageContent() {
       order.email.toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesStatus =
-      statusFilter === "all" || order.paymentStatus === statusFilter;
+      statusFilter === "all" || order.status === statusFilter;
 
     const matchesTicket =
       ticketFilter === "all" || order.ticketId === ticketFilter;
@@ -155,6 +223,76 @@ function OrdersPageContent() {
 
     return matchesSearch && matchesStatus && matchesTicket && matchesFaculty;
   });
+
+  const handleDownload = async (order: AdminOrder) => {
+    await withActionLock(actionLocks.current, `download:${order.databaseId}`, async () => {
+      setDownloadingIds((prev) => new Set(prev).add(order.databaseId));
+      try {
+        const res = await fetch(`/api/admin/orders/${order.databaseId}/download-tickets`, { cache: "no-store" });
+        if (!res.ok) {
+          let message = "Gagal mengunduh tiket.";
+          try {
+            const data = await res.json();
+            if (data?.message) message = data.message;
+          } catch {
+            // ignore non-JSON error body
+          }
+          toast.error(message);
+          return;
+        }
+        const blob = await res.blob();
+        const disposition = res.headers.get("Content-Disposition") ?? "";
+        const filenameMatch = disposition.match(/filename="?([^"]+)"?/);
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filenameMatch?.[1] ?? `${order.orderId}-tickets.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        toast.success("Tiket berhasil diunduh.");
+      } catch (err) {
+        console.error(err);
+        toast.error("Terjadi kesalahan jaringan saat mengunduh tiket.");
+      } finally {
+        setDownloadingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(order.databaseId);
+          return next;
+        });
+      }
+    });
+  };
+
+  const handleSendTicket = async (order: AdminOrder) => {
+    const isResend = order.hasTicketEmailJob;
+    await withActionLock(actionLocks.current, `send:${order.databaseId}`, async () => {
+      setSendingIds((prev) => new Set(prev).add(order.databaseId));
+      try {
+        const res = await fetch(`/api/admin/orders/${order.databaseId}/send-tickets`, {
+          method: "POST",
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          toast.error(data?.message || "Gagal mengirim e-ticket.");
+          return;
+        }
+        toast.success(isResend ? "E-tiket berhasil dikirim ulang." : "e-tiket berhasil dikirim ke email peserta.");
+        setSendConfirmOrder(null);
+        void refreshOrders().catch((error) => console.error(error));
+      } catch (err) {
+        console.error(err);
+        toast.error("Gagal mengirim e-ticket.");
+      } finally {
+        setSendingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(order.databaseId);
+          return next;
+        });
+      }
+    });
+  };
 
   const exportCSV = () => {
     const headers = [
@@ -230,19 +368,29 @@ function OrdersPageContent() {
           {[
             { id: "all", label: "Semua Pesanan", count: orders.length },
             {
-              id: "pending",
-              label: "Pending Verifikasi",
-              count: orders.filter((o) => o.paymentStatus === "pending").length,
+              id: "PENDING_PAYMENT",
+              label: "Menunggu Pembayaran",
+              count: orders.filter((o) => o.status === "PENDING_PAYMENT").length,
             },
             {
-              id: "approved",
-              label: "Disetujui (Approved)",
-              count: orders.filter((o) => o.paymentStatus === "approved").length,
+              id: "WAITING_VERIFICATION",
+              label: "Perlu Verifikasi",
+              count: orders.filter((o) => o.status === "WAITING_VERIFICATION").length,
             },
             {
-              id: "rejected",
-              label: "Ditolak (Rejected)",
-              count: orders.filter((o) => o.paymentStatus === "rejected").length,
+              id: "APPROVED",
+              label: "Disetujui",
+              count: orders.filter((o) => o.status === "APPROVED").length,
+            },
+            {
+              id: "TICKET_ISSUED",
+              label: "Tiket Diterbitkan",
+              count: orders.filter((o) => o.status === "TICKET_ISSUED").length,
+            },
+            {
+              id: "REJECTED",
+              label: "Ditolak",
+              count: orders.filter((o) => o.status === "REJECTED").length,
             },
           ].map((tab) => (
             <button
@@ -379,22 +527,21 @@ function OrdersPageContent() {
                         : `Rp ${order.totalPrice.toLocaleString("id-ID")}`}
                     </td>
                     <td className="px-5 py-4 whitespace-nowrap">
-                      <span
-                        className={cn(
-                          "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase",
-                          order.paymentStatus === "approved" &&
-                            "bg-emerald-500/15 text-emerald-700",
-                          order.paymentStatus === "pending" &&
-                            "bg-orange-500/15 text-orange-700",
-                          order.paymentStatus === "rejected" &&
-                            "bg-destructive/15 text-destructive"
-                        )}
-                      >
-                        {order.paymentStatus === "approved" && <CheckCircle2 className="h-3 w-3" />}
-                        {order.paymentStatus === "pending" && <Clock className="h-3 w-3" />}
-                        {order.paymentStatus === "rejected" && <XCircle className="h-3 w-3" />}
-                        <span>{order.paymentStatus}</span>
-                      </span>
+                      {(() => {
+                        const badge = statusBadge(order.status);
+                        const BadgeIcon = badge.icon;
+                        return (
+                          <span
+                            className={cn(
+                              "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase",
+                              badge.cls
+                            )}
+                          >
+                            <BadgeIcon className="h-3 w-3" />
+                            <span>{badge.label}</span>
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="px-5 py-4 text-[11px] text-muted-foreground whitespace-nowrap">
                       {order.createdAt}
@@ -403,12 +550,44 @@ function OrdersPageContent() {
                       <div className="flex items-center justify-end gap-1.5">
                         <button
                           type="button"
-                          onClick={() => setSelectedOrder(order)}
+                          onClick={() => handleReviewOrder(order)}
                           className="inline-flex items-center gap-1 rounded-xl bg-navy-900 px-3 py-1.5 text-xs font-semibold text-ivory-100 hover:bg-gold-500 hover:text-navy-950 transition-all shadow-sm"
                         >
                           <Eye className="h-3.5 w-3.5" />
                           <span>Review</span>
                         </button>
+
+                        {canDeliverTickets(order) && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleDownload(order)}
+                              disabled={downloadingIds.has(order.databaseId)}
+                              className="inline-flex items-center gap-1 rounded-xl bg-gold-500/15 border border-gold-500/60 px-3 py-1.5 text-xs font-semibold text-gold-700 hover:bg-gold-500 hover:text-navy-950 transition-all shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                            >
+                              {downloadingIds.has(order.databaseId) ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Download className="h-3.5 w-3.5" />
+                              )}
+                              <span>Download Tiket</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setSendConfirmOrder(order)}
+                              disabled={sendingIds.has(order.databaseId)}
+                              className="inline-flex items-center gap-1 rounded-xl bg-gold-500 px-3 py-1.5 text-xs font-semibold text-navy-950 hover:bg-gold-600 transition-all shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                            >
+                              {sendingIds.has(order.databaseId) ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Mail className="h-3.5 w-3.5" />
+                              )}
+                              <span>{ticketEmailActionLabel(order.hasTicketEmailJob)}</span>
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -480,7 +659,7 @@ function OrdersPageContent() {
 
             {/* Action Buttons */}
             <div className="flex items-center justify-end gap-3 pt-4 border-t border-border">
-              {selectedOrder.paymentStatus === "pending" && (
+              {selectedOrder.status === "WAITING_VERIFICATION" && (
                 <>
                   <button
                     type="button"
@@ -493,7 +672,7 @@ function OrdersPageContent() {
 
                   <button
                     type="button"
-                    onClick={() => handleApprove((selectedOrder as OrderItem & { databaseId: string }).databaseId)}
+                    onClick={() => handleApprove(selectedOrder.databaseId)}
                     className="inline-flex items-center gap-1.5 rounded-2xl bg-emerald-600 px-6 py-3 text-xs font-bold text-white hover:bg-emerald-700 transition-all shadow-md shadow-emerald-600/20"
                   >
                     <CheckCircle2 className="h-4 w-4" />
@@ -502,17 +681,17 @@ function OrdersPageContent() {
                 </>
               )}
 
-              {selectedOrder.paymentStatus === "approved" && (
+              {(selectedOrder.status === "APPROVED" || selectedOrder.status === "TICKET_ISSUED") && (
                 <div className="flex items-center gap-2 text-xs font-bold text-emerald-700 bg-emerald-500/15 px-4 py-2 rounded-xl">
                   <CheckCircle2 className="h-4 w-4" />
-                  <span>Pesanan Telah Disetujui</span>
+                  <span>{selectedOrder.status === "TICKET_ISSUED" ? "Tiket Telah Diterbitkan" : "Pesanan Telah Disetujui"}</span>
                 </div>
               )}
 
-              {selectedOrder.paymentStatus === "rejected" && (
+              {selectedOrder.status === "REJECTED" && (
                 <button
                   type="button"
-                  onClick={() => handleApprove((selectedOrder as OrderItem & { databaseId: string }).databaseId)}
+                  onClick={() => handleApprove(selectedOrder.databaseId)}
                   className="inline-flex items-center gap-1.5 rounded-2xl bg-emerald-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-emerald-700"
                 >
                   <CheckCircle2 className="h-4 w-4" />
@@ -568,7 +747,7 @@ function OrdersPageContent() {
               </button>
               <button
                 type="button"
-                onClick={() => handleReject((selectedOrder as OrderItem & { databaseId: string }).databaseId)}
+                onClick={() => handleReject(selectedOrder.databaseId)}
                 className="rounded-xl bg-destructive px-5 py-2 text-xs font-bold text-white hover:bg-destructive/90 shadow-md"
               >
                 Konfirmasi Tolak
@@ -576,6 +755,19 @@ function OrdersPageContent() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Send / Resend Ticket Confirmation */}
+      {sendConfirmOrder && (
+        <ConfirmDialog
+          isOpen
+          title={sendConfirmOrder.hasTicketEmailJob ? "Kirim Ulang E-Ticket" : "Kirim E-Ticket"}
+          description={`Yakin ingin ${sendConfirmOrder.hasTicketEmailJob ? "mengirim ulang" : "mengirim"} e-ticket ke email peserta ${sendConfirmOrder.email}? Order: ${sendConfirmOrder.orderId}.`}
+          confirmLabel={sendConfirmOrder.hasTicketEmailJob ? "Ya, Kirim Ulang" : "Ya, Kirim"}
+          isDestructive={false}
+          onConfirm={() => handleSendTicket(sendConfirmOrder)}
+          onClose={() => setSendConfirmOrder(null)}
+        />
       )}
     </div>
   );

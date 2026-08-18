@@ -5,6 +5,8 @@ import Link from "next/link";
 import { TicketType } from "@/data/tickets";
 import { Check, Ticket, Sparkles, Minus, Plus, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useActiveEvent } from "@/hooks/use-active-event";
+import { eventDisplayName } from "@/lib/event-utils";
 
 interface TicketVoucherCardProps {
   ticket: TicketType;
@@ -12,6 +14,8 @@ interface TicketVoucherCardProps {
 }
 
 export function TicketVoucherCard({ ticket, featured = false }: TicketVoucherCardProps) {
+  const { event } = useActiveEvent();
+  const displayName = eventDisplayName(event);
   const min = ticket.minPurchase || 1;
   const max = ticket.maxPurchase || 5;
   const [quantity, setQuantity] = useState(min);
@@ -61,7 +65,7 @@ export function TicketVoucherCard({ ticket, featured = false }: TicketVoucherCar
       <div className="p-6 sm:p-8">
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-gold-500 mb-2">
           <Sparkles className="h-3.5 w-3.5 text-gold-500" />
-          <span>OPEN MIND 2026 PASS</span>
+          <span>{displayName} PASS</span>
         </div>
 
         <h3 className="font-display text-2xl sm:text-3xl font-black text-navy-900 mb-2">

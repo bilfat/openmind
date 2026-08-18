@@ -2,12 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import {
-  TicketType,
-  TicketCategory,
-  TicketVisibility,
-  TicketStatus,
-} from "@/data/tickets";
+import { TicketStatus } from "@/data/tickets";
 import { PrivateLinkModal } from "@/components/admin/tickets/private-link-modal";
 import {
   Plus,
@@ -23,11 +18,11 @@ import {
   Eye,
   CheckCircle2,
   AlertCircle,
-  Clock,
-  Sparkles,
-  ExternalLink,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/components/ui/toast";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 export default function AdminTicketsListPage() {
   const [tickets, setTickets] = useState<any[]>([]);
@@ -47,12 +42,9 @@ export default function AdminTicketsListPage() {
 
   // Active action dropdown
   const [actionMenuOpen, setActionMenuOpen] = useState<string | null>(null);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [deletingTicket, setDeletingTicket] = useState<any | null>(null);
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
-  };
+  const { success, error, warning } = useToast();
 
   const refreshList = async () => {
     try {
@@ -98,7 +90,10 @@ export default function AdminTicketsListPage() {
     return "ACTIVE";
   }
 
-  const handleDuplicate = async (ticket: any) => {
+  const handleDuplicate = async (ticketId: string) => {
+    const ticket = tickets.find((t) => t.id === ticketId);
+    if (!ticket) return;
+
     try {
       const payload = {
         name: `${ticket.name} (Copy)`,
@@ -111,8 +106,8 @@ export default function AdminTicketsListPage() {
         quota: Number(ticket.quota),
         min_purchase: Number(ticket.min_purchase),
         max_purchase: Number(ticket.max_purchase),
-        sales_start_at: ticket.sales_start_at,
-        sales_end_at: ticket.sales_end_at,
+        sales_start_at: ticket.salesStart,
+        sales_end_at: ticket.salesEnd,
         benefits: ticket.benefits,
         status: 'DRAFT',
       };
@@ -125,12 +120,12 @@ export default function AdminTicketsListPage() {
       const json = await res.json();
       if (json.success) {
         refreshList();
-        showToast(`Tiket "${payload.name}" berhasil diduplikasi.`);
+        success(`Tiket "${payload.name}" berhasil diduplikasi.`);
       } else {
-        showToast(`Gagal menduplikasi: ${json.message}`);
+        error(`Gagal menduplikasi: ${json.message}`);
       }
     } catch (err: any) {
-      showToast(`Gagal menduplikasi: ${err.message}`);
+      error(`Gagal menduplikasi: ${err.message}`);
     }
     setActionMenuOpen(null);
   };
@@ -145,13 +140,13 @@ export default function AdminTicketsListPage() {
       });
       const json = await res.json();
       if (json.success) {
-        showToast(nextStatus === "ACTIVE" ? `Tiket "${ticket.name}" telah diaktifkan kembali.` : `Penjualan tiket "${ticket.name}" sementara dihentikan (Paused).`);
+        success(nextStatus === "ACTIVE" ? `Tiket "${ticket.name}" telah diaktifkan kembali.` : `Penjualan tiket "${ticket.name}" sementara dihentikan (Paused).`);
         refreshList();
       } else {
-        showToast(`Gagal memperbarui status: ${json.message}`);
+        error(`Gagal memperbarui status: ${json.message}`);
       }
     } catch (err: any) {
-      showToast(`Gagal memperbarui status: ${err.message}`);
+      error(`Gagal memperbarui status: ${err.message}`);
     }
     setActionMenuOpen(null);
   };
@@ -165,13 +160,40 @@ export default function AdminTicketsListPage() {
       });
       const json = await res.json();
       if (json.success) {
-        showToast(`Tiket "${ticket.name}" berhasil diarsipkan.`);
+        success(`Tiket "${ticket.name}" berhasil diarsipkan.`);
         refreshList();
       } else {
-        showToast(`Gagal mengarsipkan: ${json.message}`);
+        error(`Gagal mengarsipkan: ${json.message}`);
       }
     } catch (err: any) {
-      showToast(`Gagal mengarsipkan: ${err.message}`);
+      error(`Gagal mengarsipkan: ${err.message}`);
+    }
+    setActionMenuOpen(null);
+  };
+
+  const handleDelete = async (ticket: any) => {
+    if (!ticket) return;
+
+    try {
+      const res = await fetch(`/api/admin/tickets/${ticket.id}`, {
+        method: "DELETE",
+      });
+      const json = await res.json();
+      if (json.success) {
+        success(`Tiket "${ticket.name}" berhasil dihapus.`);
+        setDeletingTicket(null);
+        refreshList();
+      } else {
+        if (res.status === 409) {
+          warning(json.message || "Tiket memiliki riwayat transaksi atau reservasi. Gunakan opsi Arsipkan.");
+        } else {
+          error(json.message || "Gagal menghapus tiket.");
+        }
+        setDeletingTicket(null);
+      }
+    } catch (err: any) {
+      error(`Gagal menghapus tiket: ${err.message}`);
+      setDeletingTicket(null);
     }
     setActionMenuOpen(null);
   };
@@ -204,14 +226,6 @@ export default function AdminTicketsListPage() {
 
   return (
     <div className="space-y-6">
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 rounded-2xl bg-navy-950 px-5 py-3 text-xs font-bold text-ivory-100 shadow-2xl border border-gold-500/30 flex items-center gap-2 animate-in slide-in-from-bottom-5">
-          <Sparkles className="h-4 w-4 text-gold-400" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
-
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 sm:p-8 rounded-3xl border border-border shadow-sm">
         <div>
@@ -228,7 +242,7 @@ export default function AdminTicketsListPage() {
 
         <Link
           href="/admin/tickets/create"
-          className="inline-flex items-center gap-2 rounded-2xl bg-gold-500 px-6 py-3.5 text-xs sm:text-sm font-bold text-navy-950 hover:bg-gold-400 transition-all shadow-md active:scale-95 self-start sm:self-auto"
+          className="inline-flex items-center gap-2 rounded-2xl bg-gold-500 px-6 py-3.5 text-xs sm:text-sm font-bold text-navy-950 hover:bg-gold-400 transition-all shadow-md active:scale-95 self-start sm:self-auto cursor-pointer"
         >
           <Plus className="h-4 w-4" />
           <span> Buat Tiket Baru</span>
@@ -253,7 +267,7 @@ export default function AdminTicketsListPage() {
               type="button"
               onClick={() => setStatusFilter(pill.id)}
               className={cn(
-                "rounded-xl px-3.5 py-1.5 text-xs font-bold transition-all",
+                "rounded-xl px-3.5 py-1.5 text-xs font-bold transition-all cursor-pointer",
                 statusFilter === pill.id
                   ? "bg-navy-900 text-gold-400 shadow-sm"
                   : "bg-secondary/40 text-navy-900/70 hover:bg-secondary hover:text-navy-900"
@@ -377,7 +391,7 @@ export default function AdminTicketsListPage() {
                                 token: ticket.privateToken || "X8K29LmQ",
                               })
                             }
-                            className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2.5 py-0.5 text-[10px] font-bold text-amber-800 border border-amber-500/30 hover:bg-amber-500/25 transition-colors"
+                            className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2.5 py-0.5 text-[10px] font-bold text-amber-800 border border-amber-500/30 hover:bg-amber-500/25 transition-colors cursor-pointer"
                           >
                             <Lock className="h-3 w-3" />
                             <span>PRIVATE (Link)</span>
@@ -468,7 +482,7 @@ export default function AdminTicketsListPage() {
                                   actionMenuOpen === ticket.id ? null : ticket.id
                                 )
                               }
-                              className="rounded-xl p-2 text-muted-foreground hover:bg-secondary transition-colors"
+                              className="rounded-xl p-2 text-muted-foreground hover:bg-secondary transition-colors cursor-pointer"
                             >
                               <MoreVertical className="h-4 w-4" />
                             </button>
@@ -487,7 +501,7 @@ export default function AdminTicketsListPage() {
                                 <button
                                   type="button"
                                   onClick={() => handleDuplicate(ticket.id)}
-                                  className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-navy-900 hover:bg-secondary"
+                                  className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-navy-900 hover:bg-secondary cursor-pointer"
                                 >
                                   <Copy className="h-3.5 w-3.5" />
                                   <span>Duplikasi Tiket</span>
@@ -504,7 +518,7 @@ export default function AdminTicketsListPage() {
                                       });
                                       setActionMenuOpen(null);
                                     }}
-                                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-amber-800 hover:bg-amber-50"
+                                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-amber-800 hover:bg-amber-50 cursor-pointer"
                                   >
                                     <Lock className="h-3.5 w-3.5" />
                                     <span>Private Link Manager</span>
@@ -514,7 +528,7 @@ export default function AdminTicketsListPage() {
                                 <button
                                   type="button"
                                   onClick={() => handleTogglePause(ticket, derivedStatus)}
-                                  className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-navy-900 hover:bg-secondary"
+                                  className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-navy-900 hover:bg-secondary cursor-pointer"
                                 >
                                   {derivedStatus === "PAUSED" ? (
                                     <>
@@ -531,13 +545,24 @@ export default function AdminTicketsListPage() {
 
                                 <div className="border-t border-border my-1" />
 
+                                {derivedStatus !== "ARCHIVED" && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleArchive(ticket)}
+                                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-amber-600 hover:bg-amber-50 cursor-pointer"
+                                  >
+                                    <Archive className="h-3.5 w-3.5" />
+                                    <span>Arsipkan Tiket</span>
+                                  </button>
+                                )}
+
                                 <button
                                   type="button"
-                                  onClick={() => handleArchive(ticket)}
-                                  className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-destructive hover:bg-destructive/10"
+                                  onClick={() => setDeletingTicket(ticket)}
+                                  className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-rose-600 hover:bg-rose-50 cursor-pointer"
                                 >
-                                  <Archive className="h-3.5 w-3.5" />
-                                  <span>Arsipkan Tiket</span>
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                  <span>Hapus Kategori Tiket</span>
                                 </button>
                               </div>
                             )}
@@ -564,10 +589,20 @@ export default function AdminTicketsListPage() {
           onTokenUpdated={(newToken) => {
             setPrivateModalData((prev) => (prev ? { ...prev, token: newToken } : null));
             refreshList();
-            showToast("Private link berhasil diperbarui!");
+            success("Private link berhasil diperbarui!");
           }}
         />
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={Boolean(deletingTicket)}
+        title="Hapus Kategori Tiket"
+        description={deletingTicket ? `Apakah Anda yakin ingin menghapus kategori tiket "${deletingTicket.name}"? Kategori tiket yang memiliki transaksi atau reservasi aktif hanya boleh diarsipkan.` : ""}
+        confirmLabel="Ya, Hapus Tiket"
+        onConfirm={() => handleDelete(deletingTicket)}
+        onClose={() => setDeletingTicket(null)}
+      />
     </div>
   );
 }

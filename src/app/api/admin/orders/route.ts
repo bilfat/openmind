@@ -1,17 +1,18 @@
 import { NextResponse } from 'next/server'
 import { requireActiveAdmin, jsonError, parsePagination, parseSearch } from '@/lib/admin-read-auth'
+import { withTimeoutGuard } from '@/lib/timeout'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 const ORDER_STATUSES = ['DRAFT', 'PENDING_PAYMENT', 'WAITING_VERIFICATION', 'APPROVED', 'REJECTED', 'CANCELLED', 'EXPIRED', 'TICKET_ISSUED']
 const TICKET_TYPES = ['FREE', 'PAID']
 
-export async function GET(request: Request) {
+async function handleGetOrders(request: Request) {
   const auth = await requireActiveAdmin()
   if (!auth.authorized) return jsonError(auth.message, auth.status)
 
   const url = new URL(request.url)
-  const pagination = parsePagination(url.searchParams)
+  const pagination = parsePagination(url.searchParams, 50)
   if ('error' in pagination) return jsonError(pagination.error ?? 'Parameter pagination tidak valid.', 400)
   const parsedSearch = parseSearch(url.searchParams)
   if ('error' in parsedSearch) return jsonError(parsedSearch.error ?? 'Parameter search tidak valid.', 400)
@@ -92,6 +93,8 @@ export async function GET(request: Request) {
 
     const orderIds = (data ?? []).map((row) => row.id)
     let summaries: Record<string, { participants: any[]; ticketTypes: string[] }> = {}
+    let issuedCounts: Record<string, number> = {}
+    let ticketEmailJobCounts: Record<string, number> = {}
     if (orderIds.length) {
       const itemsQuery = await supabase
         .from('order_items')
@@ -105,6 +108,21 @@ export async function GET(request: Request) {
         acc[item.order_id] = current
         return acc
       }, {} as Record<string, { participants: any[]; ticketTypes: string[] }>)
+
+      const [issuedQuery, emailQuery] = await Promise.all([
+        supabase.from('issued_tickets').select('id, order_id').in('order_id', orderIds),
+        supabase.from('email_jobs').select('id, order_id').eq('job_type', 'TICKET_ISSUED').in('order_id', orderIds),
+      ])
+      if (issuedQuery.error) throw new Error(issuedQuery.error.message)
+      if (emailQuery.error) throw new Error(emailQuery.error.message)
+      issuedCounts = (issuedQuery.data ?? []).reduce((acc: Record<string, number>, ticket: any) => {
+        acc[ticket.order_id] = (acc[ticket.order_id] ?? 0) + 1
+        return acc
+      }, {})
+      ticketEmailJobCounts = (emailQuery.data ?? []).reduce((acc: Record<string, number>, job: any) => {
+        acc[job.order_id] = (acc[job.order_id] ?? 0) + 1
+        return acc
+      }, {})
     }
 
     const items = (data ?? []).map((order: any) => {
@@ -122,6 +140,8 @@ export async function GET(request: Request) {
         participant_count: summary.participants.length,
         participants: summary.participants,
         ticket_types: summary.ticketTypes,
+        issued_ticket_count: issuedCounts[order.id] ?? 0,
+        has_ticket_email_job: (ticketEmailJobCounts[order.id] ?? 0) > 0,
         created_at: order.created_at,
         updated_at: order.updated_at,
       }
@@ -133,4 +153,6 @@ export async function GET(request: Request) {
     return jsonError('Gagal mengambil data pesanan.', 500)
   }
 }
+
+export const GET = withTimeoutGuard(handleGetOrders)
 

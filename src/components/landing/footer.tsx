@@ -1,6 +1,10 @@
+"use client";
+
 import Link from "next/link";
-import { ExternalLink, MapPin, Mail, Phone } from "lucide-react";
+import { ExternalLink, MapPin, Mail, Phone, MessageSquare } from "lucide-react";
 import { socialLinks, contactWhatsApp } from "@/data/social-links";
+import { useActiveEvent } from "@/hooks/use-active-event";
+import { waLink, eventDisplayName, formatEventDate, formatWhatsAppDisplay } from "@/lib/event-utils";
 
 const footerNavItems = [
   { label: "Beranda", href: "/" },
@@ -11,6 +15,33 @@ const footerNavItems = [
 ];
 
 export function Footer() {
+  const { event } = useActiveEvent();
+
+  const name = event?.name || "OPEN MIND";
+  const year = event?.year || "2026";
+  const displayName = eventDisplayName(event);
+  const tagline = event?.tagline || event?.theme || "One Action Endless Impact";
+  const venue = event?.venue || "Telkom University";
+  const eventDate = formatEventDate(event?.event_date);
+  const waNumber = event?.contact_whatsapp || contactWhatsApp.number;
+  const waDisplay = event?.contact_whatsapp_display || formatWhatsAppDisplay(waNumber) || contactWhatsApp.display;
+  const contactEmail = event?.contact_email || "openmind@hipmi.telu.ac.id";
+  const waHref = waLink(waNumber) || `https://wa.me/${contactWhatsApp.number}`;
+  const whatsappGroupUrl = event?.whatsapp_group_url;
+
+  const openMindLinks: { name: string; url: string }[] = [
+    { name: "Instagram", url: event?.instagram_url || "" },
+    { name: "TikTok", url: event?.tiktok_url || "" },
+  ].filter((l) => l.url);
+
+  const hipmiLinks: { name: string; url: string }[] = [
+    { name: "Instagram", url: event?.hipmi_instagram_url || "" },
+    { name: "TikTok", url: event?.hipmi_tiktok_url || "" },
+  ].filter((l) => l.url);
+
+  const displaySocials = openMindLinks.length > 0 ? openMindLinks : socialLinks.openMind;
+  const displayHipmiSocials = hipmiLinks.length > 0 ? hipmiLinks : socialLinks.hipmi;
+
   return (
     <footer className="bg-navy-900 text-ivory-100">
       {/* Gold Top Border */}
@@ -23,15 +54,15 @@ export function Footer() {
             <Link href="/" className="inline-flex items-center gap-3">
               <img
                 src="/logo-om.jpg"
-                alt="OPEN MIND"
+                alt={displayName}
                 className="h-12 w-12 rounded-lg object-cover"
               />
               <div>
                 <h3 className="font-display text-2xl font-bold tracking-wider text-ivory-100">
-                  OPEN MIND
+                  {name}
                 </h3>
                 <span className="text-xs font-semibold tracking-[0.3em] text-gold-500">
-                  2026
+                  {year}
                 </span>
               </div>
             </Link>
@@ -46,11 +77,11 @@ export function Footer() {
               </span>
             </div>
             <p className="mt-4 text-sm leading-relaxed text-ivory-200/70">
-              One Action Endless Impact. Sebuah event seminar dan networking eksklusif oleh HIPMI PT Telkom University.
+              {tagline}. Sebuah event seminar dan networking eksklusif oleh HIPMI PT Telkom University.
             </p>
             <div className="mt-4 flex items-center gap-2 text-sm text-ivory-200/50">
               <MapPin className="h-4 w-4 text-gold-500" />
-              <span>Telkom University</span>
+              <span>{eventDate ? `${eventDate} — ${venue}` : venue}</span>
             </div>
           </div>
 
@@ -81,9 +112,9 @@ export function Footer() {
             <div className="space-y-6">
               {/* OPEN MIND */}
               <div>
-                <p className="text-sm font-medium text-ivory-100 mb-2">OPEN MIND 2026</p>
+                <p className="text-sm font-medium text-ivory-100 mb-2">{displayName}</p>
                 <div className="space-y-2">
-                  {socialLinks.openMind.map((link) => (
+                  {displaySocials.map((link) => (
                     <a
                       key={link.name}
                       href={link.url}
@@ -92,7 +123,7 @@ export function Footer() {
                       className="flex items-center gap-2 text-sm text-ivory-200/60 hover:text-gold-400 transition-colors duration-200"
                     >
                       <ExternalLink className="h-4 w-4" />
-                      <span>{link.name} — {link.handle}</span>
+                      <span>{link.name}</span>
                     </a>
                   ))}
                 </div>
@@ -101,16 +132,16 @@ export function Footer() {
               <div>
                 <p className="text-sm font-medium text-ivory-100 mb-2">HIPMI PT Telkom University</p>
                 <div className="space-y-2">
-                  {socialLinks.hipmi.map((link) => (
+                  {displayHipmiSocials.map((link) => (
                     <a
-                      key={link.name}
+                      key={link.name + (link.url ?? "")}
                       href={link.url}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center gap-2 text-sm text-ivory-200/60 hover:text-gold-400 transition-colors duration-200"
                     >
                       <ExternalLink className="h-4 w-4" />
-                      <span>{link.name} — {link.handle}</span>
+                      <span>{link.name}</span>
                     </a>
                   ))}
                 </div>
@@ -125,21 +156,32 @@ export function Footer() {
             </h4>
             <div className="space-y-3">
               <a
-                href={`https://wa.me/${contactWhatsApp.number}`}
+                href={waHref}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 text-sm text-ivory-200/60 hover:text-gold-400 transition-colors duration-200"
               >
                 <Phone className="h-4 w-4" />
-                <span>{contactWhatsApp.display}</span>
+                <span>{waDisplay}</span>
               </a>
               <a
-                href="mailto:openmind@hipmi.telu.ac.id"
+                href={`mailto:${contactEmail}`}
                 className="flex items-center gap-2 text-sm text-ivory-200/60 hover:text-gold-400 transition-colors duration-200"
               >
                 <Mail className="h-4 w-4" />
-                <span>openmind@hipmi.telu.ac.id</span>
+                <span>{contactEmail}</span>
               </a>
+              {whatsappGroupUrl && (
+                <a
+                  href={whatsappGroupUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-sm text-green-400 hover:text-green-300 transition-colors duration-200"
+                >
+                  <MessageSquare className="h-4 w-4" />
+                  <span>Grup WhatsApp Event</span>
+                </a>
+              )}
             </div>
           </div>
         </div>
@@ -149,11 +191,11 @@ export function Footer() {
       <div className="border-t border-navy-700/50">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6 flex flex-col items-center gap-3 sm:flex-row sm:justify-between">
           <p className="text-xs text-ivory-200/40">
-            © 2026 OPEN MIND × HIPMI PT Telkom University. All rights reserved.
+            © {year} {displayName} × HIPMI PT Telkom University. All rights reserved.
           </p>
           <div className="flex items-center gap-1 text-xs text-ivory-200/40">
             <span className="gold-divider text-gold-500/60">✦</span>
-            <span>One Action Endless Impact</span>
+            <span>{tagline}</span>
           </div>
         </div>
       </div>

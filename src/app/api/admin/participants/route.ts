@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server'
 import { requireActiveAdmin, jsonError, parsePagination, parseSearch } from '@/lib/admin-read-auth'
+import { withTimeoutGuard } from '@/lib/timeout'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-export async function GET(request: Request) {
+async function handleGetParticipants(request: Request) {
   const auth = await requireActiveAdmin()
   if (!auth.authorized) return jsonError(auth.message, auth.status)
   const url = new URL(request.url)
-  const pagination = parsePagination(url.searchParams)
+  const pagination = parsePagination(url.searchParams, 50)
   if ('error' in pagination) return jsonError(pagination.error ?? 'Parameter pagination tidak valid.', 400)
   const parsedSearch = parseSearch(url.searchParams)
   if ('error' in parsedSearch) return jsonError(parsedSearch.error ?? 'Parameter search tidak valid.', 400)
@@ -46,14 +47,22 @@ export async function GET(request: Request) {
     const participantIds = participants.map((participant) => participant.id)
     let itemRows: any[] = []
     if (participantIds.length) {
-      const itemsQuery = await supabase.from('order_items').select('id, order_id, participant_id, ticket_type_id, orders(id, order_code, status), ticket_types(id, name, code, ticket_type), issued_tickets(id, ticket_code, status, issued_at)').in('participant_id', participantIds).order('created_at', { ascending: false })
+      const itemsQuery = await supabase.from('order_items').select('id, order_id, participant_id, ticket_type_id, orders(id, order_code, status), ticket_types(id, name, code, ticket_type), issued_tickets(id, ticket_code, status, issued_at, check_ins(id, checked_in_at, method))').in('participant_id', participantIds).order('created_at', { ascending: false })
       if (itemsQuery.error) throw new Error(itemsQuery.error.message)
       itemRows = itemsQuery.data ?? []
     }
     const rowsByParticipant = itemRows.reduce((acc: Record<string, any[]>, item: any) => { (acc[item.participant_id] ??= []).push(item); return acc }, {})
     const items = participants.map((participant: any) => {
       const allocations = (rowsByParticipant[participant.id] ?? []).filter((item: any) => !ticketType || item.ticket_types?.ticket_type === ticketType)
-      return { ...participant, orders: allocations.map((item: any) => ({ order_item_id: item.id, order: item.orders, ticket_type: item.ticket_types, issued_ticket: item.issued_tickets })) }
+      const isPresent = allocations.some((item: any) => {
+        const ticket = item.issued_tickets
+        const checkIns = Array.isArray(ticket?.check_ins) ? ticket.check_ins : []
+        return ticket?.status === 'CHECKED_IN' || checkIns.length > 0
+      })
+      const checkedInAt = allocations
+        .flatMap((item: any) => (Array.isArray(item.issued_tickets?.check_ins) ? item.issued_tickets.check_ins : []))
+        .sort((a: any, b: any) => new Date(a.checked_in_at).getTime() - new Date(b.checked_in_at).getTime())[0]?.checked_in_at ?? null
+      return { ...participant, is_present: isPresent, checked_in_at: checkedInAt, orders: allocations.map((item: any) => ({ order_item_id: item.id, order: item.orders, ticket_type: item.ticket_types, issued_ticket: item.issued_tickets })) }
     })
     const total = count ?? 0
     return NextResponse.json({ success: true, items, pagination: { page: pagination.page, limit: pagination.limit, total, totalPages: Math.ceil(total / pagination.limit) } })
@@ -62,4 +71,7 @@ export async function GET(request: Request) {
     return jsonError('Gagal mengambil data peserta.', 500)
   }
 }
+
+export const GET = withTimeoutGuard(handleGetParticipants)
+
 

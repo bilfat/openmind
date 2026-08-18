@@ -6,20 +6,36 @@ import Link from "next/link";
 import { ReferralCode } from "@/data/referrals";
 import { getReferralById } from "@/lib/referral-store";
 import { ReferralForm } from "@/components/admin/referrals/referral-form";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 
 export default function EditReferralPage() {
   const params = useParams();
   const referralId = (params?.id as string) || "";
-  const [referral] = useState<ReferralCode | null>(() =>
-    referralId ? getReferralById(referralId) : null
-  );
-  const loading = false;
+  const [referral, setReferral] = useState<ReferralCode | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      if (!referralId) {
+        setLoading(false);
+        return;
+      }
+      const r = await getReferralById(referralId);
+      if (!cancelled) {
+        setReferral(r);
+        setLoading(false);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [referralId]);
 
   if (loading) {
     return (
-      <div className="p-12 text-center text-sm font-semibold text-gold-600 animate-pulse">
-        Memuat Konfigurasi Kode Referal...
+      <div className="flex items-center justify-center py-16 gap-2 text-sm font-semibold text-gold-600 animate-pulse">
+        <Loader2 className="h-5 w-5 animate-spin" />
+        <span>Memuat Konfigurasi Kode Referal...</span>
       </div>
     );
   }

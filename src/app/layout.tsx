@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Plus_Jakarta_Sans, Playfair_Display } from "next/font/google";
 import "./globals.css";
 import { GlobalLoader } from "@/components/ui/global-loader";
+import { fetchActiveEventServer } from "@/lib/event-server";
+import { eventDisplayName } from "@/lib/event-utils";
 
 const fontSans = Plus_Jakarta_Sans({
   variable: "--font-sans",
@@ -13,10 +15,15 @@ const fontDisplay = Playfair_Display({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: "OPEN MIND 2026 — One Action Endless Impact",
-  description: "Event seminar dan networking eksklusif oleh HIPMI PT Telkom University. Expand Your Perspective, Build Your Future.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { event } = await fetchActiveEventServer();
+  const name = eventDisplayName(event);
+  const tagline = event?.tagline || event?.theme || "One Action Endless Impact";
+  return {
+    title: `${name} — ${tagline}`,
+    description: event?.description || `Event seminar dan networking eksklusif oleh HIPMI PT Telkom University. ${tagline}.`,
+  };
+}
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

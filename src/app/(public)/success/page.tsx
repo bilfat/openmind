@@ -5,7 +5,6 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { StepIndicator } from "@/components/checkout/step-indicator";
-import { getOrderByOrderId } from "@/lib/order-store";
 import { OrderItem } from "@/data/orders";
 import {
   CheckCircle,
@@ -19,16 +18,28 @@ import {
   Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useActiveEvent } from "@/hooks/use-active-event";
+import { eventDisplayName } from "@/lib/event-utils";
 
 function SuccessContent() {
   const searchParams = useSearchParams();
   const orderId = searchParams.get("order") || "OM26-00128";
   const typeParam = searchParams.get("type") || "paid";
+  const { event } = useActiveEvent();
+  const displayName = eventDisplayName(event);
 
-  const [order] = useState<OrderItem | null>(() =>
-    orderId ? getOrderByOrderId(orderId) ?? null : null
-  );
+  const [order, setOrder] = useState<any>(null);
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!orderId) return;
+    fetch(`/api/tickets/public?order_code=${encodeURIComponent(orderId)}`)
+      .then(async (res) => {
+        const data = await res.json();
+        if (res.ok && data.success) setOrder(data.data);
+      })
+      .catch(() => {});
+  }, [orderId]);
 
   const handleCopyOrderId = () => {
     navigator.clipboard.writeText(orderId);
@@ -65,7 +76,7 @@ function SuccessContent() {
               Pendaftaran Berhasil!
             </h1>
             <p className="text-sm sm:text-base text-navy-900/70 max-w-lg mx-auto">
-              Terima kasih telah mendaftar di OPEN MIND 2026. Data pesanan Anda telah tersimpan aman di sistem kami.
+              Terima kasih telah mendaftar di {displayName}. Data pesanan Anda telah tersimpan aman di sistem kami.
             </p>
           </div>
 

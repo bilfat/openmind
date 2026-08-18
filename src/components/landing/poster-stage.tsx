@@ -5,9 +5,16 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import { Sparkles, Maximize2, X, Ticket, Download, Share2 } from "lucide-react";
 import Link from "next/link";
+import { useActiveEvent } from "@/hooks/use-active-event";
+import { eventDisplayName } from "@/lib/event-utils";
 
 export function PosterStage() {
   const [isZoomed, setIsZoomed] = useState(false);
+  const { event } = useActiveEvent();
+
+  const posterUrl = event?.poster_url || "/poster.jpeg";
+  const displayName = eventDisplayName(event);
+  const downloadName = `${displayName.replace(/[^A-Za-z0-9]+/g, "_")}_Poster.jpeg`;
 
   return (
     <div className="relative w-full overflow-hidden bg-navy-950 py-16 sm:py-24 rounded-3xl border border-gold-500/30 shadow-2xl">
@@ -79,8 +86,8 @@ export function PosterStage() {
             <div className="relative rounded-xl overflow-hidden border-2 border-navy-950 bg-navy-950">
               <div className="relative w-[280px] sm:w-[360px] md:w-[420px] aspect-[1/1.414]">
                 <Image
-                  src="/poster.jpeg"
-                  alt="OPEN MIND 2026 Official Lineup Poster"
+                  src={posterUrl}
+                  alt={`${displayName} Official Lineup Poster`}
                   fill
                   priority
                   className="object-cover object-center transition-transform duration-700 group-hover:scale-105"
@@ -160,8 +167,8 @@ export function PosterStage() {
           </Link>
 
           <a
-            href="/poster.jpeg"
-            download="OPEN_MIND_2026_Poster.jpeg"
+            href={posterUrl}
+            download={downloadName}
             className="inline-flex items-center gap-2 rounded-full border border-gold-500/40 bg-navy-900/80 px-6 py-3 text-sm font-semibold text-ivory-100 hover:bg-gold-500/10 hover:border-gold-500 transition-all duration-300 backdrop-blur-md"
           >
             <Download className="h-4 w-4 text-gold-400" />
@@ -183,8 +190,8 @@ export function PosterStage() {
 
           <div className="relative max-w-2xl max-h-[85vh] aspect-[1/1.414] w-full rounded-2xl overflow-hidden border-2 border-gold-500 shadow-2xl shadow-gold-500/20">
             <Image
-              src="/poster.jpeg"
-              alt="OPEN MIND 2026 Lineup Poster Full"
+              src={posterUrl}
+              alt={`${displayName} Lineup Poster Full`}
               fill
               className="object-contain"
             />

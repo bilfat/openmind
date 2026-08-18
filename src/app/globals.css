@@ -268,3 +268,21 @@ button:focus-visible {
 .page-enter {
   animation: fade-in 0.3s ease-out forwards;
 }
+
+/* === QR Scanner Scan Line === */
+@keyframes scan-sweep {
+  0%, 100% { top: 5%; }
+  50% { top: 90%; }
+}
+.scan-line {
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  top: 5%;
+  height: 2px;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, transparent, var(--color-gold-400), transparent);
+  box-shadow: 0 0 12px 3px rgba(232, 207, 138, 0.55);
+  animation: scan-sweep 2.2s ease-in-out infinite;
+  pointer-events: none;
+}

@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X, Ticket, Search, LogIn } from "lucide-react";
 import { MobileMenu } from "./mobile-menu";
+import { useActiveEvent } from "@/hooks/use-active-event";
 
 const navItems = [
   { label: "Beranda", href: "/" },
@@ -22,6 +23,13 @@ const infoItems = [
 export function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
+  const { event } = useActiveEvent();
+
+  const rawName = event?.name || "OPEN MIND";
+  // Extract year from name if present (e.g., "OPEN MIND 2026" -> name: "OPEN MIND", year: "2026")
+  const yearMatch = rawName.match(/\s+(\d{4})$/);
+  const eventName = yearMatch ? rawName.replace(/\s+\d{4}$/, "") : rawName;
+  const eventYear = yearMatch ? yearMatch[1] : (event?.year || "2026");
 
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -74,13 +82,13 @@ export function Navbar() {
                   className={`font-display text-xl font-bold tracking-wider transition-colors duration-300 lg:text-2xl ${isHeroTransparent ? "text-ivory-100" : "text-navy-900"
                     }`}
                 >
-                  OPEN MIND
+                  {eventName}
                 </span>
                 <span
                   className={`text-[10px] font-bold tracking-widest uppercase transition-colors duration-300 ${isHeroTransparent ? "text-gold-400" : "text-gold-600"
                     }`}
                 >
-                  2026
+                  {eventYear}
                 </span>
               </div>
             </Link>

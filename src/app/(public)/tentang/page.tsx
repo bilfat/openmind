@@ -3,11 +3,14 @@ import { useState } from "react";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { eventData } from "@/data/event";
 import { Lightbulb, Users, Sparkles, TrendingUp } from "lucide-react";
-import { mockTalents, TalentItem } from "@/data/talents";
+import { TalentItem } from "@/data/talents";
 import { TalentCard } from "@/components/landing/talent-card";
 import { TalentModal } from "@/components/landing/talent-modal";
+import { useActiveEvent } from "@/hooks/use-active-event";
+import { eventDisplayName, speakerToTalent } from "@/lib/event-utils";
 
 export default function TentangPage() {
+  const { event, speakers } = useActiveEvent();
   const [selectedTalent, setSelectedTalent] = useState<TalentItem | null>(null);
 
   const valueIcons: Record<string, React.ElementType> = {
@@ -17,9 +20,16 @@ export default function TentangPage() {
     TrendingUp,
   };
 
-  const speakers = mockTalents.filter((t) => t.role === "speaker");
-  const moderators = mockTalents.filter((t) => t.role === "moderator");
-  const mcs = mockTalents.filter((t) => t.role === "mc");
+  const displayName = eventDisplayName(event);
+  const about = event?.description || eventData.about;
+
+  const talentList = [...speakers]
+    .filter((s) => s.is_visible)
+    .sort((a, b) => a.display_order - b.display_order)
+    .map(speakerToTalent);
+  const keynoteSpeakers = talentList.filter((t) => t.role === "speaker");
+  const moderators = talentList.filter((t) => t.role === "moderator");
+  const mcs = talentList.filter((t) => t.role === "mc");
 
   return (
     <>
@@ -30,8 +40,8 @@ export default function TentangPage() {
             <div className="mx-auto max-w-2xl lg:text-center">
               <SectionHeading
                 badge="Tentang Acara"
-                title={`Selamat Datang di ${eventData.name} ${eventData.year}`}
-                subtitle={eventData.about}
+                title={`Selamat Datang di ${displayName}`}
+                subtitle={about}
               />
             </div>
             <div className="mx-auto mt-16 max-w-2xl sm:mt-20 lg:mt-24 lg:max-w-4xl">
@@ -68,7 +78,7 @@ export default function TentangPage() {
             <div className="mx-auto max-w-2xl lg:mx-0 text-center">
               <SectionHeading
                 badge="Line-up"
-                title="Bertemu Para Ahli di OPEN MIND 2026"
+                title={`Bertemu Para Ahli di ${displayName}`}
                 subtitle="Kami menghadirkan para pemimpin industri, praktisi bisnis, dan entrepreneur inspiratif untuk berbagi wawasan dan pengalaman."
               />
             </div>
@@ -78,15 +88,21 @@ export default function TentangPage() {
               <h2 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl text-center font-display">
                 Keynote & Guest Speakers
               </h2>
-              <div className="isolate mt-8 grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
-                {speakers.map((talent) => (
-                  <TalentCard
-                    key={talent.id}
-                    talent={talent}
-                    onSelect={() => setSelectedTalent(talent)}
-                  />
-                ))}
-              </div>
+              {keynoteSpeakers.length > 0 ? (
+                <div className="isolate mt-8 grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
+                  {keynoteSpeakers.map((talent) => (
+                    <TalentCard
+                      key={talent.id}
+                      talent={talent}
+                      onSelect={() => setSelectedTalent(talent)}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-8 text-center text-sm text-navy-900/50">
+                  Daftar pembicara akan segera diumumkan.
+                </p>
+              )}
             </div>
 
             {/* Moderators & MCs */}
@@ -94,15 +110,21 @@ export default function TentangPage() {
               <h2 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl text-center font-display">
                 Moderator & MC
               </h2>
-              <div className="isolate mt-8 grid grid-cols-1 gap-8 md:grid-cols-3">
-                {[...moderators, ...mcs].map((talent) => (
-                  <TalentCard
-                    key={talent.id}
-                    talent={talent}
-                    onSelect={() => setSelectedTalent(talent)}
-                  />
-                ))}
-              </div>
+              {[...moderators, ...mcs].length > 0 ? (
+                <div className="isolate mt-8 grid grid-cols-1 gap-8 md:grid-cols-3">
+                  {[...moderators, ...mcs].map((talent) => (
+                    <TalentCard
+                      key={talent.id}
+                      talent={talent}
+                      onSelect={() => setSelectedTalent(talent)}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-8 text-center text-sm text-navy-900/50">
+                  Daftar moderator & MC akan segera diumumkan.
+                </p>
+              )}
             </div>
           </div>
         </section>

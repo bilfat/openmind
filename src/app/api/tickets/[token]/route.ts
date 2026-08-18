@@ -7,7 +7,7 @@ export async function GET(
 ) {
   try {
     const { token } = await params
-    if (!token || !/^[a-f0-9]{64}$/i.test(token)) {
+    if (!token) {
       return NextResponse.json({ success: false, message: 'Tiket tidak ditemukan.' }, { status: 404 })
     }
 
@@ -15,11 +15,11 @@ export async function GET(
     const { data: issued, error } = await supabase
       .from('issued_tickets')
       .select(`id, ticket_code, qr_token, status, issued_at, order_id, order_item_id, ticket_type_id, participant_id, orders!inner(order_code, status), ticket_types!inner(name, ticket_type), participants!inner(full_name, email, whatsapp, nim, faculty, study_program, instagram_username)`)
-      .eq('qr_token', token.toLowerCase())
+      .eq('qr_token', token)
       .maybeSingle()
 
     if (error) throw error
-    if (!issued || !['ACTIVE', 'USED'].includes(issued.status)) {
+    if (!issued || !['ACTIVE', 'CHECKED_IN'].includes(issued.status)) {
       return NextResponse.json({ success: false, message: 'Tiket tidak ditemukan atau tidak aktif.' }, { status: 404 })
     }
 

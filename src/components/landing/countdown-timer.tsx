@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { eventData } from "@/data/event";
+import { useActiveEvent } from "@/hooks/use-active-event";
+import { getEventStartDate } from "@/lib/event-utils";
 
 interface TimeLeft {
   days: number;
@@ -11,6 +13,7 @@ interface TimeLeft {
 }
 
 export function CountdownTimer() {
+  const { event } = useActiveEvent();
   const [mounted, setMounted] = useState(false);
   const [timeLeft, setTimeLeft] = useState<TimeLeft>({
     days: 0,
@@ -21,7 +24,9 @@ export function CountdownTimer() {
 
   useEffect(() => {
     setMounted(true);
-    const target = new Date(eventData.dateISO).getTime();
+    const target = event?.event_date
+      ? getEventStartDate(event).getTime()
+      : new Date(eventData.dateISO).getTime();
 
     const updateTimer = () => {
       const now = Date.now();
@@ -38,7 +43,7 @@ export function CountdownTimer() {
     updateTimer();
     const interval = setInterval(updateTimer, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [event?.event_date, event?.start_time]);
 
   const timerItems = [
     { label: "DAYS", value: timeLeft.days },

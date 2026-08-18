@@ -11,14 +11,9 @@ import {
 } from "@/lib/referral-store";
 import { ReferralPreview } from "./referral-preview";
 import {
-  Tag,
-  Sparkles,
   ArrowLeft,
   Save,
   Wand2,
-  AlertCircle,
-  Calendar,
-  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -76,7 +71,7 @@ export function ReferralForm({ initialData, isEdit = false }: ReferralFormProps)
     });
   };
 
-  const validate = (): boolean => {
+  const validate = async (): Promise<boolean> => {
     const err: Record<string, string> = {};
     const cleanCode = formData.code.trim().toUpperCase();
 
@@ -87,7 +82,7 @@ export function ReferralForm({ initialData, isEdit = false }: ReferralFormProps)
     } else if (!/^[A-Z0-9]+$/.test(cleanCode)) {
       err.code = "Kode referal hanya boleh berisi huruf kapital dan angka tanpa spasi.";
     } else if (!isEdit) {
-      const existing = getReferralByCode(cleanCode);
+      const existing = await getReferralByCode(cleanCode);
       if (existing) {
         err.code = "Kode referal sudah digunakan. Gunakan kode lain.";
       }
@@ -121,8 +116,8 @@ export function ReferralForm({ initialData, isEdit = false }: ReferralFormProps)
     return Object.keys(err).length === 0;
   };
 
-  const handleSubmit = (targetStatus: ReferralStatus = "ACTIVE") => {
-    if (!validate()) return;
+  const handleSubmit = async (targetStatus: ReferralStatus = "ACTIVE") => {
+    if (!(await validate())) return;
     setIsSubmitting(true);
 
     const payload = {
@@ -131,15 +126,17 @@ export function ReferralForm({ initialData, isEdit = false }: ReferralFormProps)
       status: targetStatus,
     };
 
-    setTimeout(() => {
+    try {
       if (isEdit && initialData) {
-        updateExistingReferral(initialData.id, payload);
+        await updateExistingReferral(initialData.id, payload);
         router.push(`/admin/referrals/${initialData.id}`);
       } else {
-        const created = createNewReferral(payload);
+        const created = await createNewReferral(payload);
         router.push(`/admin/referrals/${created.id}`);
       }
-    }, 600);
+    } catch {
+      setIsSubmitting(false);
+    }
   };
 
   const handleCancel = () => {

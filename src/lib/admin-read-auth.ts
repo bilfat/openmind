@@ -1,4 +1,4 @@
-﻿import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 
 export const DEFAULT_PAGE_SIZE = 25
 export const MAX_PAGE_SIZE = 100
@@ -28,14 +28,14 @@ export async function requireActiveAdmin(): Promise<AdminReadAuth> {
   return { authorized: true, supabase, userId: user.id }
 }
 
-export function parsePagination(params: URLSearchParams) {
+export function parsePagination(params: URLSearchParams, maxLimit: number = MAX_PAGE_SIZE) {
   const rawPage = params.get('page') ?? '1'
   const rawLimit = params.get('limit') ?? String(DEFAULT_PAGE_SIZE)
   const page = Number(rawPage)
   const limit = Number(rawLimit)
 
-  if (!/^\d+$/.test(rawPage) || !/^\d+$/.test(rawLimit) || page < 1 || limit < 1 || limit > MAX_PAGE_SIZE) {
-    return { error: 'Parameter page/limit tidak valid. limit maksimum adalah 100.' as const }
+  if (!/^\d+$/.test(rawPage) || !/^\d+$/.test(rawLimit) || page < 1 || limit < 1 || limit > maxLimit) {
+    return { error: `Parameter page/limit tidak valid. limit maksimum adalah ${maxLimit}.` as const }
   }
 
   return { page, limit, offset: (page - 1) * limit }

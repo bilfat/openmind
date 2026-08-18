@@ -3,11 +3,17 @@ import { eventData } from "@/data/event";
 import { MapPin, Phone } from "lucide-react";
 import Link from "next/link";
 import { FaqSection } from "./faq-section";
+import { fetchActiveEventServer } from "@/lib/event-server";
+import { eventDisplayName, formatWhatsAppDisplay, waLink } from "@/lib/event-utils";
 
-export const metadata = {
-  title: "Hubungi Kami — OPEN MIND 2026",
-  description: "FAQ, pertanyaan umum, dan kontak untuk OPEN MIND 2026.",
-};
+export async function generateMetadata() {
+  const { event } = await fetchActiveEventServer();
+  const name = eventDisplayName(event);
+  return {
+    title: `Hubungi Kami — ${name}`,
+    description: `FAQ, pertanyaan umum, dan kontak untuk ${name}.`,
+  };
+}
 
 const IgIcon = () => (
   <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
@@ -21,7 +27,17 @@ const TikTokIcon = () => (
   </svg>
 );
 
-export default function HubungiPage() {
+export default async function HubungiPage() {
+  const { event } = await fetchActiveEventServer();
+
+  const venue = event?.venue || eventData.venue;
+  const waNumber = event?.contact_whatsapp || "6281234567890";
+  const waDisplay = event?.contact_whatsapp_display || formatWhatsAppDisplay(waNumber) || "+62 812-3456-7890";
+  const waHref = waLink(waNumber) || "https://wa.me/6281234567890";
+  const openMindIg = event?.instagram_url || "https://www.instagram.com/openmindhipmi_2026?igsh=MW5neXFsZ3R5bDFldA==";
+  const openMindTiktok = event?.tiktok_url || "https://www.tiktok.com/@openmindhipmi2026?_r=1&_t=ZS-98sbK53gQKL";
+  const hipmiIg = event?.hipmi_instagram_url || "https://www.instagram.com/hipmiunivtelkom?igsh=MWNqOGNobW81eHRqcw==";
+
   return (
     <div className="bg-white">
       {/* FAQ Section */}
@@ -47,13 +63,13 @@ export default function HubungiPage() {
           <div className="mx-auto mt-16 grid max-w-lg grid-cols-1 gap-8 md:max-w-none md:grid-cols-2">
             {/* OPEN MIND Sosmed */}
             <div className="rounded-2xl bg-white p-8 shadow-sm ring-1 ring-inset ring-gray-200">
-              <h3 className="text-2xl font-bold font-display text-navy-900">Follow OPEN MIND 2026</h3>
+              <h3 className="text-2xl font-bold font-display text-navy-900">Follow OPEN MIND</h3>
               <p className="mt-2 text-sm text-gray-600">Dapatkan update terbaru seputar acara.</p>
               <div className="mt-6 flex gap-5">
-                <Link href="https://www.instagram.com/openmindhipmi_2026?igsh=MW5neXFsZ3R5bDFldA==" target="_blank" className="text-navy-800 hover:text-gold-500 transition-colors" title="Instagram OPEN MIND">
+                <Link href={openMindIg} target="_blank" className="text-navy-800 hover:text-gold-500 transition-colors" title="Instagram OPEN MIND">
                   <IgIcon />
                 </Link>
-                <Link href="https://www.tiktok.com/@openmindhipmi2026?_r=1&_t=ZS-98sbK53gQKL" target="_blank" className="text-navy-800 hover:text-gold-500 transition-colors" title="TikTok OPEN MIND">
+                <Link href={openMindTiktok} target="_blank" className="text-navy-800 hover:text-gold-500 transition-colors" title="TikTok OPEN MIND">
                   <TikTokIcon />
                 </Link>
               </div>
@@ -64,7 +80,7 @@ export default function HubungiPage() {
               <h3 className="text-2xl font-bold font-display text-navy-900">Jejaring HIPMI Tel-U</h3>
               <p className="mt-2 text-sm text-gray-600">Kenali lebih dekat organisasi kami.</p>
               <div className="mt-6 flex gap-5">
-                <Link href="https://www.instagram.com/hipmiunivtelkom?igsh=MWNqOGNobW81eHRqcw==" target="_blank" className="text-navy-800 hover:text-gold-500 transition-colors" title="Instagram HIPMI Tel-U">
+                <Link href={hipmiIg} target="_blank" className="text-navy-800 hover:text-gold-500 transition-colors" title="Instagram HIPMI Tel-U">
                   <IgIcon />
                 </Link>
               </div>
@@ -78,8 +94,8 @@ export default function HubungiPage() {
               <div>
                 <h3 className="text-xl font-bold text-navy-900">Contact Person (WhatsApp)</h3>
                 <p className="mt-1 text-gray-600">Untuk pertanyaan seputar tiket &amp; acara.</p>
-                <Link href="https://wa.me/6281234567890" target="_blank" className="mt-2 inline-block font-semibold text-gold-600 hover:text-gold-700">
-                  +62 812-3456-7890
+                <Link href={waHref} target="_blank" className="mt-2 inline-block font-semibold text-gold-600 hover:text-gold-700">
+                  {waDisplay}
                 </Link>
               </div>
             </div>
@@ -91,7 +107,7 @@ export default function HubungiPage() {
               </div>
               <div>
                 <h3 className="text-xl font-bold text-navy-900">Venue Acara</h3>
-                <p className="mt-1 text-gray-600">{eventData.venue}, Bandung, Indonesia</p>
+                <p className="mt-1 text-gray-600">{venue}, Bandung, Indonesia</p>
                 <Link href="https://maps.app.goo.gl/telkom-university" target="_blank" className="mt-2 inline-block font-semibold text-gold-600 hover:text-gold-700">
                   Lihat di Google Maps
                 </Link>

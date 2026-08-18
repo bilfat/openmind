@@ -1,16 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { eventData } from "@/data/event";
-import { mockTalents, TalentItem } from "@/data/talents";
-import { mockTickets } from "@/data/tickets";
-import { mockFAQs } from "@/data/faq";
+import { TalentItem } from "@/data/talents";
 import { CountdownTimer } from "@/components/landing/countdown-timer";
 import { SectionHeading } from "@/components/ui/section-heading";
-import { GoldDivider } from "@/components/ui/gold-divider";
 import { PosterStage } from "@/components/landing/poster-stage";
 import { TicketVoucherCard } from "@/components/ticket/ticket-voucher-card";
+import { TalentCard } from "@/components/landing/talent-card";
+import { TalentModal } from "@/components/landing/talent-modal";
+import { useActiveEvent } from "@/hooks/use-active-event";
+import { formatEventDate, formatEventTimeRange, eventDisplayName, speakerToTalent } from "@/lib/event-utils";
 import {
   Calendar,
   MapPin,
@@ -20,13 +21,49 @@ import {
   Users,
   Sparkles,
   TrendingUp,
-  ShieldCheck,
   Building,
   HelpCircle,
+  MessageSquare,
+  Mic,
+  Star,
 } from "lucide-react";
 
+const mockFAQs = [
+  {
+    id: "faq-1",
+    question: "Apa itu OPEN MIND?",
+    answer: "OPEN MIND adalah event tahunan terbesar persembahan HIPMI Telkom University untuk mengakselerasi potensi kewirausahaan generasi muda.",
+  },
+  {
+    id: "faq-2",
+    question: "Bagaimana cara mendaftar tiket?",
+    answer: "Anda dapat mendaftar tiket melalui halaman Tiket di website ini. Pilih paket tiket yang sesuai dan ikuti langkah pendaftaran.",
+  },
+  {
+    id: "faq-3",
+    question: "Apakah ada tiket gratis?",
+    answer: "Ya, tersedia kuota Free Pass untuk mahasiswa Telkom University. Kuota terbatas, segera daftar!",
+  },
+  {
+    id: "faq-4",
+    question: "Di mana acara dilaksanakan?",
+    answer: "Detail lokasi acara akan dikirimkan setelah Anda mendaftar. Pastikan Anda bergabung dengan grup WhatsApp untuk update terbaru.",
+  },
+];
+
 export default function BerandaPage() {
+  const { event, speakers, agenda } = useActiveEvent();
   const [selectedTalent, setSelectedTalent] = useState<TalentItem | null>(null);
+  const [homeTickets, setHomeTickets] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetch("/api/tickets/public")
+      .then(async (res) => {
+        const json = await res.json();
+        if (json.success) setHomeTickets(json.data.slice(0, 3));
+      })
+      .catch(() => {});
+  }, []);
 
   const valueIcons: Record<string, React.ElementType> = {
     Lightbulb,
@@ -34,6 +71,32 @@ export default function BerandaPage() {
     Sparkles,
     TrendingUp,
   };
+
+  const name = event?.name || "OPEN MIND";
+  const year = event?.year || "2026";
+  const displayName = eventDisplayName(event);
+  const tagline = event?.tagline || event?.theme || eventData.tagline;
+  const dateLabel = event?.event_date ? formatEventDate(event.event_date) : eventData.date;
+  const timeLabel = event?.event_date ? formatEventTimeRange(event.start_time, event.end_time) : eventData.time;
+  const venueLabel = event?.venue || eventData.venue;
+  const heroTitle = event?.hero_title || null;
+  const showYearSeparately = !event?.hero_title;
+  const heroSubtitle = event?.hero_subtitle || tagline;
+
+  const talentList = [...speakers]
+    .filter((s) => s.is_visible)
+    .sort((a, b) => a.display_order - b.display_order)
+    .map(speakerToTalent);
+  const keynoteSpeakers = talentList.filter((t) => t.role === "speaker");
+  const supportCrew = talentList.filter((t) => t.role !== "speaker");
+
+  const visibleAgenda = agenda
+    ? agenda
+        .filter((a) => a.is_visible)
+        .sort((a, b) => a.session_order - b.session_order)
+    : [];
+
+  const whatsappGroupUrl = event?.whatsapp_group_url;
 
   return (
     <>
@@ -57,31 +120,33 @@ export default function BerandaPage() {
           {/* Headline */}
           <div className="space-y-3">
             <h1 className="font-display text-5xl sm:text-7xl md:text-8xl lg:text-9xl font-black tracking-wider text-ivory-100 drop-shadow-2xl">
-              OPEN MIND
+              {heroTitle ?? name}
             </h1>
-            <p className="font-display text-2xl sm:text-4xl md:text-5xl font-bold tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-gold-500 via-gold-300 to-gold-500">
-              2026
-            </p>
+            {showYearSeparately && (
+              <p className="font-display text-2xl sm:text-4xl md:text-5xl font-bold tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-gold-500 via-gold-300 to-gold-500">
+                {year}
+              </p>
+            )}
           </div>
 
           {/* Tagline */}
           <p className="mx-auto max-w-2xl text-lg sm:text-2xl font-light text-ivory-200/90 leading-relaxed italic">
-            &ldquo;One Action Endless Impact&rdquo;
+            &ldquo;{heroSubtitle}&rdquo;
           </p>
 
           {/* Event Meta Badges */}
           <div className="flex flex-wrap items-center justify-center gap-4 text-sm text-ivory-200/80">
             <div className="flex items-center gap-2 rounded-full bg-navy-900/80 border border-gold-500/20 px-4 py-2 backdrop-blur-md">
               <Calendar className="h-4 w-4 text-gold-400" />
-              <span>{eventData.date}</span>
+              <span>{dateLabel}</span>
             </div>
             <div className="flex items-center gap-2 rounded-full bg-navy-900/80 border border-gold-500/20 px-4 py-2 backdrop-blur-md">
               <Clock className="h-4 w-4 text-gold-400" />
-              <span>{eventData.time}</span>
+              <span>{timeLabel}</span>
             </div>
             <div className="flex items-center gap-2 rounded-full bg-navy-900/80 border border-gold-500/20 px-4 py-2 backdrop-blur-md">
               <MapPin className="h-4 w-4 text-gold-400" />
-              <span>{eventData.venue}</span>
+              <span>{venueLabel}</span>
             </div>
           </div>
 
@@ -108,6 +173,17 @@ export default function BerandaPage() {
             >
               <span>Pelajari Lebih Lanjut</span>
             </Link>
+            {/* {whatsappGroupUrl && (
+              <a
+                href={whatsappGroupUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-full bg-green-500 px-8 py-4 text-sm sm:text-base font-bold text-white transition-all duration-300 hover:bg-green-400 hover:scale-105 shadow-xl shadow-green-500/20"
+              >
+                <MessageSquare className="h-4 w-4" />
+                <span>Gabung Grup WhatsApp</span>
+              </a>
+            )} */}
           </div>
         </div>
 
@@ -119,7 +195,7 @@ export default function BerandaPage() {
       <section className="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
         <SectionHeading
           badge="Mengapa Harus Hadir"
-          title="Why OPEN MIND 2026?"
+          title={`Why ${displayName}?`}
           subtitle="Event tahunan terbesar persembahan HIPMI Telkom University untuk mengakselerasi potensi kewirausahaan generasi muda."
         />
 
@@ -154,12 +230,117 @@ export default function BerandaPage() {
         <div className="text-center mb-10 space-y-3">
           <SectionHeading
             badge="Official Line-Up"
-            title="Saksikan Line-Up Resmi OPEN MIND 2026"
+            title={`Saksikan Line-Up Resmi ${displayName}`}
             subtitle="Poster resmi persembahan HIPMI PT Telkom University. Klik poster untuk melihat detail secara penuh."
           />
         </div>
         <PosterStage />
       </section>
+
+      {/* ================= SPEAKERS (LIVE FROM CMS) ================= */}
+      {talentList.length > 0 && (
+        <section className="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto bg-secondary/20 border-y border-border">
+          <div className="text-center mb-12 space-y-3">
+            <SectionHeading
+              badge="Line-up"
+              title={`Bertemu Para Ahli di ${displayName}`}
+              subtitle="Kami menghadirkan para pemimpin industri, praktisi bisnis, dan entrepreneur inspiratif untuk berbagi wawasan dan pengalaman."
+            />
+          </div>
+
+          {keynoteSpeakers.length > 0 && (
+            <div className="mb-12">
+              <h2 className="text-2xl font-bold tracking-tight text-navy-900 sm:text-3xl text-center font-display mb-8">
+                <Mic className="inline-block h-6 w-6 text-gold-500 mr-2" />
+                Keynote & Guest Speakers
+              </h2>
+              <div className="isolate grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
+                {keynoteSpeakers.map((talent) => (
+                  <TalentCard
+                    key={talent.id}
+                    talent={talent}
+                    onSelect={() => setSelectedTalent(talent)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {supportCrew.length > 0 && (
+            <div>
+              <h2 className="text-2xl font-bold tracking-tight text-navy-900 sm:text-3xl text-center font-display mb-8">
+                <Star className="inline-block h-6 w-6 text-gold-500 mr-2" />
+                Moderator & MC
+              </h2>
+              <div className="isolate grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
+                {supportCrew.map((talent) => (
+                  <TalentCard
+                    key={talent.id}
+                    talent={talent}
+                    onSelect={() => setSelectedTalent(talent)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* ================= AGENDA / RUNDOWN (LIVE FROM CMS) ================= */}
+      {visibleAgenda.length > 0 && (
+        <section className="py-20 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto">
+          <SectionHeading
+            badge="Rundown"
+            title="Agenda Acara"
+            subtitle={`Jadwal lengkap sesi seminar, workshop, dan networking di ${displayName}.`}
+          />
+          <div className="mt-12 space-y-4">
+            {visibleAgenda.map((item, idx) => (
+              <div
+                key={item.id}
+                className="group flex items-start gap-4 sm:gap-6 rounded-2xl border border-border bg-white p-5 sm:p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-gold-500 hover:shadow-lg hover:shadow-gold-500/10"
+              >
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gold-500/10 text-gold-600 font-display font-bold text-sm group-hover:bg-gold-500 group-hover:text-navy-950 transition-colors duration-300">
+                  {String(idx + 1).padStart(2, "0")}
+                </div>
+                <div className="flex-1 min-w-0 space-y-1">
+                  <h3 className="font-display text-lg font-bold text-navy-900 group-hover:text-gold-600 transition-colors">
+                    {item.title}
+                  </h3>
+                  {item.description && (
+                    <p className="text-sm text-navy-900/70 font-light leading-relaxed">
+                      {item.description}
+                    </p>
+                  )}
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-navy-900/60 pt-1">
+                    {item.start_time && item.end_time && (
+                      <span className="inline-flex items-center gap-1">
+                        <Clock className="h-3 w-3 text-gold-500" />
+                        {item.start_time.slice(0, 5)} - {item.end_time.slice(0, 5)} WIB
+                      </span>
+                    )}
+                    {item.location && (
+                      <span className="inline-flex items-center gap-1">
+                        <MapPin className="h-3 w-3 text-gold-500" />
+                        {item.location}
+                      </span>
+                    )}
+                    {item.speaker_id && (() => {
+                      const sp = speakers.find((s) => s.id === item.speaker_id);
+                      return sp ? (
+                        <span className="inline-flex items-center gap-1">
+                          <Mic className="h-3 w-3 text-gold-500" />
+                          {sp.name}
+                        </span>
+                      ) : null;
+                    })()}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* ================= TICKET VOUCHER PREVIEW ================= */}
       <section className="py-24 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
@@ -170,11 +351,29 @@ export default function BerandaPage() {
         />
 
         <div className="mt-14 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 items-start">
-          {mockTickets.slice(0, 3).map((ticket) => (
+          {homeTickets.map((ticket) => (
             <TicketVoucherCard
               key={ticket.id}
-              ticket={ticket}
-              featured={ticket.id === "early-bird"}
+              ticket={{
+                id: ticket.id,
+                name: ticket.name,
+                description: ticket.description || "",
+                type: ticket.ticket_type,
+                visibility: ticket.visibility,
+                price: Number(ticket.base_price),
+                discountPercentage: Number(ticket.discount_percentage),
+                finalPrice: Number(ticket.final_price),
+                quota: Number(ticket.quota),
+                issued: Number(ticket.quota) - Number(ticket.remaining_quota),
+                minPurchase: Number(ticket.min_purchase),
+                maxPurchase: Number(ticket.max_purchase),
+                salesStart: ticket.sales_start_at,
+                salesEnd: ticket.sales_end_at,
+                status: ticket.status,
+                benefits: ticket.benefits || [],
+                badge: ticket.code === "EARLY" ? "Best Seller" : ticket.base_price === 0 ? "Limited Quota" : "Standard"
+              }}
+              featured={ticket.code === "EARLY"}
             />
           ))}
         </div>
@@ -204,7 +403,7 @@ export default function BerandaPage() {
               HIPMI PT Telkom University
             </h2>
             <p className="text-sm sm:text-base leading-relaxed text-ivory-200/80 font-light">
-              Wadah resmi pencetak wirausaha muda tangguh di lingkungan Telkom University. Melalui OPEN MIND 2026, kami mempertemukan inovator masa depan dengan ekosistem bisnis profesional.
+              Wadah resmi pencetak wirausaha muda tangguh di lingkungan Telkom University. Melalui {displayName}, kami mempertemukan inovator masa depan dengan ekosistem bisnis profesional.
             </p>
             <div className="pt-2">
               <Link
@@ -225,11 +424,11 @@ export default function BerandaPage() {
           <SectionHeading
             badge="Tanya Jawab"
             title="Pertanyaan Umum (FAQ)"
-            subtitle="Semua hal yang sering ditanyakan seputar pendaftaran, tiket, dan acara OPEN MIND 2026."
+            subtitle={`Semua hal yang sering ditanyakan seputar pendaftaran, tiket, dan acara ${displayName}.`}
           />
 
           <div className="mt-12 space-y-4">
-            {mockFAQs.slice(0, 4).map((faq) => (
+            {mockFAQs.map((faq) => (
               <div
                 key={faq.id}
                 className="rounded-2xl border border-border bg-white p-6 shadow-sm"
@@ -256,6 +455,13 @@ export default function BerandaPage() {
           </div>
         </div>
       </section>
+
+      {selectedTalent && (
+        <TalentModal
+          talent={selectedTalent}
+          onClose={() => setSelectedTalent(null)}
+        />
+      )}
     </>
   );
 }

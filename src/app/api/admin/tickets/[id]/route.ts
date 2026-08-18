@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { writeAuditLog } from '@/lib/audit'
 
 async function checkSuperAdmin() {
   const supabase = await createClient()
@@ -23,7 +24,7 @@ async function checkSuperAdmin() {
     return { authorized: false, status: 403, message: 'Forbidden: Hanya Super Admin yang dapat mengakses.' }
   }
 
-  return { authorized: true, supabase }
+  return { authorized: true, supabase, userId: user.id }
 }
 
 function generatePrivateToken(): string {
@@ -260,13 +261,40 @@ export async function PUT(
       }
     }
 
+    if (status === 'ARCHIVED') {
+      await writeAuditLog({
+        actorProfileId: auth.userId || null,
+        action: 'ARCHIVE_TICKET',
+        entityType: 'ticket_types',
+        entityId: ticketId,
+        metadata: {
+          name: updatedTicket.name,
+          code: updatedTicket.code,
+          status: updatedTicket.status,
+        },
+      })
+    } else {
+      await writeAuditLog({
+        actorProfileId: auth.userId || null,
+        action: 'UPDATE_TICKET',
+        entityType: 'ticket_types',
+        entityId: ticketId,
+        metadata: {
+          updated_fields: Object.keys(updateData),
+          name: updatedTicket.name,
+          code: updatedTicket.code,
+          status: updatedTicket.status,
+        },
+      })
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Tiket berhasil diperbarui.',
       data: {
         ...updatedTicket,
         privateToken,
-        benefits: JSON.parse(updatedTicket.benefits)
+        benefits: typeof updatedTicket.benefits === 'string' ? JSON.parse(updatedTicket.benefits) : updatedTicket.benefits
       }
     })
   } catch (error: any) {
@@ -289,6 +317,40 @@ export async function DELETE(
   const { id: ticketId } = await params
 
   try {
+    const [orderItemsRes, reservationsRes, issuedTicketsRes] = await Promise.all([
+      supabase.from('order_items').select('id', { count: 'exact', head: true }).eq('ticket_type_id', ticketId),
+      supabase.from('ticket_reservations').select('id', { count: 'exact', head: true }).eq('ticket_type_id', ticketId),
+      supabase.from('issued_tickets').select('id', { count: 'exact', head: true }).eq('ticket_type_id', ticketId)
+    ])
+
+    const hasHistory = (orderItemsRes.count || 0) > 0 || 
+                       (reservationsRes.count || 0) > 0 || 
+                       (issuedTicketsRes.count || 0) > 0
+
+    if (hasHistory) {
+      return NextResponse.json({
+        success: false,
+        message: 'Tiket memiliki riwayat transaksi atau reservasi. Gunakan opsi Arsipkan untuk menonaktifkan tiket ini.'
+      }, { status: 409 })
+    }
+
+    const { data: ticket } = await supabase
+      .from('ticket_types')
+      .select('name, code')
+      .eq('id', ticketId)
+      .maybeSingle()
+
+    await writeAuditLog({
+      actorProfileId: auth.userId || null,
+      action: 'DELETE_TICKET',
+      entityType: 'ticket_types',
+      entityId: ticketId,
+      metadata: {
+        name: ticket?.name,
+        code: ticket?.code,
+      },
+    })
+
     const { error: deleteError } = await supabase
       .from('ticket_types')
       .delete()

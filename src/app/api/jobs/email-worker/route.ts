@@ -2,7 +2,7 @@ import { timingSafeEqual } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendTransactionalEmail } from '@/lib/brevo'
-import { renderEmail, type EmailJob } from '@/lib/email/templates'
+import { renderEmail, type EmailJob, type EmailEventContext } from '@/lib/email/templates'
 
 export const runtime = 'nodejs'
 
@@ -26,6 +26,20 @@ export async function POST(request: Request) {
   const { data: jobs, error: claimError } = await supabase.rpc('claim_email_jobs', { p_batch_size: batchSize, p_lease_seconds: 900 })
   if (claimError) return NextResponse.json({ success: false, message: 'Unable to claim jobs' }, { status: 503 })
 
+  const { data: activeEvent } = await supabase.from('events').select('name, year, tagline, event_date, start_time, end_time, venue, whatsapp_group_url').eq('status', 'ACTIVE').maybeSingle()
+  const eventContext: EmailEventContext | undefined = activeEvent
+    ? {
+        name: activeEvent.name,
+        year: activeEvent.year,
+        event_date: activeEvent.event_date,
+        start_time: activeEvent.start_time,
+        end_time: activeEvent.end_time,
+        venue: activeEvent.venue,
+        tagline: activeEvent.tagline,
+        whatsapp_group_url: activeEvent.whatsapp_group_url,
+      }
+    : undefined
+
   const counts = { claimed: jobs?.length ?? 0, sent: 0, retried: 0, failed: 0, deferred: 0 }
   for (const rawJob of (jobs ?? []) as EmailJob[]) {
     const { data: quotaAvailable, error: quotaError } = await supabase.rpc('reserve_email_quota', { p_limit: 300 })
@@ -35,7 +49,7 @@ export async function POST(request: Request) {
       continue
     }
     try {
-      const rendered = renderEmail(rawJob)
+      const rendered = renderEmail(rawJob, eventContext)
       const result = await sendTransactionalEmail({ to: [{ email: rawJob.recipient_email, name: rawJob.recipient_name }], subject: rendered.subject, htmlContent: rendered.htmlContent })
       const { error } = await supabase.from('email_jobs').update({ status: 'SENT', sent_at: new Date().toISOString(), processing_started_at: null, last_error: null, provider_message_id: result.messageId ?? null, provider_response: result.response, updated_at: new Date().toISOString() }).eq('id', rawJob.id).eq('status', 'PROCESSING')
       if (error) throw error

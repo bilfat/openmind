@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { z } from 'zod'
+import { triggerEmailWorker } from '@/lib/tickets/trigger-email-worker'
 
 const ParticipantSchema = z.object({
   fullName: z.string().min(3, 'Nama lengkap wajib diisi.'),
@@ -19,7 +20,7 @@ const CheckoutSchema = z.object({
   })).min(1, 'Minimal satu jenis tiket harus dipilih.'),
   participants: z.array(ParticipantSchema),
   referralCode: z.string().optional(),
-  inviteToken: z.string().optional(),
+  inviteToken: z.string().nullable().optional(),
 });
 
 
@@ -30,6 +31,7 @@ async function handler(req: Request) {
     const validation = CheckoutSchema.safeParse(body);
 
     if (!validation.success) {
+      console.error('Checkout validation failed:', JSON.stringify({ body, errors: validation.error.flatten() }));
       return NextResponse.json({ success: false, message: 'Data yang dikirim tidak valid.', errors: validation.error.flatten().fieldErrors }, { status: 400 });
     }
 
@@ -73,6 +75,19 @@ async function handler(req: Request) {
             return NextResponse.json({ success: false, message: "Kuota untuk salah satu tiket tidak mencukupi." }, { status: 400 });
         }
         throw new Error(`RPC Error: ${rpcError.message}`);
+    }
+
+    if (rpcResult.totalAmount <= 0) {
+      const { error: issueError } = await supabase.rpc('issue_order_tickets_rpc', {
+        p_order_id: rpcResult.orderId,
+        p_require_approved: true
+      });
+      if (issueError) {
+        console.error('Failed to auto-issue tickets for free order:', issueError);
+      } else {
+        // Kick the existing email worker so TICKET_ISSUED jobs are processed immediately
+        void triggerEmailWorker(new URL(req.url).origin)
+      }
     }
 
     return NextResponse.json({ 

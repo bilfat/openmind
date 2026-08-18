@@ -90,7 +90,7 @@ export function TicketPreview({ formData }: TicketPreviewProps) {
                 {hasDiscount && (
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-ivory-200/50 line-through">
-                      Rp {formData.price.toLocaleString("id-ID")}
+                      Rp {(formData.price ?? 0).toLocaleString("id-ID")}
                     </span>
                     <span className="rounded-md bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-bold text-emerald-400 border border-emerald-500/30">
                       {formData.discountPercentage}% OFF
@@ -98,7 +98,7 @@ export function TicketPreview({ formData }: TicketPreviewProps) {
                   </div>
                 )}
                 <div className="font-display text-3xl font-black text-gold-400">
-                  Rp {formData.finalPrice.toLocaleString("id-ID")}
+                  Rp {(formData.finalPrice ?? 0).toLocaleString("id-ID")}
                 </div>
               </div>
             )}

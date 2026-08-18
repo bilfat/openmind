@@ -20,7 +20,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     if (!orderQuery.data) return jsonError('Order tidak ditemukan.', 404)
 
     const [paymentsQuery, referralQuery, itemsQuery] = await Promise.all([
-      supabase.from('payments').select('id, order_id, payment_method, amount, status, proof_file_name, proof_mime_type, proof_size_bytes, verified_by, verified_at, rejection_reason, created_at, updated_at').eq('order_id', id).order('created_at', { ascending: false }).order('id', { ascending: false }),
+      supabase.from('payments').select('id, order_id, payment_method, amount, status, proof_path, proof_file_name, proof_mime_type, proof_size_bytes, verified_by, verified_at, rejection_reason, created_at, updated_at').eq('order_id', id).order('created_at', { ascending: false }).order('id', { ascending: false }),
       supabase.from('referral_redemptions').select('id, discount_amount, status, reserved_at, consumed_at, released_at, created_at, referral_codes(id, code, discount_type, discount_value, max_discount)').eq('order_id', id).order('created_at', { ascending: false }),
       supabase.from('order_items').select('id, order_id, ticket_type_id, participant_id, unit_price, discount_amount, line_total, created_at, participants(id, event_id, full_name, email, whatsapp, nim, faculty, study_program, instagram_username, created_at, updated_at), ticket_types(id, name, code, ticket_type, final_price)').eq('order_id', id).order('created_at', { ascending: true }).order('id', { ascending: true }),
     ])
@@ -44,7 +44,16 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       email_jobs: ticketsByItem[item.id] ? emailsByTicket[ticketsByItem[item.id].id] ?? [] : [],
     }))
 
-    return NextResponse.json({ success: true, order: orderQuery.data, payments: paymentsQuery.data ?? [], referral: referralQuery.data?.[0] ?? null, order_items: orderItems, email_jobs: emailQuery.data ?? [] })
+    const paymentsWithUrls = await Promise.all((paymentsQuery.data ?? []).map(async (p: any) => {
+      let proofUrl = null;
+      if (p.proof_path) {
+        const { data: signed } = await supabase.storage.from('payment-proofs').createSignedUrl(p.proof_path, 3600);
+        proofUrl = signed?.signedUrl || null;
+      }
+      return { ...p, proof_url: proofUrl };
+    }));
+
+    return NextResponse.json({ success: true, order: orderQuery.data, payments: paymentsWithUrls, referral: referralQuery.data?.[0] ?? null, order_items: orderItems, email_jobs: emailQuery.data ?? [] })
   } catch (error) {
     console.error('Admin order detail read error:', error)
     return jsonError('Gagal mengambil detail pesanan.', 500)

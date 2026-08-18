@@ -51,7 +51,15 @@ export default function TicketDetailPage() {
       const res = await fetch(`/api/admin/tickets/${ticketId}`);
       const json = await res.json();
       if (json.success) {
-        setTicket(json.data);
+        const t = json.data;
+        setTicket({
+          ...t,
+          type: t.ticket_type,
+          price: Number(t.base_price),
+          discountPercentage: Number(t.discount_percentage),
+          finalPrice: Number(t.final_price),
+          benefits: t.benefits || [],
+        });
       }
     } catch (err) {
       console.error("Failed to load ticket:", err);

@@ -1,7 +1,9 @@
 ﻿import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireActiveAdmin, jsonError } from '@/lib/admin-read-auth'
+import { broadcastToAllAdmins } from '@/lib/notifications'
 import { z } from 'zod'
+import { triggerEmailWorker } from '@/lib/tickets/trigger-email-worker'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -92,6 +94,40 @@ export async function POST(req: Request) {
       return jsonError('Terjadi kesalahan saat membuat pesanan walk-in.', 500)
     }
 
+    // Kick the existing email worker so TICKET_ISSUED jobs are processed immediately
+    void triggerEmailWorker(new URL(req.url).origin)
+
+    // 5. Fetch issued tickets for the success screen (FAIL-OPEN: never fail the order here)
+    let issuedTickets: Array<{ ticketCode: string; participantName: string }> = []
+    try {
+      const { data: issuedRows } = await supabaseAdmin
+        .from('issued_tickets')
+        .select('ticket_code, participants(full_name)')
+        .eq('order_id', rpcResult.orderId)
+        .order('issued_at', { ascending: true })
+
+      issuedTickets = (issuedRows || []).map((row: any) => ({
+        ticketCode: row.ticket_code,
+        participantName: row.participants?.full_name || '',
+      }))
+    } catch (issuedError: any) {
+      console.error('Walk-in issued tickets fetch failed (fail-open):', issuedError)
+    }
+
+    // 6. Notification (FAIL-OPEN): ORDER_NEW for all active admins — only after RPC success
+    await broadcastToAllAdmins({
+      type: 'ORDER_NEW',
+      title: 'Pesanan Baru',
+      message: `Pesanan baru ${rpcResult.orderCode} telah dibuat.`,
+      link: '/admin/orders',
+      metadata: {
+        order_id: rpcResult.orderId,
+        order_code: rpcResult.orderCode,
+        created_by: auth.userId,
+      },
+      client: supabaseAdmin,
+    })
+
     return NextResponse.json({
       success: true,
       message: rpcResult.message || 'Walk-in order created successfully.',
@@ -99,6 +135,7 @@ export async function POST(req: Request) {
       orderCode: rpcResult.orderCode,
       totalAmount: rpcResult.totalAmount,
       issuance: rpcResult.issuance,
+      issuedTickets,
     }, { status: 200 })
 
   } catch (error: any) {

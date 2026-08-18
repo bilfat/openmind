@@ -1,28 +1,22 @@
 "use client";
 
-import React, { useState, useEffect, Suspense, useCallback } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  ShieldCheck,
-  Ticket,
   User,
   Mail,
   Phone,
   GraduationCap,
   Building,
   BookOpen,
-  ArrowRight,
-  Sparkles,
-  AlertCircle,
-  Tag,
-  Check,
-  X,
   Loader2,
   Minus,
   Plus
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useActiveEvent } from "@/hooks/use-active-event";
+import { eventDisplayName } from "@/lib/event-utils";
 
 interface Participant {
     fullName: string;
@@ -56,6 +50,8 @@ const facultyOptions = [
 function CheckoutContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { event } = useActiveEvent();
+  const displayName = eventDisplayName(event);
 
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [loading, setLoading] = useState(true);
@@ -104,8 +100,8 @@ function CheckoutContent() {
         setTicket(foundTicket);
         setQuantity(foundTicket.min_purchase || 1);
         setParticipants(Array(foundTicket.min_purchase || 1).fill({ fullName: '', email: '', whatsapp: '', nim: '', faculty: 'Fakultas Ilmu Terapan', studyProgram: '', instagram: '' }));
-      } catch (err: any) {
-        setError(err.message);
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : "Gagal memuat data tiket.");
       } finally {
         setLoading(false);
       }
@@ -135,20 +131,70 @@ function CheckoutContent() {
   const validateForms = () => {
     const errors: Record<string, string>[] = [];
     let isValid = true;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     participants.forEach((p, i) => {
       const pErrors: Record<string, string> = {};
-      if (!p.fullName.trim()) pErrors.fullName = "Nama lengkap wajib diisi.";
-      if (!p.email.trim() || !p.email.includes('@')) pErrors.email = "Email valid wajib diisi.";
-      if (!p.whatsapp.trim() || p.whatsapp.length < 9) pErrors.whatsapp = "Nomor WhatsApp aktif wajib diisi.";
-      if (!p.nim.trim()) pErrors.nim = "NIM mahasiswa wajib diisi.";
-      if (!p.studyProgram.trim()) pErrors.studyProgram = "Program studi wajib diisi.";
+      if (!p.fullName.trim() || p.fullName.trim().length < 3) pErrors.fullName = "Nama lengkap minimal 3 karakter.";
+      if (!p.email.trim() || !emailRegex.test(p.email.trim())) pErrors.email = "Email tidak valid.";
+      if (!p.whatsapp.trim() || p.whatsapp.trim().length < 9) pErrors.whatsapp = "Nomor WhatsApp minimal 9 karakter.";
+      if (!p.nim.trim() || p.nim.trim().length < 5) pErrors.nim = "NIM minimal 5 karakter.";
+      if (!p.studyProgram.trim() || p.studyProgram.trim().length < 2) pErrors.studyProgram = "Program studi minimal 2 karakter.";
       if(Object.keys(pErrors).length > 0) isValid = false;
       errors[i] = pErrors;
     });
+    if (!isValid) {
+      setCheckoutError("Mohon periksa kembali data yang diisi.");
+    }
     setFormErrors(errors);
     return isValid;
   };
   
+  const [referralCode, setReferralCode] = useState('');
+  const [discountAmount, setDiscountAmount] = useState(0);
+  const [referralSuccessMsg, setReferralSuccessMsg] = useState('');
+  const [referralErrorMsg, setReferralErrorMsg] = useState('');
+  const [isValidatingReferral, setIsValidatingReferral] = useState(false);
+
+  const handleValidateReferral = async () => {
+    if (!referralCode.trim() || !ticket || !event) return;
+    setIsValidatingReferral(true);
+    setReferralSuccessMsg('');
+    setReferralErrorMsg('');
+    try {
+      const res = await fetch('/api/referrals/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ referralCode: referralCode.trim(), eventId: event.id }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setDiscountAmount(0);
+        setReferralErrorMsg(data.message || 'Kode referal tidak valid.');
+        return;
+      }
+      // Calculate discount amount from discount preview
+      const discount = data.discount;
+      let discountAmount = 0;
+      const unitPrice = ticket.final_price || 0;
+      const subtotal = unitPrice * quantity;
+      if (discount.type === 'PERCENTAGE') {
+        discountAmount = Math.floor(subtotal * discount.value / 100);
+        if (discount.max_discount) {
+          discountAmount = Math.min(discountAmount, discount.max_discount);
+        }
+      } else if (discount.type === 'FIXED') {
+        discountAmount = discount.value;
+      }
+      discountAmount = Math.min(discountAmount, subtotal);
+      setDiscountAmount(discountAmount);
+      setReferralSuccessMsg(`Kode referal valid! Diskon Rp ${discountAmount.toLocaleString('id-ID')}`);
+    } catch (err: unknown) {
+      setReferralErrorMsg(err instanceof Error ? err.message : 'Gagal memvalidasi kode referal.');
+    } finally {
+      setIsValidatingReferral(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForms() || !ticket) return;
@@ -159,8 +205,8 @@ function CheckoutContent() {
     const payload = {
       ticketSelections: [{ ticketId: ticket.id, quantity }],
       participants,
-      inviteToken,
-      // referralCode will be added later
+      inviteToken: inviteToken || undefined,
+      referralCode: referralCode.trim() || undefined,
     };
 
     try {
@@ -175,17 +221,18 @@ function CheckoutContent() {
         throw new Error(result.message || "Checkout gagal.");
       }
       
-      const orderId = result.orderId;
+      const orderCode = result.orderCode;
       const totalAmount = result.total_amount;
 
       if (totalAmount === 0) {
-        router.push(`/success?order=${orderId}&type=free`);
+        router.push(`/success?order=${orderCode}&type=free`);
       } else {
-        router.push(`/payment?order=${orderId}`);
+        router.push(`/payment?order=${orderCode}`);
       }
 
-    } catch (err: any) {
-      setCheckoutError(err.message);
+    } catch (err: unknown) {
+      console.error('Checkout submission error:', err);
+      setCheckoutError(err instanceof Error ? err.message : "Checkout gagal.");
       setIsSubmitting(false);
     }
   };
@@ -204,9 +251,9 @@ function CheckoutContent() {
            <h1 className="font-display text-3xl sm:text-4xl lg:text-5xl font-bold text-navy-900">
              Form Pendaftaran Peserta
            </h1>
-           <p className="text-sm sm:text-base text-navy-900/70 max-w-xl mx-auto">
-             Isi data diri Anda dengan benar untuk penerbitan E-Ticket OPEN MIND 2026.
-           </p>
+<p className="text-sm sm:text-base text-navy-900/70 max-w-xl mx-auto">
+              Isi data diri Anda dengan benar untuk penerbitan E-Ticket {displayName}.
+            </p>
          </div>
        </section>
 
@@ -325,6 +372,30 @@ function CheckoutContent() {
                     </div>
                 </div>
 
+                {/* Referral Code Input */}
+                <div className="rounded-2xl border border-navy-800 bg-navy-900/60 p-4 space-y-2">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-ivory-200/80">Kode Referal / Promo (Opsional)</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Masukkan kode promo"
+                      value={referralCode}
+                      onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                      className="w-full rounded-xl border border-navy-700 bg-navy-950 px-3 py-2 text-xs text-ivory-100 placeholder:text-ivory-200/40 uppercase"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleValidateReferral}
+                      disabled={isValidatingReferral || !referralCode.trim()}
+                      className="rounded-xl bg-gold-500 px-3 py-2 text-xs font-bold text-navy-950 hover:bg-gold-400 disabled:opacity-50"
+                    >
+                      {isValidatingReferral ? 'Cek...' : 'Terapkan'}
+                    </button>
+                  </div>
+                  {referralSuccessMsg && <p className="text-xs text-emerald-400 font-semibold">{referralSuccessMsg}</p>}
+                  {referralErrorMsg && <p className="text-xs text-rose-400 font-semibold">{referralErrorMsg}</p>}
+                </div>
+
                 {/* Pricing summary - all client side calculations are for display only */}
                 <div className="space-y-2.5 text-sm text-ivory-200/80">
                     <div className="flex justify-between">
@@ -335,9 +406,15 @@ function CheckoutContent() {
                         <span>Subtotal:</span>
                         <span>Rp {subtotal.toLocaleString('id-ID')}</span>
                     </div>
+                    {discountAmount > 0 && (
+                      <div className="flex justify-between text-emerald-400 font-semibold">
+                        <span>Diskon Referal:</span>
+                        <span>- Rp {discountAmount.toLocaleString('id-ID')}</span>
+                      </div>
+                    )}
                      <div className="border-t border-navy-800 pt-3 flex justify-between items-baseline">
                         <span className="font-bold text-ivory-100">Estimasi Total:</span>
-                        <span className="font-display text-2xl font-extrabold text-gold-400">Rp {subtotal.toLocaleString('id-ID')}</span>
+                        <span className="font-display text-2xl font-extrabold text-gold-400">Rp {Math.max(0, subtotal - discountAmount).toLocaleString('id-ID')}</span>
                     </div>
                     <p className="text-[11px] text-ivory-200/50 text-center pt-2">Total tagihan final akan dihitung oleh server saat checkout, termasuk diskon jika ada.</p>
                 </div>

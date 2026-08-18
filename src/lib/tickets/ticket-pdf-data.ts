@@ -17,6 +17,7 @@ export type TicketPdfData = {
   startTime: string
   endTime: string | null
   venue: string
+  whatsappGroupUrl: string | null
   participantName: string
   participantNim: string | null
   participantFaculty: string | null
@@ -26,7 +27,7 @@ export type TicketPdfData = {
 
 type ParticipantRow = { full_name: string; nim: string | null; faculty: string | null; study_program: string | null }
 type TicketTypeRow = { name: string }
-type EventRow = { name: string; event_date: string; start_time: string; end_time: string | null; venue: string }
+type EventRow = { name: string; event_date: string; start_time: string; end_time: string | null; venue: string; whatsapp_group_url: string | null }
 type OrderRow = { id?: string; order_code: string; event_id: string }
 type IssuedRow = { id: string; ticket_code: string; qr_token: string; status: string; issued_at: string; order_id?: string }
 type TicketQueryRow = IssuedRow & { orders: OrderRow | OrderRow[]; participants: ParticipantRow | ParticipantRow[]; ticket_types: TicketTypeRow | TicketTypeRow[] }
@@ -39,7 +40,7 @@ export function canonicalTicketUrl(qrToken: string) {
 
 export async function createTicketQrDataUrl(qrToken: string) {
   return QRCode.toDataURL(canonicalTicketUrl(qrToken), {
-    width: 600,
+    width: 800,
     margin: 1,
     errorCorrectionLevel: 'H',
     color: { dark: '#10213D', light: '#FFFFFF' },
@@ -63,7 +64,25 @@ export async function loadIssuedTicketPdfData(supabase: PdfSupabase, ticketId: s
   const participant = one(data.participants)
   const ticketType = one(data.ticket_types)
   if (!order || !participant || !ticketType) return null
-  const { data: event, error: eventError } = await supabase.from('events').select('name, event_date, start_time, end_time, venue').eq('id', order.event_id).maybeSingle<EventRow>()
+  const { data: event, error: eventError } = await supabase.from('events').select('name, event_date, start_time, end_time, venue, whatsapp_group_url').eq('id', order.event_id).maybeSingle<EventRow>()
+  if (eventError) throw eventError
+  if (!event) return null
+  return toTicketPdfData(data, order, participant, ticketType, event)
+}
+
+export async function loadIssuedTicketPdfDataByToken(supabase: PdfSupabase, qrToken: string): Promise<TicketPdfData | null> {
+  const { data, error } = await supabase
+    .from('issued_tickets')
+    .select(`id, ticket_code, qr_token, status, issued_at, order_id, order_item_id, orders!inner(order_code, event_id), participants!inner(full_name, nim, faculty, study_program), ticket_types!inner(name)`)
+    .eq('qr_token', qrToken.toLowerCase())
+    .maybeSingle<TicketQueryRow>()
+  if (error) throw error
+  if (!data || !['ACTIVE', 'CHECKED_IN'].includes(data.status)) return null
+  const order = one(data.orders)
+  const participant = one(data.participants)
+  const ticketType = one(data.ticket_types)
+  if (!order || !participant || !ticketType) return null
+  const { data: event, error: eventError } = await supabase.from('events').select('name, event_date, start_time, end_time, venue, whatsapp_group_url').eq('id', order.event_id).maybeSingle<EventRow>()
   if (eventError) throw eventError
   if (!event) return null
   return toTicketPdfData(data, order, participant, ticketType, event)
@@ -73,7 +92,7 @@ export async function loadOrderPdfData(supabase: PdfSupabase, orderId: string): 
   const { data: order, error: orderError } = await supabase.from('orders').select('id, order_code, event_id').eq('id', orderId).maybeSingle<OrderRow>()
   if (orderError) throw orderError
   if (!order) return null
-  const { data: event, error: eventError } = await supabase.from('events').select('name, event_date, start_time, end_time, venue').eq('id', order.event_id).maybeSingle<EventRow>()
+  const { data: event, error: eventError } = await supabase.from('events').select('name, event_date, start_time, end_time, venue, whatsapp_group_url').eq('id', order.event_id).maybeSingle<EventRow>()
   if (eventError) throw eventError
   if (!event) return { orderCode: order.order_code, tickets: [] }
   const { data: items, error: itemsError } = await supabase.from('order_items').select('id, created_at, participant_id, ticket_type_id, participants!inner(full_name, nim, faculty, study_program), ticket_types!inner(name), issued_tickets!inner(id, ticket_code, qr_token, status, issued_at)').eq('order_id', orderId).order('created_at', { ascending: true }).order('id', { ascending: true }).returns<OrderItemRow[]>()
@@ -89,5 +108,5 @@ export async function loadOrderPdfData(supabase: PdfSupabase, orderId: string): 
 }
 
 function toTicketPdfData(issued: IssuedRow, order: OrderRow, participant: ParticipantRow, ticketType: TicketTypeRow, event: EventRow): TicketPdfData {
-  return { id: issued.id, ticketCode: issued.ticket_code, qrToken: issued.qr_token, status: issued.status as 'ACTIVE' | 'CHECKED_IN', issuedAt: issued.issued_at, orderCode: order.order_code, eventName: event.name, eventDate: event.event_date, startTime: event.start_time, endTime: event.end_time, venue: event.venue, participantName: participant.full_name, participantNim: participant.nim, participantFaculty: participant.faculty, participantStudyProgram: participant.study_program, ticketTypeName: ticketType.name }
+  return { id: issued.id, ticketCode: issued.ticket_code, qrToken: issued.qr_token, status: issued.status as 'ACTIVE' | 'CHECKED_IN', issuedAt: issued.issued_at, orderCode: order.order_code, eventName: event.name, eventDate: event.event_date, startTime: event.start_time, endTime: event.end_time, venue: event.venue, whatsappGroupUrl: event.whatsapp_group_url, participantName: participant.full_name, participantNim: participant.nim, participantFaculty: participant.faculty, participantStudyProgram: participant.study_program, ticketTypeName: ticketType.name }
 }

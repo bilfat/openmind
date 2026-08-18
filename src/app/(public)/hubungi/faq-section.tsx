@@ -3,8 +3,12 @@ import { useState } from "react";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { mockFAQs, FAQItem } from "@/data/faq";
 import { Search, ChevronDown } from "lucide-react";
+import { useActiveEvent } from "@/hooks/use-active-event";
+import { eventDisplayName } from "@/lib/event-utils";
 
 export function FaqSection() {
+  const { event } = useActiveEvent();
+  const displayName = eventDisplayName(event);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeCategory, setActiveCategory] = useState("all");
   const [openAccordion, setOpenAccordion] = useState<string | null>(mockFAQs[0]?.id || null);
@@ -29,7 +33,7 @@ export function FaqSection() {
           <SectionHeading
             badge="Tanya Jawab"
             title="Pertanyaan Umum (FAQ)"
-            subtitle="Temukan jawaban untuk semua pertanyaan Anda tentang OPEN MIND 2026. Jika tidak menemukan jawaban, hubungi kami."
+            subtitle={`Temukan jawaban untuk semua pertanyaan Anda tentang ${displayName}. Jika tidak menemukan jawaban, hubungi kami.`}
           />
         </div>
 

@@ -39,3 +39,65 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+
+# =========================================
+# LOCAL / SENSITIVE PROJECT FILES
+# =========================================
+
+# Environment secrets
+.env
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+
+# Next.js generated files
+.next/
+out/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Supabase local metadata
+supabase/.temp/
+
+# Local scratch / testing scripts
+scratch/
+
+# Local generated files
+structure.txt
+db_status.txt
+
+# Logs
+*.log
+logs/
+
+# Coverage
+coverage/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Private keys / certificates
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+
+# Credential files
+credentials.json
+service-account.json
+service-account*.json
+*-credentials.json
+*-service-account.json

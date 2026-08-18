@@ -1,9 +1,10 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Bell, Search, User, Menu } from "lucide-react";
+import { Search, User, Menu } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
+import { NotificationDropdown } from "@/components/admin/notification-dropdown";
 
 const pageTitles: Record<string, string> = {
   "/admin/dashboard": "Dashboard",
@@ -15,6 +16,7 @@ const pageTitles: Record<string, string> = {
   "/admin/admins": "Admin Management",
   "/admin/event": "Event Settings",
   "/admin/settings": "System Settings",
+  "/admin/notifications": "Notifications",
 };
 
 interface AdminHeaderProps {
@@ -78,13 +80,7 @@ export function AdminHeader({ onMenuToggle }: AdminHeaderProps) {
             <Search className="h-5 w-5" />
           </button>
 
-          <button
-            className="relative rounded-lg p-2 text-navy-900/50 hover:text-navy-900 hover:bg-muted transition-colors"
-            aria-label="Notifications"
-          >
-            <Bell className="h-5 w-5" />
-            <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-orange-500" />
-          </button>
+          <NotificationDropdown />
 
           <div className="mx-1 h-8 w-px bg-border hidden sm:block" />
 

@@ -2,13 +2,11 @@
 
 import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { mockTickets } from "@/data/tickets";
-import { getStoredTickets } from "@/lib/ticket-store";
 import { TicketVoucherCard } from "@/components/ticket/ticket-voucher-card";
 import { SectionHeading } from "@/components/ui/section-heading";
-import { getStoredOrders, getOrderByOrderId } from "@/lib/order-store";
-import { OrderItem } from "@/data/orders";
 import { contactWhatsApp } from "@/data/social-links";
+import { useActiveEvent } from "@/hooks/use-active-event";
+import { eventDisplayName } from "@/lib/event-utils";
 import Link from "next/link";
 import {
   ShieldCheck,
@@ -33,6 +31,10 @@ function TiketPageContent() {
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
   const orderParam = searchParams.get("order");
+  const { event } = useActiveEvent();
+
+  const displayName = eventDisplayName(event);
+  const waNumber = event?.contact_whatsapp || contactWhatsApp.number;
 
   const [activeTab, setActiveTab] = useState<"catalog" | "check">(() =>
     tabParam === "check" || orderParam ? "check" : "catalog"
@@ -41,15 +43,7 @@ function TiketPageContent() {
   // Check Ticket Tracker State inside Tiket page
   const [searchQuery, setSearchQuery] = useState(orderParam || "");
   const [searched, setSearched] = useState(Boolean(orderParam));
-  const [matchedOrder, setMatchedOrder] = useState<OrderItem | null>(() => {
-    if (!orderParam) return null;
-    const query = orderParam.trim();
-    return (
-      getOrderByOrderId(query) ||
-      getStoredOrders().find((o) => o.email.toLowerCase() === query.toLowerCase()) ||
-      null
-    );
-  });
+  const [matchedOrder, setMatchedOrder] = useState<any | null>(null);
 
   const [tickets, setTickets] = useState<any[]>([]);
   const [loadingTickets, setLoadingTickets] = useState(true);
@@ -72,21 +66,65 @@ function TiketPageContent() {
   }, []);
 
 
-  const performSearch = (query: string) => {
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+
+  const [abortController, setAbortController] = useState<AbortController | null>(null);
+
+  const performSearch = async (query: string) => {
     const q = query.trim();
     if (!q) return;
 
-    setSearched(true);
-    let found = getOrderByOrderId(q);
-
-    if (!found) {
-      const allOrders = getStoredOrders();
-      found =
-        allOrders.find((o) => o.email.toLowerCase() === q.toLowerCase()) ||
-        null;
+    // Abort previous request
+    if (abortController) {
+      abortController.abort();
     }
+    const controller = new AbortController();
+    setAbortController(controller);
 
-    setMatchedOrder(found);
+    setSearched(true);
+    setSearchLoading(true);
+    setSearchError(null);
+    setMatchedOrder(null);
+
+    try {
+      const res = await fetch(`/api/tickets/public?order_code=${encodeURIComponent(q)}`, {
+        signal: controller.signal
+      });
+      const data = await res.json();
+
+      if (res.status === 400) {
+        setSearchError(data.message || 'Format Order ID tidak valid.');
+        return;
+      }
+      if (res.status === 408) {
+        setSearchError('Permintaan terlalu lama. Coba lagi.');
+        return;
+      }
+      if (res.status === 500) {
+        setSearchError(data.message || 'Terjadi gangguan pada server. Coba lagi.');
+        return;
+      }
+      if (res.status === 404) {
+        // Only true 404 shows "not found"
+        setSearchError(data.message || 'Pesanan tidak ditemukan.');
+        return;
+      }
+      if (res.ok && data.success && data.data) {
+        setMatchedOrder(data.data);
+      } else {
+        setSearchError(data.message || 'Pesanan atau tiket tidak ditemukan.');
+      }
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        console.log('Search aborted');
+        return;
+      }
+      setSearchError(err.message || 'Gagal memuat status tiket.');
+    } finally {
+      if (controller.signal.aborted) return;
+      setSearchLoading(false);
+    }
   };
 
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -103,7 +141,7 @@ function TiketPageContent() {
             <span>✦ Official Ticket Box & Portal</span>
           </div>
           <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl font-bold text-navy-900">
-            Tiket OPEN MIND 2026
+            Tiket {displayName}
           </h1>
           <p className="text-base sm:text-lg text-navy-900/70 max-w-2xl mx-auto leading-relaxed">
             Dapatkan tiket seminar eksklusif Anda atau lacak status pesanan dan E-Ticket digital yang sudah dibeli.
@@ -212,7 +250,7 @@ function TiketPageContent() {
                 align="left"
                 badge="Informasi Penting"
                 title="Syarat & Ketentuan Tiket"
-                subtitle="Harap baca ketentuan berikut sebelum melakukan checkout tiket OPEN MIND 2026."
+                subtitle={`Harap baca ketentuan berikut sebelum melakukan checkout tiket ${displayName}.`}
               />
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm text-navy-900/80">
@@ -293,30 +331,7 @@ function TiketPageContent() {
             </form>
 
             {/* Sample Order IDs */}
-            <div className="flex flex-wrap items-center justify-center gap-2 text-xs text-muted-foreground pt-1">
-              <span>Coba lacak contoh:</span>
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchQuery("OM26-00124");
-                  performSearch("OM26-00124");
-                }}
-                className="font-mono font-bold text-emerald-600 underline hover:text-emerald-700 cursor-pointer"
-              >
-                OM26-00124 (Approved)
-              </button>
-              <span>•</span>
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchQuery("OM26-00126");
-                  performSearch("OM26-00126");
-                }}
-                className="font-mono font-bold text-orange-600 underline hover:text-orange-700 cursor-pointer"
-              >
-                OM26-00126 (Pending)
-              </button>
-            </div>
+
           </div>
 
           {/* Tracker Results Display */}
@@ -353,7 +368,7 @@ function TiketPageContent() {
                         </div>
 
                         <Link
-                          href={`/ticket/${matchedOrder.orderId}`}
+                          href={`/ticket/${matchedOrder.qrToken || matchedOrder.orderId}`}
                           className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-6 py-3.5 text-sm font-bold text-white hover:bg-emerald-700 transition-all shadow-md active:scale-95"
                         >
                           <Ticket className="h-4 w-4" />
@@ -418,7 +433,7 @@ function TiketPageContent() {
                         </div>
 
                         <a
-                          href={`https://wa.me/${contactWhatsApp.number}?text=Halo%20Admin%20OPEN%20MIND%202026,%20saya%20ingin%20konfirmasi%20pembayaran%20Order%20ID:%20${matchedOrder.orderId}`}
+                          href={`https://wa.me/${waNumber}?text=Halo%20Admin%20${encodeURIComponent(displayName.replace(/ /g, "%20"))},%20saya%20ingin%20konfirmasi%20pembayaran%20Order%20ID:%20${matchedOrder.orderId}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center justify-center gap-2 rounded-2xl bg-navy-900 px-6 py-3.5 text-sm font-bold text-ivory-100 hover:bg-gold-500 hover:text-navy-950 transition-all shadow-md"

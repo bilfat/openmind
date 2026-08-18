@@ -17,11 +17,18 @@ import {
   Home,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useActiveEvent } from "@/hooks/use-active-event";
+import { eventDisplayName, formatEventDate } from "@/lib/event-utils";
 
 export default function PrivateInvitePage() {
   const params = useParams();
   const router = useRouter();
   const token = (params?.token as string) || "";
+  const { event } = useActiveEvent();
+
+  const displayName = eventDisplayName(event);
+  const dateLabel = event?.event_date ? formatEventDate(event.event_date, false) : "Jumat, 18 Sep 2026";
+  const venueLabel = event?.venue || "Telkom University";
 
   const [ticket, setTicket] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
@@ -159,7 +166,7 @@ export default function PrivateInvitePage() {
             <span>EXCLUSIVE PRIVATE INVITATION</span>
           </div>
           <h1 className="font-display text-3xl sm:text-4xl font-black text-ivory-100">
-            OPEN MIND 2026
+            {displayName}
           </h1>
           <p className="text-xs sm:text-sm text-ivory-200/70 max-w-sm mx-auto font-light">
             Anda menerima akses pendaftaran khusus tamu undangan untuk tiket <strong>{ticket.name}</strong>.
@@ -213,11 +220,11 @@ export default function PrivateInvitePage() {
           <div className="bg-navy-950/60 px-6 sm:px-8 py-4 border-b border-navy-800 grid grid-cols-2 gap-3 text-[11px] text-ivory-200/80">
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-gold-400 flex-shrink-0" />
-              <span>Jumat, 18 Sep 2026</span>
+              <span>{dateLabel}</span>
             </div>
             <div className="flex items-center gap-2">
               <MapPin className="h-4 w-4 text-gold-400 flex-shrink-0" />
-              <span className="truncate">Telkom University</span>
+              <span className="truncate">{venueLabel}</span>
             </div>
           </div>
 

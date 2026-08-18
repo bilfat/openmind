@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import React, { useState, useEffect, useCallback } from "react";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ReferralCode } from "@/data/referrals";
 import {
@@ -14,7 +14,6 @@ import { ReferralPreview } from "@/components/admin/referrals/referral-preview";
 import {
   ArrowLeft,
   Edit2,
-  Tag,
   Copy,
   Check,
   PauseCircle,
@@ -22,21 +21,16 @@ import {
   Archive,
   Calendar,
   Sparkles,
-  Users,
-  CheckCircle2,
-  AlertCircle,
-  Percent,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function ReferralDetailPage() {
   const params = useParams();
-  const router = useRouter();
   const referralId = (params?.id as string) || "";
 
-  const [referral, setReferral] = useState<ReferralCode | null>(() =>
-    referralId ? getReferralById(referralId) : null
-  );
+  const [referral, setReferral] = useState<ReferralCode | null>(null);
+  const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -45,12 +39,41 @@ export default function ReferralDetailPage() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const loadData = () => {
-    if (referralId) {
-      const found = getReferralById(referralId);
-      setReferral(found);
+  const loadData = useCallback(async () => {
+    if (!referralId) {
+      setLoading(false);
+      return;
     }
-  };
+    const found = await getReferralById(referralId);
+    setReferral(found);
+    setLoading(false);
+  }, [referralId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      if (!referralId) {
+        setLoading(false);
+        return;
+      }
+      const found = await getReferralById(referralId);
+      if (!cancelled) {
+        setReferral(found);
+        setLoading(false);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [referralId]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16 gap-2 text-sm text-muted-foreground">
+        <Loader2 className="h-5 w-5 animate-spin" />
+        <span>Memuat detail kode referal...</span>
+      </div>
+    );
+  }
 
   if (!referral) {
     return (
@@ -85,26 +108,25 @@ export default function ReferralDetailPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleToggleStatus = () => {
+  const handleToggleStatus = async () => {
     if (referral.status === "INACTIVE") {
-      setReferralStatus(referral.id, "ACTIVE");
+      await setReferralStatus(referral.id, "ACTIVE");
       showToast(`Kode "${referral.code}" berhasil diaktifkan kembali.`);
     } else {
-      setReferralStatus(referral.id, "INACTIVE");
+      await setReferralStatus(referral.id, "INACTIVE");
       showToast(`Kode "${referral.code}" berhasil dinonaktifkan.`);
     }
-    loadData();
+    await loadData();
   };
 
-  const handleArchive = () => {
-    archiveReferral(referral.id);
+  const handleArchive = async () => {
+    await archiveReferral(referral.id);
     showToast(`Kode "${referral.code}" berhasil diarsipkan.`);
-    loadData();
+    await loadData();
   };
 
   return (
     <div className="space-y-8">
-      {/* Toast */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 rounded-2xl bg-navy-950 px-5 py-3 text-xs font-bold text-ivory-100 shadow-2xl border border-gold-500/30 flex items-center gap-2 animate-in slide-in-from-bottom-5">
           <Sparkles className="h-4 w-4 text-gold-400" />
@@ -112,7 +134,6 @@ export default function ReferralDetailPage() {
         </div>
       )}
 
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 sm:p-8 rounded-3xl border border-border shadow-sm">
         <div className="flex items-center gap-4">
           <Link
@@ -209,7 +230,6 @@ export default function ReferralDetailPage() {
         </div>
       </div>
 
-      {/* 4 Stat Overview Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         <div className="rounded-3xl border border-border bg-white p-6 shadow-sm space-y-1">
           <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
@@ -254,9 +274,7 @@ export default function ReferralDetailPage() {
         </div>
       </div>
 
-      {/* Main Details & Live Preview Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Left: Configuration Details */}
         <div className="lg:col-span-7 space-y-6">
           <div className="rounded-3xl border border-border bg-white p-6 sm:p-8 shadow-sm space-y-6">
             <h3 className="font-display text-lg font-bold text-navy-900 border-b border-border pb-3">
@@ -303,7 +321,6 @@ export default function ReferralDetailPage() {
               </div>
             </div>
 
-            {/* Validity Information */}
             <div className="rounded-2xl border border-border p-4 space-y-2">
               <div className="flex items-center gap-2 text-xs font-bold text-navy-900">
                 <Calendar className="h-4 w-4 text-gold-600" />
@@ -327,7 +344,6 @@ export default function ReferralDetailPage() {
           </div>
         </div>
 
-        {/* Right: Live Preview */}
         <div className="lg:col-span-5 sticky top-24">
           <ReferralPreview formData={referral} />
         </div>

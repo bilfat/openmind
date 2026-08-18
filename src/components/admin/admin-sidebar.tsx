@@ -15,10 +15,13 @@ import {
   LogOut,
   ChevronLeft,
   X,
+  Bell,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/browser";
+import { useNotifications } from "@/components/admin/notification-provider";
+import { UnreadBadge } from "@/components/admin/notification-shared";
 
 interface NavGroup {
   label: string;
@@ -41,6 +44,7 @@ const navGroups: NavGroup[] = [
       { label: "Participants", href: "/admin/participants", icon: Users },
       { label: "Walk-In Sales", href: "/admin/walk-in", icon: ShoppingCart },
       { label: "Check-in", href: "/admin/check-in", icon: ScanLine },
+      { label: "Notifications", href: "/admin/notifications", icon: Bell },
     ],
   },
   {
@@ -70,6 +74,7 @@ export function AdminSidebar({ mobileOpen = false, onMobileClose }: AdminSidebar
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const { unreadCount } = useNotifications();
   const supabase = createClient();
 
   useEffect(() => {
@@ -178,6 +183,12 @@ export function AdminSidebar({ mobileOpen = false, onMobileClose }: AdminSidebar
                   >
                     <Icon className={cn("h-[18px] w-[18px] flex-shrink-0", active && "text-gold-500")} />
                     {!collapsed && <span>{item.label}</span>}
+                    {item.href === "/admin/notifications" && (
+                      <UnreadBadge
+                        count={unreadCount}
+                        className={cn("ml-auto", collapsed && "hidden")}
+                      />
+                    )}
                   </Link>
                 );
               })}

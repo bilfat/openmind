@@ -1,12 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import {
-  getStoredOrders,
-  getOrderByOrderId,
-  markOrderCheckedIn,
-  OrderItem,
-} from "@/lib/order-store";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import jsQR from "jsqr";
+import { createBrowserClient } from "@supabase/ssr";
 import {
   ScanLine,
   Search,
@@ -15,337 +11,988 @@ import {
   XCircle,
   UserCheck,
   Camera,
+  Loader2,
+  Volume2,
+  VolumeX,
+  ClipboardList,
+  ChevronLeft,
+  ChevronRight,
   RefreshCw,
-  Sparkles,
-  Ticket,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { EmptyState } from "@/components/ui/empty-state";
+
+interface CheckInStats {
+  totalParticipants: number;
+  totalCheckedIn: number;
+  remainingParticipants: number;
+  attendancePercentage: number;
+}
+
+// Map API response (totalIssued, totalCheckedIn, attendanceRate) to frontend interface
+const mapStatsApiResponse = (apiData: {
+  totalIssued: number;
+  totalCheckedIn: number;
+  attendanceRate: number;
+}): CheckInStats => ({
+  totalParticipants: apiData.totalIssued,
+  totalCheckedIn: apiData.totalCheckedIn,
+  remainingParticipants: apiData.totalIssued > 0 ? apiData.totalIssued - apiData.totalCheckedIn : 0,
+  attendancePercentage: apiData.attendanceRate,
+});
+
+interface ScanResponseTicket {
+  ticketCode: string;
+  qrToken: string;
+  ticketTypeName: string;
+  participant: {
+    fullName: string;
+    email: string;
+    whatsapp: string;
+    nim: string;
+    faculty: string;
+  };
+  order: {
+    orderCode: string;
+  };
+}
+
+interface OrderCheckInTicket {
+  ticketId: string;
+  ticketCode: string;
+  participantName: string;
+  ticketTypeName: string;
+  alreadyCheckedIn: boolean;
+  checkedInAt?: string | null;
+}
+
+interface ScanResponseData {
+  checkInId?: string;
+  checkedInAt?: string;
+  checkedInBy?: string;
+  method?: string;
+  ticket?: ScanResponseTicket;
+  orderCode?: string;
+  checkedInCount?: number;
+  alreadyCheckedInCount?: number;
+  tickets?: OrderCheckInTicket[];
+}
+
+type ScanStatus =
+  | "SUCCESS"
+  | "ALREADY_CHECKED_IN"
+  | "NOT_FOUND"
+  | "TICKET_CANCELLED"
+  | "ERROR";
+
+const LIST_PAGE_SIZE = 10;
+
+type ParticipantRow = {
+  id: string;
+  ticketCode: string;
+  status: string;
+  issuedAt: string;
+  participant: { id: string; full_name: string; nim: string; faculty: string; email: string } | null;
+  order: { order_code: string } | null;
+  ticketTypeName: string;
+  checkIn: { id: string; checked_in_at: string; method: string } | null;
+  isCheckedIn: boolean;
+};
 
 export default function AdminCheckInPage() {
-  const [orders, setOrders] = useState<OrderItem[]>(() => getStoredOrders());
+  const [stats, setStats] = useState<CheckInStats>({
+    totalParticipants: 0,
+    totalCheckedIn: 0,
+    remainingParticipants: 0,
+    attendancePercentage: 0,
+  });
+  const [loadingStats, setLoadingStats] = useState(true);
+
+  // Manual Input State
   const [manualInput, setManualInput] = useState("");
-  const [scannedResult, setScannedResult] = useState<{
-    order: OrderItem | null;
-    status: "success" | "already_checked_in" | "not_approved" | "not_found";
+  const [isSubmittingManual, setIsSubmittingManual] = useState(false);
+
+  // Camera & Scanner State
+  const [cameraActive, setCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [facingMode, setFacingMode] = useState<"environment" | "user">("environment");
+  const [audioEnabled, setAudioEnabled] = useState(true);
+
+  // Result Banner State
+  const [scanResult, setScanResult] = useState<{
+    status: ScanStatus;
     message: string;
+    data?: ScanResponseData;
   } | null>(null);
 
-  const [isScanning, setIsScanning] = useState(false);
+  // Participant List State (pagination + integrated data)
+  const [listItems, setListItems] = useState<ParticipantRow[]>([]);
+  const [listStatus, setListStatus] = useState<"ALL" | "CHECKED_IN" | "NOT_PRESENT">("ALL");
+  const [listSearch, setListSearch] = useState("");
+  const [listPage, setListPage] = useState(1);
+  const [listPagination, setListPagination] = useState({ page: 1, limit: LIST_PAGE_SIZE, total: 0, totalPages: 0 });
+  const [listLoading, setListLoading] = useState(true);
+  const [listRefreshTick, setListRefreshTick] = useState(0);
 
-  const refreshOrders = () => {
-    setOrders(getStoredOrders());
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const scanIntervalRef = useRef<number | null>(null);
+  const isProcessingScanRef = useRef(false);
+  const cameraActiveRef = useRef(false);
+  const lastScanTimeRef = useRef(0);
+  const submitCheckInRef = useRef<(identifier: string, method: "QR_SCAN" | "MANUAL") => Promise<void>>(async () => {});
+
+  // Keep refs in sync so the long-running scan interval never uses stale closures
+  useEffect(() => {
+    cameraActiveRef.current = cameraActive;
+  }, [cameraActive]);
+
+  // Initialize Supabase Client for Realtime Subscription
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+
+  // Fetch Attendance Stats - called on mount and via realtime
+  const fetchStats = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/check-in/stats");
+      const json = await res.json();
+      if (res.ok && json.success && json.data) {
+        setStats(mapStatsApiResponse(json.data));
+      }
+    } catch (err) {
+      console.error("Gagal memuat statistik check-in:", err);
+    } finally {
+      setLoadingStats(false);
+    }
+  }, []);
+
+  // Fetch paginated participant list
+  useEffect(() => {
+    let cancelled = false;
+    const timer = window.setTimeout(
+      () => {
+        setListLoading(true);
+        const params = new URLSearchParams({ page: String(listPage), limit: String(LIST_PAGE_SIZE) });
+        if (listStatus !== "ALL") params.set("status", listStatus);
+        if (listSearch.trim()) params.set("search", listSearch.trim());
+        fetch(`/api/admin/check-in/participants?${params.toString()}`, { cache: "no-store" })
+          .then(async (res) => {
+            const json = await res.json();
+            if (cancelled) return;
+            if (res.ok && json.success) {
+              setListItems(json.items ?? []);
+              const pagination = json.pagination ?? { page: 1, limit: LIST_PAGE_SIZE, total: 0, totalPages: 0 };
+              setListPagination(pagination);
+              if (pagination.totalPages > 0 && listPage > pagination.totalPages) {
+                setListPage(pagination.totalPages);
+              }
+            }
+          })
+          .catch((err) => {
+            if (!cancelled) console.error("Gagal memuat daftar peserta:", err);
+          })
+          .finally(() => {
+            if (!cancelled) setListLoading(false);
+          });
+      },
+      listSearch.trim() ? 350 : 0
+    );
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [listPage, listStatus, listSearch, listRefreshTick]);
+
+  // Initial statistics fetch on page mount + realtime subscription
+  useEffect(() => {
+    let mounted = true;
+    fetch("/api/admin/check-in/stats")
+      .then((res) => {
+        if (!res.ok) throw new Error("Stats fetch failed");
+        return res.json();
+      })
+      .then((json) => {
+        if (mounted && json.success && json.data) {
+          setStats(mapStatsApiResponse(json.data));
+        }
+      })
+      .catch((err) => {
+        console.error("Gagal memuat statistik check-in:", err);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Subscribe to Supabase Realtime channel on check_ins table
+  // (statistics & participant list updates come through this channel)
+  useEffect(() => {
+    let mounted = true;
+    const channel = supabase
+      .channel("check_ins_realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "check_ins" },
+        () => {
+          if (mounted) {
+            fetchStats();
+            setListRefreshTick((t) => t + 1);
+          }
+        }
+      )
+      .subscribe();
+    return () => {
+      mounted = false;
+      supabase.removeChannel(channel);
+    };
+  }, [supabase, fetchStats]);
+
+  // Play Audio Beep Feedback
+  const playBeep = (success: boolean) => {
+    if (!audioEnabled || typeof window === "undefined") return;
+    try {
+      const ctx = new (window.AudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      if (success) {
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        gain.gain.setValueAtTime(0.1, ctx.currentTime);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.15);
+      } else {
+        osc.frequency.setValueAtTime(300, ctx.currentTime);
+        gain.gain.setValueAtTime(0.15, ctx.currentTime);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.3);
+      }
+    } catch {
+      // Audio context might be blocked by browser autoplay policy
+    }
   };
 
-
-  const handleProcessCheckIn = (query: string) => {
-    const q = query.trim();
-    if (!q) return;
-
-    let targetOrder = getOrderByOrderId(q);
-
-    // Try finding by NIM or Email if not found by Order ID
-    if (!targetOrder) {
-      targetOrder =
-        orders.find(
-          (o) =>
-            o.nim.toLowerCase() === q.toLowerCase() ||
-            o.email.toLowerCase() === q.toLowerCase()
-        ) || null;
+  // Normalize QR payload: extract qr_token from full URL if needed
+  const normalizeQrIdentifier = (raw: string): string => {
+    const trimmed = raw.trim();
+    // If it looks like a full URL, extract the token from the path
+    if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+      try {
+        const url = new URL(trimmed);
+        const pathParts = url.pathname.split("/").filter((p) => p.length > 0);
+        // Expected pattern: /ticket/[qr_token] or just the token at the end
+        const potentialToken = pathParts[pathParts.length - 1];
+        if (potentialToken && potentialToken.length > 0) {
+          return potentialToken;
+        }
+      } catch {
+        // Invalid URL, fall through to raw value
+      }
     }
+    return trimmed;
+  };
 
-    if (!targetOrder) {
-      setScannedResult({
-        order: null,
-        status: "not_found",
-        message: `Data tidak ditemukan untuk input "${q}".`,
-      });
+  // Submit Scan Payload to API
+  const submitCheckIn = async (identifier: string, method: "QR_SCAN" | "MANUAL") => {
+    if (!identifier.trim()) return;
+
+    const now = Date.now();
+    if (now - lastScanTimeRef.current < 2000) {
+      // Brief debounce - prevent same QR spam within 2 seconds
       return;
     }
 
-    if (targetOrder.paymentStatus !== "approved") {
-      setScannedResult({
-        order: targetOrder,
-        status: "not_approved",
-        message: `Pesanan ini belum disetujui (Status: ${targetOrder.paymentStatus}). Harap selesaikan verifikasi pembayaran terlebih dahulu.`,
+    try {
+      const res = await fetch("/api/admin/check-in/scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identifier: normalizeQrIdentifier(identifier).trim(), method }),
       });
-      return;
-    }
 
-    if (targetOrder.checkedIn) {
-      setScannedResult({
-        order: targetOrder,
-        status: "already_checked_in",
-        message: `Peserta ini sudah melakukan check-in pada pukul ${targetOrder.checkedInAt || "hari ini"}.`,
+      const json = await res.json();
+
+      if (res.ok && json.success) {
+        playBeep(true);
+        setScanResult({
+          status: "SUCCESS",
+          message: json.message || "Check-in Berhasil!",
+          data: json.data,
+        });
+        lastScanTimeRef.current = now;
+        fetchStats();
+        setListRefreshTick((t) => t + 1);
+      } else if (res.status === 409) {
+        playBeep(false);
+        setScanResult({
+          status: "ALREADY_CHECKED_IN",
+          message: json.message || "Peserta ini sudah melakukan check-in sebelumnya.",
+          data: json.data,
+        });
+        lastScanTimeRef.current = now;
+        setListRefreshTick((t) => t + 1);
+      } else if (res.status === 404) {
+        playBeep(false);
+        setScanResult({
+          status: "NOT_FOUND",
+          message: json.message || "Tiket tidak ditemukan di database.",
+        });
+        lastScanTimeRef.current = now;
+      } else if (res.status === 400 && json.status === "TICKET_CANCELLED") {
+        playBeep(false);
+        setScanResult({
+          status: "TICKET_CANCELLED",
+          message: json.message || "Tiket ini telah dibatalkan dan tidak berlaku.",
+        });
+        lastScanTimeRef.current = now;
+      } else {
+        playBeep(false);
+        setScanResult({
+          status: "ERROR",
+          message: json.message || "Terjadi kesalahan saat memproses check-in.",
+        });
+        lastScanTimeRef.current = now;
+      }
+    } catch (err: unknown) {
+      playBeep(false);
+      setScanResult({
+        status: "ERROR",
+        message: (err instanceof Error ? err.message : String(err)) || "Terjadi kesalahan koneksi jaringan.",
       });
-      return;
+      lastScanTimeRef.current = now;
     }
+  };
 
-    // Success Check-in!
-    markOrderCheckedIn(targetOrder.orderId);
-    refreshOrders();
-    const updated = getOrderByOrderId(targetOrder.orderId);
+  // Keep the ref pointing at the latest submitCheckIn so the long-running
+  // scan interval never calls a stale closure
+  useEffect(() => {
+    submitCheckInRef.current = submitCheckIn;
+  });
 
-    setScannedResult({
-      order: updated,
-      status: "success",
-      message: "Check-in Berhasil! Silakan berikan Merchandise & Name Tag kepada peserta.",
-    });
+  // Manual Input Submit
+  const handleManualSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualInput.trim()) return;
+
+    setIsSubmittingManual(true);
+    await submitCheckIn(manualInput.trim(), "MANUAL");
+    setIsSubmittingManual(false);
     setManualInput("");
   };
 
-  const handleSimulateQRScan = (orderId: string) => {
-    setIsScanning(true);
-    setTimeout(() => {
-      setIsScanning(false);
-      handleProcessCheckIn(orderId);
-    }, 600);
+  // Camera Control
+  const startCamera = async (requestedMode: "environment" | "user" = facingMode) => {
+    setCameraError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: requestedMode,
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+      });
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.setAttribute("playsinline", "true");
+        await videoRef.current.play();
+        setFacingMode(requestedMode);
+        setCameraActive(true);
+      }
+    } catch (err: unknown) {
+      console.error("Camera access error:", err);
+      // Try fallback with the opposite camera
+      const fallbackMode = requestedMode === "environment" ? "user" : "environment";
+      try {
+        const fallbackStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: fallbackMode,
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+        });
+        if (videoRef.current) {
+          videoRef.current.srcObject = fallbackStream;
+          videoRef.current.setAttribute("playsinline", "true");
+          await videoRef.current.play();
+          setFacingMode(fallbackMode);
+          setCameraActive(true);
+          setCameraError(
+            `Kamera ${requestedMode === "environment" ? "belakang" : "depan"} tidak tersedia, menggunakan kamera ${fallbackMode === "environment" ? "belakang" : "depan"}.`
+          );
+        }
+      } catch {
+        setCameraActive(false);
+        setCameraError(
+          "Kamera tidak dapat diakses. Izinkan akses kamera di browser."
+        );
+      }
+    }
   };
 
-  const checkedInList = orders.filter((o) => o.checkedIn);
-  const totalApproved = orders.filter((o) => o.paymentStatus === "approved").length;
-  const attendanceRate = totalApproved > 0 ? Math.round((checkedInList.length / totalApproved) * 100) : 0;
+  // Toggle between front (user) and back (environment) camera
+  const handleFlipCamera = () => {
+    if (!cameraActive) return;
+    const nextMode = facingMode === "environment" ? "user" : "environment";
+    stopCamera();
+    void startCamera(nextMode);
+  };
+
+  const stopCamera = () => {
+    if (scanIntervalRef.current) {
+      clearInterval(scanIntervalRef.current);
+      scanIntervalRef.current = null;
+    }
+    if (videoRef.current && videoRef.current.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach((track) => track.stop());
+      videoRef.current.srcObject = null;
+    }
+    setCameraActive(false);
+  };
+
+  // QR Scanning Loop - runs at ~5fps with cropped region for reliability, accounting for object-cover
+  const scanningLoopRef = useRef({
+    start: () => {
+      if (scanIntervalRef.current) {
+        clearInterval(scanIntervalRef.current);
+      }
+      scanIntervalRef.current = window.setInterval(() => {
+        if (!cameraActiveRef.current || isProcessingScanRef.current) return;
+
+        const video = videoRef.current;
+        const canvas = canvasRef.current;
+
+        if (!video || !canvas || video.readyState < video.HAVE_METADATA) return;
+
+        // Get real video dimensions (NOT CSS dimensions)
+        const videoWidth = video.videoWidth;
+        const videoHeight = video.videoHeight;
+
+        if (videoWidth <= 0 || videoHeight <= 0) return;
+
+        const container = video.parentElement;
+        const containerWidth = container?.clientWidth || videoWidth;
+        const containerHeight = container?.clientHeight || videoHeight;
+
+        // Compute the exact sub-rectangle of the video that is visible in the
+        // container (object-cover crop), in video source pixel coordinates.
+        const coverScale = Math.max(containerWidth / videoWidth, containerHeight / videoHeight);
+        const srcW = containerWidth / coverScale;
+        const srcH = containerHeight / coverScale;
+        const srcX = (videoWidth - srcW) / 2;
+        const srcY = (videoHeight - srcH) / 2;
+
+        // Fixed canvas resolution, aspect matched to the container so the canvas
+        // content is pixel-identical to what the user sees in the video element.
+        const canvasW = 640;
+        const canvasH = Math.max(1, Math.round(640 * (containerHeight / containerWidth)));
+        if (canvas.width !== canvasW) canvas.width = canvasW;
+        if (canvas.height !== canvasH) canvas.height = canvasH;
+
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        if (!ctx) return;
+
+        // Draw the visible crop into the canvas (no distortion, exact match to display)
+        ctx.drawImage(video, srcX, srcY, srcW, srcH, 0, 0, canvasW, canvasH);
+
+        // Center scan box that matches the visual frame in the UI:
+        // same size formula -> min(45% of width, 360px)
+        const visualBoxSize = Math.min(containerWidth * 0.45, 360);
+        const boxSize = Math.max(1, Math.round(canvasW * (visualBoxSize / containerWidth)));
+        const boxX = Math.round((canvasW - boxSize) / 2);
+        const boxY = Math.round((canvasH - boxSize) / 2);
+
+        let code: { data: string } | null = null;
+        try {
+          const boxData = ctx.getImageData(boxX, boxY, boxSize, boxSize);
+          code = jsQR(boxData.data, boxSize, boxSize, { inversionAttempts: "dontInvert" });
+
+          // Fallback: scan the full frame if the QR is slightly outside the center box
+          if (!code) {
+            const fullData = ctx.getImageData(0, 0, canvasW, canvasH);
+            code = jsQR(fullData.data, canvasW, canvasH, { inversionAttempts: "dontInvert" });
+          }
+        } catch {
+          // getImageData can throw if the rect is out of bounds; skip this frame
+          return;
+        }
+
+        if (code && code.data && !isProcessingScanRef.current) {
+          isProcessingScanRef.current = true;
+          submitCheckInRef.current(code.data, "QR_SCAN").finally(() => {
+            // Re-enable the scanner so the next QR can be processed
+            isProcessingScanRef.current = false;
+          });
+        }
+      }, 200); // ~5fps - balanced for CPU and responsiveness
+    },
+    stop: () => {
+      if (scanIntervalRef.current) {
+        clearInterval(scanIntervalRef.current);
+        scanIntervalRef.current = null;
+      }
+    },
+  });
+
+  useEffect(() => {
+    const scanningLoop = scanningLoopRef.current;
+    return () => {
+      stopCamera();
+      scanningLoop.stop();
+    };
+  }, []);
+
+  // When camera becomes active, start the scanning loop
+  useEffect(() => {
+    const scanningLoop = scanningLoopRef.current;
+    if (cameraActive) {
+      scanningLoop.start();
+    } else {
+      scanningLoop.stop();
+    }
+  }, [cameraActive]);
+
+  // Initial stats fetch handled above
+  // (supabase realtime subscription triggers refetch on changes)
+
+  const fromCount = listPagination.total === 0 ? 0 : (listPagination.page - 1) * listPagination.limit + 1;
+  const toCount = Math.min(listPagination.page * listPagination.limit, listPagination.total);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-6xl mx-auto pb-12">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 sm:p-8 rounded-3xl border border-border shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-5">
         <div>
-          <div className="inline-flex items-center gap-1.5 rounded-full bg-gold-500/10 px-3 py-1 text-xs font-bold text-gold-600 mb-2 border border-gold-500/20">
-            <Sparkles className="h-3.5 w-3.5" />
-            <span>OPERASIONAL MEJA REGISTRASI</span>
+          <div className="inline-flex items-center gap-2 rounded-full bg-gold-500/10 px-3 py-1 text-xs font-bold text-gold-600 border border-gold-500/20 mb-2">
+            <UserCheck className="h-3.5 w-3.5" />
+            <span>GATE & CHECK-IN SYSTEM</span>
           </div>
           <h1 className="font-display text-2xl sm:text-3xl font-bold text-navy-900">
-            Check-In Peserta (Hari H)
+            Check-In Scanner E-Ticket
           </h1>
-          <p className="text-xs sm:text-sm text-navy-900/70 mt-1">
-            Pindai QR Code E-Ticket peserta atau cari manual via Order ID / NIM untuk verifikasi kehadiran.
+          <p className="text-xs sm:text-sm text-navy-900/70">
+            Scan QR E-Ticket peserta atau masukkan ID Order / Kode Tiket secara manual untuk mencatat kehadiran di gate venue.
           </p>
         </div>
 
-        <div className="rounded-2xl bg-secondary/40 p-4 border border-border flex items-center gap-6">
-          <div>
-            <span className="text-[10px] font-bold uppercase text-muted-foreground block">
-              TOTAL HADIR
-            </span>
-            <p className="font-display text-2xl font-black text-emerald-600">
-              {checkedInList.length} <span className="text-xs text-muted-foreground font-normal">/ {totalApproved} Pax</span>
-            </p>
-          </div>
-          <div className="border-l border-border pl-6">
-            <span className="text-[10px] font-bold uppercase text-muted-foreground block">
-              PERSENTASE
-            </span>
-            <p className="font-display text-2xl font-black text-navy-900">
-              {attendanceRate}%
-            </p>
-          </div>
+        <button
+          onClick={() => setAudioEnabled(!audioEnabled)}
+          className="inline-flex items-center gap-2 rounded-xl border border-border bg-white px-3.5 py-2 text-xs font-semibold text-navy-900 hover:bg-secondary/40"
+        >
+          {audioEnabled ? <Volume2 className="h-4 w-4 text-emerald-600" /> : <VolumeX className="h-4 w-4 text-muted-foreground" />}
+          <span>Audio Beep: {audioEnabled ? "ON" : "OFF"}</span>
+        </button>
+      </div>
+
+      {/* Realtime Attendance Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+        <div className="rounded-2xl border border-border bg-white p-4 shadow-sm">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Total Peserta Terdaftar</span>
+          <p className="font-display text-2xl font-black text-navy-900 mt-1">
+            {loadingStats ? "..." : stats.totalParticipants}
+          </p>
+        </div>
+        <div className="rounded-2xl border border-emerald-500/30 bg-emerald-950 text-white p-4 shadow-sm">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">Peserta Sudah Check-In</span>
+          <p className="font-display text-2xl font-black text-emerald-400 mt-1">
+            {loadingStats ? "..." : stats.totalCheckedIn}
+          </p>
+        </div>
+        <div className="rounded-2xl border border-border bg-white p-4 shadow-sm">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Peserta Belum Hadir</span>
+          <p className="font-display text-2xl font-black text-amber-600 mt-1">
+            {loadingStats ? "..." : stats.remainingParticipants}
+          </p>
+        </div>
+        <div className="rounded-2xl border border-gold-500/30 bg-navy-950 text-ivory-100 p-4 shadow-sm">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-gold-400">Tingkat Kehadiran</span>
+          <p className="font-display text-2xl font-black text-gold-400 mt-1">
+            {loadingStats ? "..." : `${stats.attendancePercentage}%`}
+          </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left: QR Scanner & Manual Input Box */}
-        <div className="lg:col-span-6 space-y-6">
-          {/* Scanner Viewfinder Box */}
-          <div className="rounded-3xl border border-border bg-white p-6 sm:p-8 shadow-sm space-y-5">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <span className="text-xs font-bold uppercase tracking-wider text-navy-900 flex items-center gap-2">
-                <Camera className="h-4 w-4 text-gold-600" />
-                <span>Kamera Pemindai QR E-Ticket</span>
-              </span>
-            </div>
-
-            {/* Viewfinder Graphic */}
-            <div className="relative aspect-[4/3] rounded-2xl bg-navy-950 overflow-hidden flex flex-col items-center justify-center p-6 text-center border-2 border-gold-500/40">
-              {/* Corner Targets */}
-              <div className="absolute top-4 left-4 h-8 w-8 border-t-2 border-l-2 border-gold-400" />
-              <div className="absolute top-4 right-4 h-8 w-8 border-t-2 border-r-2 border-gold-400" />
-              <div className="absolute bottom-4 left-4 h-8 w-8 border-b-2 border-l-2 border-gold-400" />
-              <div className="absolute bottom-4 right-4 h-8 w-8 border-b-2 border-r-2 border-gold-400" />
-
-              {/* Animated Laser Line */}
-              <div className="absolute top-1/2 left-8 right-8 h-0.5 bg-gold-400 shadow-lg shadow-gold-500/80 animate-pulse" />
-
-              <ScanLine className="h-12 w-12 text-gold-400 mb-3 animate-bounce" />
-              <p className="text-xs font-semibold text-ivory-100 max-w-xs">
-                Arahkan QR Code E-Ticket peserta ke dalam kotak pemindai
-              </p>
-              <p className="text-[10px] text-ivory-200/50 mt-1">
-                Kamera aktif secara otomatis
-              </p>
-            </div>
-
-            {/* Manual Quick Search */}
-            <div className="space-y-2 pt-2">
-              <label className="block text-xs font-bold uppercase tracking-wider text-navy-900">
-                Atau Cari Manual (Order ID / NIM):
-              </label>
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  handleProcessCheckIn(manualInput);
-                }}
-                className="flex items-center gap-2"
-              >
-                <div className="relative flex-1">
-                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <input
-                    type="text"
-                    placeholder="Contoh: OM26-00124 atau 6706220014"
-                    value={manualInput}
-                    onChange={(e) => setManualInput(e.target.value)}
-                    className="w-full rounded-xl border border-border bg-secondary/20 py-3 pl-10 pr-4 text-xs font-semibold text-navy-900 focus:border-gold-500 focus:bg-white focus:outline-none"
-                  />
-                </div>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        {/* Camera Scanner Box */}
+        <div className="lg:col-span-7 space-y-4">
+          <div className="rounded-3xl border border-navy-950/20 bg-navy-950 text-white p-6 shadow-xl space-y-4">
+            <div className="flex items-center justify-between border-b border-navy-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Camera className="h-5 w-5 text-gold-400" />
+                <h3 className="font-display text-base font-bold text-ivory-100">Kamera Scanner QR</h3>
+              </div>
+              <div className="flex items-center gap-2">
+                {cameraActive && (
+                  <button
+                    onClick={handleFlipCamera}
+                    title={facingMode === "environment" ? "Pindah ke kamera depan" : "Pindah ke kamera belakang"}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-navy-700 bg-navy-800/60 px-3 py-1.5 text-xs font-bold text-ivory-100 hover:bg-navy-700 transition"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    <span>{facingMode === "environment" ? "Depan" : "Belakang"}</span>
+                  </button>
+                )}
                 <button
-                  type="submit"
-                  className="rounded-xl bg-gold-500 px-5 py-3 text-xs font-bold text-navy-950 hover:bg-gold-400 transition-all shadow-sm active:scale-95"
+                  onClick={() => (cameraActive ? stopCamera() : startCamera())}
+                  className={cn(
+                    "rounded-xl px-4 py-1.5 text-xs font-bold transition",
+                    cameraActive ? "bg-rose-500/20 text-rose-300 hover:bg-rose-500/30" : "bg-gold-500 text-navy-950 hover:bg-gold-400"
+                  )}
                 >
-                  Check-In
-                </button>
-              </form>
-            </div>
-
-            {/* Quick Demo Scan Buttons */}
-            <div className="border-t border-border pt-3 space-y-1.5">
-              <span className="text-[10px] font-bold uppercase text-muted-foreground block">
-                Simulasi Scan Demo:
-              </span>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleSimulateQRScan("OM26-00124")}
-                  className="rounded-lg bg-secondary/60 px-3 py-1 text-[11px] font-mono text-navy-900 hover:bg-gold-500/20 hover:text-gold-700"
-                >
-                  Scan OM26-00124 (Annisa)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSimulateQRScan("OM26-00125")}
-                  className="rounded-lg bg-secondary/60 px-3 py-1 text-[11px] font-mono text-navy-900 hover:bg-gold-500/20 hover:text-gold-700"
-                >
-                  Scan OM26-00125 (Fajar - Sudah Hadir)
+                  {cameraActive ? "Matikan Kamera" : "Nyalakan Kamera"}
                 </button>
               </div>
+            </div>
+
+            {cameraError && (
+              <p className="rounded-xl bg-rose-500/15 border border-rose-500/30 px-3 py-2 text-[11px] text-rose-300">
+                {cameraError}
+              </p>
+            )}
+
+            {/* Video Feed / Canvas */}
+            <div className="relative aspect-video w-full rounded-2xl bg-navy-900 border border-navy-800 overflow-hidden">
+              <video
+                ref={videoRef}
+                style={{ transform: "none", WebkitTransform: "none" }}
+                className={cn("w-full h-full object-cover transform-none", !cameraActive && "hidden")}
+                autoPlay
+                muted
+                playsInline
+              />
+              <canvas ref={canvasRef} className="hidden" />
+
+              {cameraActive ? (
+                <>
+                  {/* Scan target overlay: dim outside + corner brackets + animated scan line */}
+                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                    <div
+                      className="relative aspect-square rounded-xl"
+                      style={{
+                        width: "min(45%, 360px)",
+                        boxShadow: "0 0 0 100vmax rgba(4, 10, 22, 0.55)",
+                      }}
+                    >
+                      <span className="absolute left-0 top-0 h-9 w-9 rounded-tl-xl border-l-[3px] border-t-[3px] border-gold-400" />
+                      <span className="absolute right-0 top-0 h-9 w-9 rounded-tr-xl border-r-[3px] border-t-[3px] border-gold-400" />
+                      <span className="absolute bottom-0 left-0 h-9 w-9 rounded-bl-xl border-b-[3px] border-l-[3px] border-gold-400" />
+                      <span className="absolute bottom-0 right-0 h-9 w-9 rounded-br-xl border-b-[3px] border-r-[3px] border-gold-400" />
+                      <div className="scan-line" />
+                    </div>
+                  </div>
+                  <div className="pointer-events-none absolute bottom-3 left-0 right-0 flex justify-center">
+                    <p className="rounded-full bg-navy-950/80 px-4 py-1.5 text-[11px] font-semibold text-gold-300 backdrop-blur-sm">
+                      Arahkan QR E-Ticket ke dalam kotak
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center text-center p-6 space-y-3">
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-navy-800 text-navy-400">
+                    <ScanLine className="h-6 w-6" />
+                  </div>
+                  <p className="text-xs text-navy-300 max-w-xs">
+                    Klik &apos;Nyalakan Kamera&apos; di atas untuk memulai pemindaian QR code via webcam.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Right: Scan Verification Result Card & Live Attendance Feed */}
-        <div className="lg:col-span-6 space-y-6">
-          {/* Result Card */}
-          {scannedResult && (
+        {/* Manual Input & Scan Results Box */}
+        <div className="lg:col-span-5 space-y-6">
+          {/* Manual Code Input Form */}
+          <div className="rounded-3xl border border-border bg-white p-6 shadow-sm space-y-4">
+            <div className="flex items-center gap-2 border-b border-border pb-3">
+              <Search className="h-4 w-4 text-gold-600" />
+              <h3 className="font-display text-base font-bold text-navy-900">Manual Ticket / ID Order</h3>
+            </div>
+
+            <form onSubmit={handleManualSubmit} className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-navy-900 mb-1">ID Order / Kode Tiket / QR Token *</label>
+                <input
+                  type="text"
+                  placeholder="Contoh: OM26-XXXXXX (ID Order) / TKT-OM26-XXXXXX (Kode Tiket)"
+                  value={manualInput}
+                  onChange={(e) => setManualInput(e.target.value)}
+                  className="w-full rounded-xl border bg-secondary/20 px-3.5 py-2.5 text-sm"
+                />
+                <p className="text-[10px] text-muted-foreground mt-1.5">
+                  Jika memakai ID Order, seluruh tiket aktif pada order tersebut akan di-check-in sekaligus.
+                </p>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isSubmittingManual || !manualInput.trim()}
+                className="w-full rounded-xl bg-navy-900 py-3 text-xs font-bold text-white hover:bg-navy-800 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isSubmittingManual ? <Loader2 className="h-4 w-4 animate-spin" /> : "Proses Check-In Manual"}
+              </button>
+            </form>
+          </div>
+
+          {/* Scan Result Feedback Card */}
+          {scanResult && (
             <div
               className={cn(
-                "rounded-3xl border p-6 sm:p-8 shadow-lg space-y-4 transition-all",
-                scannedResult.status === "success" &&
-                  "border-emerald-500 bg-emerald-500/10 text-emerald-950",
-                scannedResult.status === "already_checked_in" &&
-                  "border-amber-500 bg-amber-500/10 text-amber-950",
-                scannedResult.status === "not_approved" &&
-                  "border-orange-500 bg-orange-500/10 text-orange-950",
-                scannedResult.status === "not_found" &&
-                  "border-destructive bg-destructive/10 text-destructive"
+                "rounded-3xl p-6 shadow-lg border space-y-4 animate-fade-in",
+                scanResult.status === "SUCCESS" && "bg-emerald-950 text-white border-emerald-500/40",
+                scanResult.status === "ALREADY_CHECKED_IN" && "bg-amber-950 text-white border-amber-500/40",
+                scanResult.status === "NOT_FOUND" && "bg-rose-950 text-white border-rose-500/40",
+                scanResult.status === "TICKET_CANCELLED" && "bg-rose-950 text-white border-rose-500/40",
+                scanResult.status === "ERROR" && "bg-rose-950 text-white border-rose-500/40"
               )}
             >
               <div className="flex items-center gap-3">
-                {scannedResult.status === "success" && (
-                  <CheckCircle2 className="h-8 w-8 text-emerald-600 flex-shrink-0" />
+                {scanResult.status === "SUCCESS" && <CheckCircle2 className="h-8 w-8 text-emerald-400 shrink-0" />}
+                {scanResult.status === "ALREADY_CHECKED_IN" && <AlertTriangle className="h-8 w-8 text-amber-400 shrink-0" />}
+                {(scanResult.status === "NOT_FOUND" || scanResult.status === "TICKET_CANCELLED" || scanResult.status === "ERROR") && (
+                  <XCircle className="h-8 w-8 text-rose-400 shrink-0" />
                 )}
-                {scannedResult.status === "already_checked_in" && (
-                  <AlertTriangle className="h-8 w-8 text-amber-600 flex-shrink-0" />
-                )}
-                {scannedResult.status === "not_approved" && (
-                  <XCircle className="h-8 w-8 text-orange-600 flex-shrink-0" />
-                )}
-                {scannedResult.status === "not_found" && (
-                  <XCircle className="h-8 w-8 text-destructive flex-shrink-0" />
-                )}
+
                 <div>
-                  <h3 className="font-display text-lg font-bold">
-                    {scannedResult.status === "success" && "CHECK-IN BERHASIL ✓"}
-                    {scannedResult.status === "already_checked_in" && "PERINGATAN: SUDAH CHECK-IN"}
-                    {scannedResult.status === "not_approved" && "STATUS BELUM APPROVED"}
-                    {scannedResult.status === "not_found" && "PESANAN TIDAK DITEMUKAN"}
-                  </h3>
-                  <p className="text-xs opacity-90 mt-0.5">
-                    {scannedResult.message}
-                  </p>
+                  <span className="text-[10px] font-bold uppercase tracking-wider opacity-80">{scanResult.status}</span>
+                  <h4 className="font-display text-base font-bold">{scanResult.message}</h4>
                 </div>
               </div>
 
-              {scannedResult.order && (
-                <div className="rounded-2xl bg-white p-4 text-xs text-navy-900 border border-border/80 shadow-sm space-y-2">
-                  <div className="flex items-center justify-between border-b border-border pb-2">
-                    <span className="font-mono font-bold text-sm text-gold-600">
-                      {scannedResult.order.orderId}
-                    </span>
-                    <span className="rounded-full bg-navy-900 px-2.5 py-0.5 text-[10px] font-bold text-ivory-100">
-                      {scannedResult.order.ticketName} ({scannedResult.order.quantity} Pax)
-                    </span>
+              {/* Order-based check-in result */}
+              {scanResult.data?.orderCode && (
+                <div className="rounded-2xl bg-black/30 p-4 text-xs space-y-2 border border-white/10">
+                  <div className="flex justify-between">
+                    <span className="opacity-70">Order ID:</span>
+                    <span className="font-mono font-bold text-gold-400">{scanResult.data.orderCode}</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-[11px]">
-                    <div>
-                      <span className="text-muted-foreground block">Nama Peserta:</span>
-                      <strong>{scannedResult.order.customerName}</strong>
+                  <div className="flex justify-between">
+                    <span className="opacity-70">Check-In Baru:</span>
+                    <span className="font-bold text-emerald-300">{scanResult.data.checkedInCount ?? 0} peserta</span>
+                  </div>
+                  {(scanResult.data.alreadyCheckedInCount ?? 0) > 0 && (
+                    <div className="flex justify-between">
+                      <span className="opacity-70">Sudah Check-In Sebelumnya:</span>
+                      <span className="font-bold text-amber-300">{scanResult.data.alreadyCheckedInCount} peserta</span>
                     </div>
-                    <div>
-                      <span className="text-muted-foreground block">NIM:</span>
-                      <strong className="font-mono">{scannedResult.order.nim}</strong>
+                  )}
+                  {scanResult.data.tickets && scanResult.data.tickets.length > 0 && (
+                    <div className="space-y-1 pt-2 border-t border-white/10 max-h-40 overflow-y-auto">
+                      {scanResult.data.tickets.map((t) => (
+                        <div key={t.ticketId} className="flex items-center justify-between gap-2">
+                          <span className="truncate opacity-90">
+                            {t.participantName}
+                            <span className="text-[10px] opacity-60 block">{t.ticketTypeName}</span>
+                          </span>
+                          <span className={cn("font-mono text-[10px] shrink-0", t.alreadyCheckedIn ? "text-amber-300" : "text-emerald-300")}>
+                            {t.alreadyCheckedIn ? "SUDAH" : "OK"} · {t.ticketCode}
+                          </span>
+                        </div>
+                      ))}
                     </div>
-                    <div>
-                      <span className="text-muted-foreground block">Fakultas:</span>
-                      <span>{scannedResult.order.faculty}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground block">Waktu Check-In:</span>
-                      <span className="font-bold text-emerald-600">
-                        {scannedResult.order.checkedInAt || "Baru Saja"}
-                      </span>
-                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Single ticket check-in result */}
+              {scanResult.data?.ticket && (
+                <div className="rounded-2xl bg-black/30 p-4 text-xs space-y-2 border border-white/10">
+                  <div className="flex justify-between">
+                    <span className="opacity-70">Nama Peserta:</span>
+                    <span className="font-bold">{scanResult.data.ticket.participant.fullName}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="opacity-70">NIM / Email:</span>
+                    <span>{scanResult.data.ticket.participant.nim} · {scanResult.data.ticket.participant.email}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="opacity-70">Order ID:</span>
+                    <span className="font-mono">{scanResult.data.ticket.order.orderCode}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="opacity-70">Kode Tiket:</span>
+                    <span className="font-mono font-bold text-gold-400">{scanResult.data.ticket.ticketCode}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="opacity-70">Jenis Tiket:</span>
+                    <span>{scanResult.data.ticket.ticketTypeName}</span>
                   </div>
                 </div>
               )}
             </div>
           )}
+        </div>
+      </div>
 
-          {/* Live Check-in Feed */}
-          <div className="rounded-3xl border border-border bg-white p-6 shadow-sm space-y-4">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="font-display text-base font-bold text-navy-900 flex items-center gap-2">
-                <UserCheck className="h-4 w-4 text-emerald-600" />
-                <span>Log Kehadiran Peserta Terakhir</span>
-              </h3>
-              <span className="text-xs text-muted-foreground font-semibold">
-                {checkedInList.length} Orang
-              </span>
+      {/* Paginated Participant List */}
+      <div className="rounded-3xl border border-border bg-white shadow-sm overflow-hidden">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 p-5 sm:p-6 border-b border-border">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full bg-gold-500/10 px-3 py-1 text-xs font-bold text-gold-600 border border-gold-500/20 mb-2">
+              <ClipboardList className="h-3.5 w-3.5" />
+              <span>INTEGRASI DATA KEHADIRAN</span>
             </div>
+            <h2 className="font-display text-xl font-bold text-navy-900">Daftar Peserta Check-In</h2>
+          </div>
 
-            <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
-              {checkedInList.length === 0 ? (
-                <p className="text-xs text-center text-muted-foreground py-6">
-                  Belum ada peserta yang melakukan check-in hari ini.
-                </p>
+          <div className="relative w-full lg:w-72">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Cari nama, NIM, kode tiket, atau ID order..."
+              value={listSearch}
+              onChange={(e) => {
+                setListSearch(e.target.value);
+                setListPage(1);
+              }}
+              className="w-full rounded-xl border border-border bg-secondary/20 py-2.5 pl-10 pr-4 text-xs text-navy-900 placeholder:text-muted-foreground focus:border-gold-500 focus:bg-white focus:outline-none"
+            />
+          </div>
+        </div>
+
+        {/* Status Filter Tabs */}
+        <div className="flex flex-wrap items-center gap-2 px-5 sm:px-6 py-4 border-b border-border">
+          {[
+            { id: "ALL" as const, label: "Semua Peserta", count: stats.totalParticipants },
+            { id: "CHECKED_IN" as const, label: "Sudah Check-In", count: stats.totalCheckedIn },
+            { id: "NOT_PRESENT" as const, label: "Belum Hadir", count: stats.remainingParticipants },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => {
+                setListStatus(tab.id);
+                setListPage(1);
+              }}
+              className={cn(
+                "flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all",
+                listStatus === tab.id
+                  ? "bg-navy-900 text-gold-400 shadow-sm"
+                  : "bg-secondary/40 text-navy-900/70 hover:bg-secondary hover:text-navy-900"
+              )}
+            >
+              <span>{tab.label}</span>
+              <span
+                className={cn(
+                  "rounded-full px-2 py-0.5 text-[10px]",
+                  listStatus === tab.id ? "bg-gold-500 text-navy-950" : "bg-border text-muted-foreground"
+                )}
+              >
+                {loadingStats ? "..." : tab.count}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {/* Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-secondary/40 text-navy-900 uppercase font-bold text-[10px] tracking-wider border-b border-border">
+              <tr>
+                <th className="px-5 py-4">No</th>
+                <th className="px-5 py-4">Nama Peserta</th>
+                <th className="px-5 py-4">NIM / Fakultas</th>
+                <th className="px-5 py-4">Order ID</th>
+                <th className="px-5 py-4">Kode Tiket</th>
+                <th className="px-5 py-4">Jenis Tiket</th>
+                <th className="px-5 py-4">Status</th>
+                <th className="px-5 py-4">Waktu Check-In</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {listLoading ? (
+                <tr>
+                  <td colSpan={8} className="px-5 py-12 text-center">
+                    <Loader2 className="h-6 w-6 animate-spin inline-block text-gold-600" />
+                    <span className="ml-2 text-muted-foreground">Memuat data peserta...</span>
+                  </td>
+                </tr>
+              ) : listItems.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-5 py-12">
+                    <EmptyState
+                      icon={Users}
+                      title="Peserta tidak ditemukan"
+                      description="Tidak ada peserta yang sesuai dengan filter atau pencarian saat ini."
+                    />
+                  </td>
+                </tr>
               ) : (
-                checkedInList.map((order) => (
-                  <div
-                    key={order.orderId}
-                    className="rounded-2xl border border-border bg-secondary/20 p-3.5 flex items-center justify-between text-xs"
-                  >
-                    <div>
-                      <strong className="block text-navy-900 font-bold">
-                        {order.customerName}
-                      </strong>
-                      <span className="text-[10px] text-muted-foreground font-mono">
-                        {order.orderId} • NIM: {order.nim} • {order.ticketName}
-                      </span>
-                    </div>
-                    <span className="rounded-full bg-emerald-500/15 px-2.5 py-1 text-[10px] font-bold text-emerald-700 whitespace-nowrap">
-                      {order.checkedInAt || "Hadir"}
-                    </span>
-                  </div>
+                listItems.map((row, index) => (
+                  <tr key={row.id} className="hover:bg-secondary/20 transition-colors">
+                    <td className="px-5 py-4 text-muted-foreground">
+                      {(listPagination.page - 1) * listPagination.limit + index + 1}
+                    </td>
+                    <td className="px-5 py-4">
+                      <strong className="block text-navy-900 font-bold">{row.participant?.full_name ?? "-"}</strong>
+                      <span className="text-[10px] text-muted-foreground">{row.participant?.email ?? "-"}</span>
+                    </td>
+                    <td className="px-5 py-4">
+                      <span className="block text-navy-900 font-medium">{row.participant?.nim ?? "-"}</span>
+                      <span className="text-[10px] text-muted-foreground block truncate max-w-[140px]">{row.participant?.faculty ?? "-"}</span>
+                    </td>
+                    <td className="px-5 py-4 font-mono font-semibold text-navy-900 whitespace-nowrap">
+                      {row.order?.order_code ?? "-"}
+                    </td>
+                    <td className="px-5 py-4 font-mono text-gold-600 whitespace-nowrap">{row.ticketCode}</td>
+                    <td className="px-5 py-4 whitespace-nowrap">{row.ticketTypeName}</td>
+                    <td className="px-5 py-4 whitespace-nowrap">
+                      {row.isCheckedIn ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[10px] font-bold uppercase text-emerald-700">
+                          <CheckCircle2 className="h-3 w-3" /> Sudah Hadir
+                        </span>
+                      ) : row.status === "CANCELLED" ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/15 px-2.5 py-0.5 text-[10px] font-bold uppercase text-rose-700">
+                          <XCircle className="h-3 w-3" /> Dibatalkan
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2.5 py-0.5 text-[10px] font-bold uppercase text-amber-700">
+                          <AlertTriangle className="h-3 w-3" /> Belum Hadir
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-5 py-4 text-muted-foreground whitespace-nowrap">
+                      {row.checkIn
+                        ? new Date(row.checkIn.checked_in_at).toLocaleString("id-ID", { dateStyle: "short", timeStyle: "short" })
+                        : "-"}
+                    </td>
+                  </tr>
                 ))
               )}
-            </div>
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination Controls */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-5 sm:px-6 py-4 border-t border-border bg-secondary/20">
+          <p className="text-[11px] text-muted-foreground">
+            Menampilkan <strong className="text-navy-900">{fromCount}</strong>–<strong className="text-navy-900">{toCount}</strong> dari{" "}
+            <strong className="text-navy-900">{listPagination.total}</strong> peserta
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={listPage <= 1 || listLoading}
+              onClick={() => setListPage((p) => Math.max(1, p - 1))}
+              className="inline-flex items-center gap-1 rounded-xl border border-border bg-white px-3.5 py-2 text-xs font-semibold text-navy-900 hover:bg-secondary disabled:opacity-40 disabled:cursor-not-allowed transition"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" /> Sebelumnya
+            </button>
+            <span className="text-xs font-bold text-navy-900 px-2">
+              Halaman {listPagination.page} / {Math.max(1, listPagination.totalPages)}
+            </span>
+            <button
+              type="button"
+              disabled={listPage >= listPagination.totalPages || listLoading}
+              onClick={() => setListPage((p) => Math.min(listPagination.totalPages, p + 1))}
+              className="inline-flex items-center gap-1 rounded-xl border border-border bg-white px-3.5 py-2 text-xs font-semibold text-navy-900 hover:bg-secondary disabled:opacity-40 disabled:cursor-not-allowed transition"
+            >
+              Berikutnya <ChevronRight className="h-3.5 w-3.5" />
+            </button>
           </div>
         </div>
       </div>

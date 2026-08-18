@@ -126,6 +126,21 @@ export default function AdminCheckInPage() {
     data?: ScanResponseData;
   } | null>(null);
 
+  // Success Popup Modal State (shown when a check-in succeeds)
+  const [scanPopup, setScanPopup] = useState<{
+    message: string;
+    data?: ScanResponseData;
+  } | null>(null);
+  const scanPopupTimerRef = useRef<number | null>(null);
+
+  const closeScanPopup = useCallback(() => {
+    setScanPopup(null);
+    if (scanPopupTimerRef.current) {
+      clearTimeout(scanPopupTimerRef.current);
+      scanPopupTimerRef.current = null;
+    }
+  }, []);
+
   // Participant List State (pagination + integrated data)
   const [listItems, setListItems] = useState<ParticipantRow[]>([]);
   const [listStatus, setListStatus] = useState<"ALL" | "CHECKED_IN" | "NOT_PRESENT">("ALL");
@@ -261,10 +276,20 @@ export default function AdminCheckInPage() {
       gain.connect(ctx.destination);
 
       if (success) {
-        osc.frequency.setValueAtTime(880, ctx.currentTime);
-        gain.gain.setValueAtTime(0.1, ctx.currentTime);
+        // Two-tone success chime: brighter and longer so it's clearly audible
+        osc.frequency.setValueAtTime(660, ctx.currentTime);
+        gain.gain.setValueAtTime(0.12, ctx.currentTime);
         osc.start();
-        osc.stop(ctx.currentTime + 0.15);
+        osc.stop(ctx.currentTime + 0.18);
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.frequency.setValueAtTime(990, ctx.currentTime + 0.18);
+        gain2.gain.setValueAtTime(0.12, ctx.currentTime + 0.18);
+        gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
+        osc2.connect(gain2);
+        gain2.connect(ctx.destination);
+        osc2.start(ctx.currentTime + 0.18);
+        osc2.stop(ctx.currentTime + 0.48);
       } else {
         osc.frequency.setValueAtTime(300, ctx.currentTime);
         gain.gain.setValueAtTime(0.15, ctx.currentTime);
@@ -322,6 +347,18 @@ export default function AdminCheckInPage() {
           message: json.message || "Check-in Berhasil!",
           data: json.data,
         });
+        // Open the success popup so the admin can clearly see + hear the result
+        setScanPopup({
+          message: json.message || "Check-in Berhasil!",
+          data: json.data,
+        });
+        if (scanPopupTimerRef.current) {
+          clearTimeout(scanPopupTimerRef.current);
+        }
+        scanPopupTimerRef.current = window.setTimeout(() => {
+          setScanPopup(null);
+          scanPopupTimerRef.current = null;
+        }, 3500);
         lastScanTimeRef.current = now;
         fetchStats();
         setListRefreshTick((t) => t + 1);
@@ -543,6 +580,10 @@ export default function AdminCheckInPage() {
     return () => {
       stopCamera();
       scanningLoop.stop();
+      if (scanPopupTimerRef.current) {
+        clearTimeout(scanPopupTimerRef.current);
+        scanPopupTimerRef.current = null;
+      }
     };
   }, []);
 
@@ -996,6 +1037,82 @@ export default function AdminCheckInPage() {
           </div>
         </div>
       </div>
+
+      {/* Success Check-In Popup Modal */}
+      {scanPopup && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div
+            className="relative w-full max-w-sm rounded-3xl border border-emerald-500/40 bg-navy-950 p-8 text-center shadow-2xl animate-in zoom-in-95 fade-in-0 duration-300"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={closeScanPopup}
+              className="absolute right-4 top-4 rounded-full p-1.5 text-white/40 hover:text-white hover:bg-white/10 transition-colors"
+              aria-label="Tutup notifikasi"
+            >
+              ✕
+            </button>
+
+            <div className="relative mx-auto flex h-24 w-24 items-center justify-center">
+              <span className="absolute inset-0 rounded-full bg-emerald-400/20 animate-ping" />
+              <span className="absolute inset-0 rounded-full bg-emerald-400/10" />
+              <CheckCircle2 className="relative h-16 w-16 text-emerald-400 animate-check-pop" />
+            </div>
+
+            <h3 className="font-display mt-5 text-2xl font-bold text-white">Check-in Berhasil!</h3>
+            <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-emerald-400">{scanPopup.message}</p>
+
+            {scanPopup.data?.ticket && (
+              <div className="mt-5 space-y-1.5 rounded-2xl bg-black/30 border border-white/10 p-4 text-sm text-left">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-white/50">Peserta</span>
+                  <span className="font-bold text-white truncate">{scanPopup.data.ticket.participant.fullName}</span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-white/50">Order</span>
+                  <span className="font-mono text-xs text-gold-400">{scanPopup.data.ticket.order.orderCode}</span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-white/50">Tiket</span>
+                  <span className="font-mono text-xs font-bold text-emerald-300">{scanPopup.data.ticket.ticketCode}</span>
+                </div>
+              </div>
+            )}
+
+            {scanPopup.data?.orderCode && (
+              <div className="mt-5 space-y-1.5 rounded-2xl bg-black/30 border border-white/10 p-4 text-sm text-left">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-white/50">Order</span>
+                  <span className="font-mono text-xs text-gold-400">{scanPopup.data.orderCode}</span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-white/50">Check-in Baru</span>
+                  <span className="font-mono text-xs font-bold text-emerald-300">
+                    {scanPopup.data.checkedInCount ?? 0} peserta
+                  </span>
+                </div>
+                {(scanPopup.data.alreadyCheckedInCount ?? 0) > 0 && (
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-white/50">Sudah Sebelumnya</span>
+                    <span className="font-mono text-xs font-bold text-amber-300">
+                      {scanPopup.data.alreadyCheckedInCount} peserta
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={closeScanPopup}
+              className="mt-6 w-full rounded-2xl bg-emerald-500 py-3 text-sm font-bold text-emerald-950 hover:bg-emerald-400 transition-colors"
+            >
+              Oke, Lanjut
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -286,3 +286,13 @@ button:focus-visible {
   animation: scan-sweep 2.2s ease-in-out infinite;
   pointer-events: none;
 }
+
+/* === Success Checkmark Pop === */
+@keyframes check-pop {
+  0% { transform: scale(0); opacity: 0; }
+  60% { transform: scale(1.15); }
+  100% { transform: scale(1); opacity: 1; }
+}
+.animate-check-pop {
+  animation: check-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}

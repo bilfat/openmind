@@ -61,6 +61,14 @@ export async function POST(
       }, { status: 400 });
     }
 
+    // Read the authoritative order status after the RPC so the UI can reflect
+    // the real state (APPROVED / TICKET_ISSUED) instead of stale client data.
+    const { data: updatedOrder } = await supabaseAdmin
+      .from('orders')
+      .select('status')
+      .eq('id', orderId)
+      .maybeSingle();
+
     // Kick the existing email worker so PAYMENT_APPROVED + TICKET_ISSUED jobs are processed immediately
     void triggerEmailWorker(new URL(req.url).origin)
 
@@ -80,7 +88,8 @@ export async function POST(
     return NextResponse.json({
       success: true,
       message: rpcResult.message || 'Pembayaran berhasil disetujui.',
-      orderId: rpcResult.orderId
+      orderId: rpcResult.orderId,
+      status: updatedOrder?.status ?? null,
     }, { status: 200 });
 
   } catch (error: any) {

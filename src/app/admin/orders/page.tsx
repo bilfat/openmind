@@ -45,6 +45,18 @@ type AdminOrder = OrderItem & {
   issuedTicketCount: number;
   hasTicketEmailJob: boolean;
   paymentProofUrl?: string;
+  orderParticipants?: OrderParticipantDetail[];
+};
+
+type OrderParticipantDetail = {
+  fullName: string;
+  email: string;
+  whatsapp: string;
+  nim: string;
+  faculty: string;
+  studyProgram: string;
+  instagram?: string;
+  ticketName: string;
 };
 
 function toLegacyOrder(order: ApiOrder): AdminOrder {
@@ -148,8 +160,31 @@ function OrdersPageContent() {
       const latestPayment = payments[0];
       const proofUrl = latestPayment?.proof_url || null;
 
+      // Build the full participant list from the fresh detail payload so every
+      // ticket holder (multi-ticket orders) is shown, and use the authoritative
+      // order status from the DB instead of the stale list row.
+      const orderParticipants: OrderParticipantDetail[] = (json.order_items || []).map((oi: any) => ({
+        fullName: oi.participant?.full_name ?? "-",
+        email: oi.participant?.email ?? "-",
+        whatsapp: oi.participant?.whatsapp ?? "-",
+        nim: oi.participant?.nim ?? "-",
+        faculty: oi.participant?.faculty ?? "-",
+        studyProgram: oi.participant?.study_program ?? "-",
+        instagram: oi.participant?.instagram_username ?? "",
+        ticketName: oi.ticket_type?.name ?? "-",
+      }));
+      const primary = orderParticipants[0];
+
       setSelectedOrder({
         ...order,
+        status: json.order?.status ?? order.status,
+        customerName: primary?.fullName ?? order.customerName,
+        email: primary?.email ?? order.email,
+        whatsapp: primary?.whatsapp ?? order.whatsapp,
+        nim: primary?.nim ?? order.nim,
+        faculty: primary?.faculty ?? order.faculty,
+        studyProgram: primary?.studyProgram ?? order.studyProgram,
+        orderParticipants,
         paymentProofUrl: proofUrl,
       });
     } catch (err: any) {
@@ -168,8 +203,18 @@ function OrdersPageContent() {
         alert(data.message || "Gagal menyetujui pesanan.");
         return;
       }
+      // Reflect the authoritative status from the DB (APPROVED / TICKET_ISSUED)
+      // so the UI never keeps showing the stale "menunggu" state.
+      if (data.status) {
+        setOrders((prev) =>
+          prev.map((o) => (o.databaseId === orderId ? { ...o, status: data.status } : o))
+        );
+        setSelectedOrder((prev) =>
+          prev && prev.databaseId === orderId ? { ...prev, status: data.status } : prev
+        );
+      }
       alert("Pesanan berhasil disetujui!");
-      refreshOrders();
+      await refreshOrders().catch((error) => console.error(error));
       setSelectedOrder(null);
     } catch (err: any) {
       console.error(err);
@@ -639,6 +684,39 @@ function OrdersPageContent() {
                 <span className="text-gold-600 font-bold">{selectedOrder.ticketName} ({selectedOrder.quantity} Pax) — Rp {selectedOrder.totalPrice.toLocaleString("id-ID")}</span>
               </div>
             </div>
+
+            {/* All Participants (multi-ticket orders) */}
+            {selectedOrder.orderParticipants && selectedOrder.orderParticipants.length > 1 && (
+              <div className="space-y-3">
+                <span className="text-xs font-bold uppercase text-navy-900">
+                  Daftar Pemesan ({selectedOrder.orderParticipants.length})
+                </span>
+                <div className="space-y-2">
+                  {selectedOrder.orderParticipants.map((p, i) => (
+                    <div key={i} className="rounded-2xl border border-border bg-secondary/20 overflow-hidden">
+                      <div className="flex items-center justify-between gap-2 bg-navy-900 px-4 py-2.5">
+                        <span className="text-xs font-bold uppercase tracking-wider text-gold-400">
+                          Pemesan {i + 1}
+                        </span>
+                        <span className="rounded-full bg-gold-500/20 px-2.5 py-0.5 text-[10px] font-bold text-gold-300">
+                          {p.ticketName}
+                        </span>
+                      </div>
+                      <div className="p-4 text-xs space-y-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-navy-900/80">
+                          <span>Nama: <strong className="text-navy-900">{p.fullName}</strong></span>
+                          <span>NIM: <strong className="text-navy-900">{p.nim}</strong></span>
+                          <span>Fakultas: <strong className="text-navy-900">{p.faculty}</strong></span>
+                          <span>Prodi: <strong className="text-navy-900">{p.studyProgram}</strong></span>
+                          <span>WA: <strong className="text-navy-900">{p.whatsapp}</strong></span>
+                          <span>Email: <strong className="text-navy-900">{p.email}</strong></span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Uploaded Payment Proof */}
             {selectedOrder.paymentProofUrl && (

@@ -100,6 +100,8 @@ async function handleGetOrders(request: Request) {
         .from('order_items')
         .select('order_id, participants(id, full_name, email, nim, faculty, study_program), ticket_types(id, name, code, ticket_type)')
         .in('order_id', orderIds)
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true })
       if (itemsQuery.error) throw new Error(itemsQuery.error.message)
       summaries = (itemsQuery.data ?? []).reduce((acc, item: any) => {
         const current = acc[item.order_id] ?? { participants: [], ticketTypes: [] }

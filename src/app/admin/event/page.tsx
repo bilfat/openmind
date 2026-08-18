@@ -614,6 +614,12 @@ export default function AdminEventPage() {
               <AdminField label="WhatsApp (Format Internasional)" value={settings.contact_whatsapp || ""} onChange={(v) => handleChange("contact_whatsapp", v)} placeholder="6281234567890" icon={<MessageCircle className="h-3.5 w-3.5" />} />
               <AdminField label="WhatsApp (Display Text)" value={settings.contact_whatsapp_display || ""} onChange={(v) => handleChange("contact_whatsapp_display", v)} placeholder="+62 812-3456-7890" />
             </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <AdminField label="WhatsApp Group Link" value={settings.whatsapp_group_url || ""} onChange={(v) => handleChange("whatsapp_group_url", v)} placeholder="https://chat.whatsapp.com/..." icon={<MessageCircle className="h-3.5 w-3.5" />} />
+            </div>
+            <p className="text-[10px] text-muted-foreground -mt-2">
+              Link grup WhatsApp ini akan otomatis muncul di email tiket, e-ticket, PDF tiket, dan halaman utama (footer) saat peserta sudah membeli tiket.
+            </p>
           </div>
 
           {/* Description / About */}

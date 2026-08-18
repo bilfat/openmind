@@ -665,28 +665,20 @@ function OrdersPageContent() {
               </button>
             </div>
 
-            {/* Profile Info */}
-            <div className="grid grid-cols-2 gap-4 text-xs bg-secondary/30 p-4 rounded-2xl">
-              <div>
-                <span className="text-muted-foreground block font-semibold uppercase text-[10px]">Nama Lengkap</span>
-                <strong className="text-navy-900 text-sm">{selectedOrder.customerName}</strong>
-              </div>
-              <div>
-                <span className="text-muted-foreground block font-semibold uppercase text-[10px]">NIM & Fakultas</span>
-                <span className="text-navy-900 font-semibold">{selectedOrder.nim} • {selectedOrder.faculty}</span>
-              </div>
-              <div>
-                <span className="text-muted-foreground block font-semibold uppercase text-[10px]">Kontak Peserta</span>
-                <span className="text-navy-900 font-semibold">{selectedOrder.whatsapp} • {selectedOrder.email}</span>
-              </div>
-              <div>
-                <span className="text-muted-foreground block font-semibold uppercase text-[10px]">Tiket & Tagihan</span>
+            {/* Order Summary (no participant duplication) */}
+            <div className="rounded-2xl bg-secondary/30 p-4 text-xs space-y-2">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <span className="text-muted-foreground font-semibold uppercase text-[10px]">Tiket & Tagihan</span>
                 <span className="text-gold-600 font-bold">{selectedOrder.ticketName} ({selectedOrder.quantity} Pax) — Rp {selectedOrder.totalPrice.toLocaleString("id-ID")}</span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-muted-foreground font-semibold uppercase text-[10px]">Jumlah Pemesan</span>
+                <span className="text-navy-900 font-semibold">{selectedOrder.orderParticipants?.length ?? selectedOrder.quantity}</span>
               </div>
             </div>
 
-            {/* All Participants (multi-ticket orders) */}
-            {selectedOrder.orderParticipants && selectedOrder.orderParticipants.length > 1 && (
+            {/* All Participants */}
+            {selectedOrder.orderParticipants && selectedOrder.orderParticipants.length > 0 && (
               <div className="space-y-3">
                 <span className="text-xs font-bold uppercase text-navy-900">
                   Daftar Pemesan ({selectedOrder.orderParticipants.length})

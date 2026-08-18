@@ -4,6 +4,7 @@ import { requireActiveAdmin, jsonError } from '@/lib/admin-read-auth'
 import { broadcastToAllAdmins } from '@/lib/notifications'
 import { z } from 'zod'
 import { triggerEmailWorker } from '@/lib/tickets/trigger-email-worker'
+import { APP_URL } from '@/lib/app-url'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -76,6 +77,7 @@ export async function POST(req: Request) {
       p_participants: participants,
       p_payment_method: paymentMethod,
       p_admin_id: auth.userId,
+      p_app_url: APP_URL,
     })
 
     if (rpcError) {

@@ -68,6 +68,9 @@ function CheckoutContent() {
   
   const ticketId = searchParams.get('ticket');
   const inviteToken = searchParams.get('invite');
+  const qtyParam = Number(searchParams.get('qty'));
+
+  const emptyParticipant = (): Participant => ({ fullName: '', email: '', whatsapp: '', nim: '', faculty: 'Fakultas Ilmu Terapan', studyProgram: '', instagram: '' });
 
   useEffect(() => {
     async function fetchTicketData() {
@@ -96,10 +99,14 @@ function CheckoutContent() {
         if (!foundTicket) {
           throw new Error("Tiket yang diminta tidak ditemukan atau tidak valid.");
         }
-        
+
+        const min = foundTicket.min_purchase || 1;
+        const max = foundTicket.max_purchase || 5;
+        const initialQty = Math.min(Math.max(Number.isFinite(qtyParam) && qtyParam >= min ? qtyParam : min, min), max);
+
         setTicket(foundTicket);
-        setQuantity(foundTicket.min_purchase || 1);
-        setParticipants(Array(foundTicket.min_purchase || 1).fill({ fullName: '', email: '', whatsapp: '', nim: '', faculty: 'Fakultas Ilmu Terapan', studyProgram: '', instagram: '' }));
+        setQuantity(initialQty);
+        setParticipants(Array.from({ length: initialQty }, emptyParticipant));
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : "Gagal memuat data tiket.");
       } finally {
@@ -107,7 +114,7 @@ function CheckoutContent() {
       }
     }
     fetchTicketData();
-  }, [ticketId, inviteToken]);
+  }, [ticketId, inviteToken, qtyParam]);
 
   const handleQuantityChange = (amount: number) => {
     if (!ticket) return;
@@ -116,7 +123,7 @@ function CheckoutContent() {
 
     const diff = newQuantity - participants.length;
     if (diff > 0) {
-        setParticipants(prev => [...prev, ...Array(diff).fill({ fullName: '', email: '', whatsapp: '', nim: '', faculty: 'Fakultas Ilmu Terapan', studyProgram: '', instagram: '' })]);
+        setParticipants(prev => [...prev, ...Array.from({ length: diff }, emptyParticipant)]);
     } else if (diff < 0) {
         setParticipants(prev => prev.slice(0, newQuantity));
     }

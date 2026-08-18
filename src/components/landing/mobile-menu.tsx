@@ -39,7 +39,7 @@ export function MobileMenu({ isOpen, onClose, navItems, pathname }: MobileMenuPr
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="fixed top-16 left-0 right-0 z-50 lg:hidden"
+            className="fixed top-16 left-0 right-0 z-50 lg:hidden max-h-[calc(100dvh-4rem)] overflow-y-auto pb-[env(safe-area-inset-bottom)]"
           >
             <div className="mx-4 mt-2 rounded-2xl border border-gold-500/20 bg-white shadow-xl overflow-hidden">
               {/* Nav Links */}

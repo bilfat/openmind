@@ -149,12 +149,12 @@ function TiketPageContent() {
 
           {/* Tab Switcher: Beli Tiket vs Cek Tiket */}
           <div className="pt-4 flex items-center justify-center">
-            <div className="inline-flex rounded-full bg-white p-1.5 border border-border shadow-sm">
+            <div className="inline-flex rounded-full bg-white p-1.5 border border-border shadow-sm flex-wrap justify-center gap-1">
               <button
                 type="button"
                 onClick={() => setActiveTab("catalog")}
                 className={cn(
-                  "flex items-center gap-2 rounded-full px-5 py-2.5 text-xs sm:text-sm font-bold transition-all duration-300",
+                  "flex items-center gap-2 rounded-full px-4 sm:px-5 py-2.5 text-xs sm:text-sm font-bold transition-all duration-300 whitespace-nowrap",
                   activeTab === "catalog"
                     ? "bg-navy-900 text-gold-400 shadow-md"
                     : "text-navy-900/70 hover:text-navy-900"
@@ -168,7 +168,7 @@ function TiketPageContent() {
                 type="button"
                 onClick={() => setActiveTab("check")}
                 className={cn(
-                  "flex items-center gap-2 rounded-full px-5 py-2.5 text-xs sm:text-sm font-bold transition-all duration-300",
+                  "flex items-center gap-2 rounded-full px-4 sm:px-5 py-2.5 text-xs sm:text-sm font-bold transition-all duration-300 whitespace-nowrap",
                   activeTab === "check"
                     ? "bg-navy-900 text-gold-400 shadow-md"
                     : "text-navy-900/70 hover:text-navy-900"

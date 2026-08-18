@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { z } from 'zod'
 import { triggerEmailWorker } from '@/lib/tickets/trigger-email-worker'
+import { APP_URL } from '@/lib/app-url'
 
 const ParticipantSchema = z.object({
   fullName: z.string().min(3, 'Nama lengkap wajib diisi.'),
@@ -80,7 +81,8 @@ async function handler(req: Request) {
     if (rpcResult.totalAmount <= 0) {
       const { error: issueError } = await supabase.rpc('issue_order_tickets_rpc', {
         p_order_id: rpcResult.orderId,
-        p_require_approved: true
+        p_require_approved: true,
+        p_app_url: APP_URL
       });
       if (issueError) {
         console.error('Failed to auto-issue tickets for free order:', issueError);

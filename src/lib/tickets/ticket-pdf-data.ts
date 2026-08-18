@@ -1,9 +1,10 @@
 import QRCode from 'qrcode'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { APP_URL } from '@/lib/app-url'
 
 export const TICKET_PDF_MAX_TICKETS = 50
 export const TICKET_PDF_TIMEOUT_MS = 10_000
-export const CANONICAL_TICKET_URL = 'https://openmind2026.id/ticket'
+export const CANONICAL_TICKET_URL = `${APP_URL}/ticket`
 
 export type TicketPdfData = {
   id: string

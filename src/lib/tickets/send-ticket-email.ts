@@ -1,9 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { writeAuditLog } from '@/lib/audit'
+import { APP_URL } from '@/lib/app-url'
 
 export const TICKET_EMAIL_SUBJECT = 'E-Ticket OPEN MIND 2026 Anda'
 export const TICKET_EMAIL_ALLOWED_STATUSES = ['APPROVED', 'TICKET_ISSUED'] as const
-export const CANONICAL_TICKET_URL = 'https://openmind2026.id/ticket'
+export const CANONICAL_TICKET_URL = `${APP_URL}/ticket`
 
 export interface SendTicketEmailResult {
   success: boolean

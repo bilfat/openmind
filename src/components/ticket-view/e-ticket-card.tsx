@@ -6,6 +6,7 @@ import { eventData } from "@/data/event";
 import { useActiveEvent } from "@/hooks/use-active-event";
 import { formatEventDate, formatEventTimeRange, getEventStartDate, getEventEndDate, toCalendarFormat, formatCheckInTime } from "@/lib/event-utils";
 import { QRCodeDisplay } from "./qr-code";
+import { ticketUrl } from "@/lib/app-url";
 import {
   Calendar,
   Clock,
@@ -30,8 +31,8 @@ export function ETicketCard({ order }: ETicketCardProps) {
     qrToken?: string;
   };
   const qrValue = issuedTicket.qrToken
-    ? `https://openmind2026.id/ticket/${issuedTicket.qrToken}`
-    : `https://openmind2026.id/ticket/${encodeURIComponent(order.orderId)}`;
+    ? ticketUrl(issuedTicket.qrToken)
+    : ticketUrl(order.orderId);
 
   const name = event?.name || "OPEN MIND";
   const year = event?.year || "2026";

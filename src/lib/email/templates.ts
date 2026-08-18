@@ -1,5 +1,6 @@
 ﻿import 'server-only'
 import { formatEventDate, formatEventTimeRange } from '@/lib/event-utils'
+import { ticketUrl } from '@/lib/app-url'
 
 export type EmailJob = {
   id: string
@@ -56,7 +57,7 @@ export function renderEmail(job: EmailJob, event?: EmailEventContext): { subject
   const p = job.payload ?? {}
   const footer = `${eventLabel(event)} — HIPMI PT Telkom University`
   if (job.job_type === 'TICKET_ISSUED') {
-    const qrToken = p.qr_token ?? p.qrToken ?? ''
+    const qrToken = String(p.qr_token ?? p.qrToken ?? '')
     const date = eventDateLabel(event) ?? p.event_date ?? p.eventDate ?? ''
     const time = eventTimeLabel(event)
     const venue = event?.venue || p.venue || ''
@@ -64,7 +65,7 @@ export function renderEmail(job: EmailJob, event?: EmailEventContext): { subject
     const whatsappGroupRow = whatsappGroupUrl ? rowHtml('Grup WhatsApp', `<a href="${escapeHtml(whatsappGroupUrl)}" style="color:#16a34a" target="_blank">${escapeHtml(whatsappGroupUrl)}</a>`) : ''
     return {
       subject: job.subject || `Tiket ${eventLabel(event)} Anda`,
-      htmlContent: layout('Tiket berhasil diterbitkan', footer, `<p>Halo ${escapeHtml(job.recipient_name)},</p><table>${row('Kode tiket', p.ticket_code ?? p.ticketCode)}${row('Order', p.order_code ?? p.orderCode)}${row('Tipe tiket', p.ticket_type ?? p.ticketType)}${row('Tanggal event', `${date}${time ? ` (${time})` : ''}`)}${row('Venue', venue)}${whatsappGroupRow}${row('QR URL', `https://openmind2026.id/ticket/${escapeHtml(qrToken)}`)}</table>`),
+      htmlContent: layout('Tiket berhasil diterbitkan', footer, `<p>Halo ${escapeHtml(job.recipient_name)},</p><table>${row('Kode tiket', p.ticket_code ?? p.ticketCode)}${row('Order', p.order_code ?? p.orderCode)}${row('Tipe tiket', p.ticket_type ?? p.ticketType)}${row('Tanggal event', `${date}${time ? ` (${time})` : ''}`)}${row('Venue', venue)}${whatsappGroupRow}${row('QR URL', ticketUrl(qrToken))}</table>`),
     }
   }
   if (job.job_type === 'PAYMENT_APPROVED') return { subject: job.subject || 'Pembayaran disetujui', htmlContent: layout('Pembayaran disetujui', footer, `<p>Halo ${escapeHtml(job.recipient_name)},</p><table>${row('Order', p.order_code ?? p.orderId)}${row('Total', p.total_amount ?? p.amount)}${row('Status pembayaran', p.payment_status ?? 'PAID')}${row('Status tiket', p.ticket_status ?? 'TICKET_ISSUED')}</table><p>Tiket akan dikirim melalui email setelah proses penerbitan selesai.</p>`) }

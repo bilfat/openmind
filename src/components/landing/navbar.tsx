@@ -68,24 +68,24 @@ export function Navbar() {
             : "glass border-b border-border/80 shadow-sm"
           }`}
       >
-        <nav className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex h-16 items-center justify-between lg:h-20">
+        <nav className="mx-auto max-w-7xl px-3 sm:px-6 lg:px-8">
+          <div className="flex h-16 items-center justify-between gap-2 lg:h-20">
             {/* Logo */}
-            <Link href="/" className="flex items-center gap-2.5 group flex-shrink-0">
+            <Link href="/" className="flex items-center gap-2 sm:gap-2.5 group min-w-0 flex-shrink-0">
               <img
                 src="/logo-om.jpg"
                 alt="OPEN MIND Logo"
-                className="h-9 w-9 rounded-lg object-cover lg:h-10 lg:w-10"
+                className="h-8 w-8 rounded-lg object-cover sm:h-9 sm:w-9 lg:h-10 lg:w-10"
               />
-              <div className="flex items-baseline gap-1.5">
+              <div className="flex items-baseline gap-1.5 min-w-0">
                 <span
-                  className={`font-display text-xl font-bold tracking-wider transition-colors duration-300 lg:text-2xl ${isHeroTransparent ? "text-ivory-100" : "text-navy-900"
+                  className={`font-display text-lg font-bold tracking-wider transition-colors duration-300 sm:text-xl lg:text-2xl truncate ${isHeroTransparent ? "text-ivory-100" : "text-navy-900"
                     }`}
                 >
                   {eventName}
                 </span>
                 <span
-                  className={`text-[10px] font-bold tracking-widest uppercase transition-colors duration-300 ${isHeroTransparent ? "text-gold-400" : "text-gold-600"
+                  className={`shrink-0 text-[10px] font-bold tracking-widest uppercase transition-colors duration-300 ${isHeroTransparent ? "text-gold-400" : "text-gold-600"
                     }`}
                 >
                   {eventYear}
@@ -192,7 +192,7 @@ export function Navbar() {
             </div>
 
             {/* Right Side: Quick Search Bar + Admin Login + CTA Button + Mobile Trigger */}
-            <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="flex items-center gap-1.5 sm:gap-3 flex-shrink-0">
               {/* Quick Search Form (Desktop) */}
               <form
                 onSubmit={handleQuickSearch}
@@ -227,8 +227,11 @@ export function Navbar() {
               {/* Quick Search Toggle (Mobile/Tablet Icon button) */}
               <button
                 type="button"
-                onClick={() => setSearchOpen(!searchOpen)}
-                className={`md:hidden p-2 rounded-full transition-colors ${isHeroTransparent
+                onClick={() => {
+                  setSearchOpen(!searchOpen);
+                  setMobileOpen(false);
+                }}
+                className={`md:hidden p-1.5 sm:p-2 rounded-full transition-colors ${isHeroTransparent
                     ? "text-ivory-100 hover:bg-white/10"
                     : "text-navy-900 hover:bg-navy-900/5"
                   }`}
@@ -240,7 +243,7 @@ export function Navbar() {
               {/* Admin Login */}
               <Link
                 href="/admin/login"
-                className={`hidden sm:inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-all duration-300 hover:scale-105 ${
+                className={`hidden md:inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-all duration-300 hover:scale-105 ${
                   isHeroTransparent
                     ? "border-gold-400/40 text-gold-400 hover:bg-gold-400/10"
                     : "border-navy-900/20 text-navy-900/70 hover:bg-navy-900/5 hover:text-navy-900"
@@ -253,16 +256,20 @@ export function Navbar() {
               {/* CTA Button */}
               <Link
                 href="/tiket"
-                className="inline-flex items-center gap-1.5 sm:gap-2 rounded-full bg-gold-500 px-4 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm font-bold text-navy-950 transition-all duration-300 hover:bg-gold-400 shadow-md shadow-gold-500/20 hover:scale-105"
+                aria-label="Beli Tiket"
+                className="inline-flex items-center gap-1.5 sm:gap-2 rounded-full bg-gold-500 px-2.5 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm font-bold text-navy-950 transition-all duration-300 hover:bg-gold-400 shadow-md shadow-gold-500/20 hover:scale-105"
               >
-                <Ticket className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                <span>Beli Tiket</span>
+                <Ticket className="h-4 w-4 sm:h-4 sm:w-4" />
+                <span className="hidden sm:inline">Beli Tiket</span>
               </Link>
 
               {/* Mobile Hamburger */}
               <button
-                onClick={() => setMobileOpen(!mobileOpen)}
-                className={`xl:hidden p-2 rounded-lg transition-colors ${isHeroTransparent
+                onClick={() => {
+                  setMobileOpen(!mobileOpen);
+                  setSearchOpen(false);
+                }}
+                className={`xl:hidden p-1.5 sm:p-2 rounded-lg transition-colors ${isHeroTransparent
                     ? "text-ivory-100 hover:bg-white/10"
                     : "text-navy-900 hover:bg-navy-900/5"
                   }`}

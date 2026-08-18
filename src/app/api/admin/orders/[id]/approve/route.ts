@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { broadcastToAllAdmins } from '@/lib/notifications';
 import { triggerEmailWorker } from '@/lib/tickets/trigger-email-worker';
+import { APP_URL } from '@/lib/app-url';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -46,7 +47,8 @@ export async function POST(
     const supabaseAdmin = createAdminClient();
     const { data: rpcResult, error: rpcError } = await supabaseAdmin.rpc('approve_order_payment_rpc', {
       p_order_id: orderId,
-      p_admin_id: user.id
+      p_admin_id: user.id,
+      p_app_url: APP_URL
     });
 
     if (rpcError) {

@@ -110,16 +110,16 @@ export default function BerandaPage() {
         {/* Hero Main Content */}
         <div className="relative z-10 mx-auto max-w-5xl px-4 text-center space-y-8">
           {/* Organizer Badge */}
-          <div className="inline-flex items-center gap-2 rounded-full border border-gold-500/30 bg-navy-900/80 px-4 py-1.5 backdrop-blur-md">
-            <span className="h-2 w-2 rounded-full bg-gold-500 animate-pulse" />
-            <span className="text-xs font-semibold uppercase tracking-[0.25em] text-gold-400">
+          <div className="inline-flex items-center gap-2 rounded-full border border-gold-500/30 bg-navy-900/80 px-3 sm:px-4 py-1.5 backdrop-blur-md max-w-full">
+            <span className="h-2 w-2 rounded-full bg-gold-500 animate-pulse flex-shrink-0" />
+            <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-[0.18em] sm:tracking-[0.25em] text-gold-400">
               HIPMI PT TELKOM UNIVERSITY PRESENTS
             </span>
           </div>
 
           {/* Headline */}
           <div className="space-y-3">
-            <h1 className="font-display text-5xl sm:text-7xl md:text-8xl lg:text-9xl font-black tracking-wider text-ivory-100 drop-shadow-2xl">
+            <h1 className="font-display text-4xl sm:text-7xl md:text-8xl lg:text-9xl font-black tracking-wider text-ivory-100 drop-shadow-2xl break-words">
               {heroTitle ?? name}
             </h1>
             {showYearSeparately && (

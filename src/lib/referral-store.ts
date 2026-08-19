@@ -149,11 +149,15 @@ export async function updateExistingReferral(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ message: "Gagal memperbarui kode referal." }));
+      throw new Error(err.message || "Gagal memperbarui kode referal.");
+    }
     const result = await res.json();
     return result.item ?? null;
-  } catch {
-    return null;
+  } catch (err) {
+    if (err instanceof Error) throw err;
+    throw new Error("Gagal memperbarui kode referal.");
   }
 }
 

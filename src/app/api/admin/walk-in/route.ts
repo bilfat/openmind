@@ -26,7 +26,8 @@ const WalkInSchema = z.object({
     quantity: z.number().int().min(1, 'Kuantitas minimal 1.'),
   })).min(1, 'Minimal satu jenis tiket harus dipilih.'),
   participants: z.array(ParticipantSchema),
-  paymentMethod: z.enum(['CASH', 'BANK_TRANSFER', 'QRIS', 'OTHER']).default('CASH'),
+  referralCode: z.string().optional(),
+  paymentMethod: z.enum(['CASH', 'BANK_TRANSFER', 'QRIS']).optional().default('CASH'),
 })
 
 // ── POST Handler ────────────────────────────────────────────────────────────
@@ -47,7 +48,7 @@ export async function POST(req: Request) {
       )
     }
 
-    const { ticketSelections, participants, paymentMethod } = validation.data
+    const { ticketSelections, participants, referralCode, paymentMethod } = validation.data
 
     // 2. Validate participant count matches total quantity (Model B)
     const totalQuantity = ticketSelections.reduce((sum, item) => sum + item.quantity, 0)
@@ -76,6 +77,7 @@ export async function POST(req: Request) {
       p_ticket_selections: ticketSelections,
       p_participants: participants,
       p_payment_method: paymentMethod,
+      p_referral_code: referralCode?.trim() || null,
       p_admin_id: auth.userId,
       p_app_url: APP_URL,
     })

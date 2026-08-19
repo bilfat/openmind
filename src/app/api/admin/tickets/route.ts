@@ -60,7 +60,6 @@ export async function GET() {
       .from('ticket_types')
       .select('*')
       .eq('event_id', activeEvent.id)
-      .neq('status', 'ARCHIVED')
       .order('created_at', { ascending: false })
 
     if (ticketError) {

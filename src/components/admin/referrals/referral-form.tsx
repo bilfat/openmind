@@ -134,8 +134,11 @@ export function ReferralForm({ initialData, isEdit = false }: ReferralFormProps)
         const created = await createNewReferral(payload);
         router.push(`/admin/referrals/${created.id}`);
       }
-    } catch {
+    } catch (err) {
       setIsSubmitting(false);
+      const message =
+        err instanceof Error ? err.message : "Gagal menyimpan kode referal.";
+      setErrors((prev) => ({ ...prev, submit: message }));
     }
   };
 
@@ -196,6 +199,12 @@ export function ReferralForm({ initialData, isEdit = false }: ReferralFormProps)
           </button>
         </div>
       </div>
+
+      {errors.submit && (
+        <div className="rounded-2xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-xs font-semibold text-destructive">
+          {errors.submit}
+        </div>
+      )}
 
       {/* Main 60:40 Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">

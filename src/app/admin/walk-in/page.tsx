@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import {
   CheckCircle2,
@@ -36,6 +36,7 @@ interface ParticipantForm {
 
 interface TicketTypeItem {
   id: string;
+  event_id: string;
   name: string;
   ticket_type: string;
   price: number;
@@ -63,7 +64,6 @@ export default function WalkInPage() {
   const [ticketsError, setTicketsError] = useState<string | null>(null);
   const [selectedTicketId, setSelectedTicketId] = useState("");
   const [quantity, setQuantity] = useState(1);
-  const [paymentMethod, setPaymentMethod] = useState<"CASH" | "BANK_TRANSFER" | "QRIS">("CASH");
 
   const [participants, setParticipants] = useState<ParticipantForm[]>([
     { fullName: "", email: "", whatsapp: "", nim: "", faculty: "Fakultas Ilmu Terapan", studyProgram: "", instagram: "" },
@@ -72,6 +72,17 @@ export default function WalkInPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [success, setSuccess] = useState<SuccessInfo | null>(null);
+
+  const [referralCode, setReferralCode] = useState("");
+  const [referralInfo, setReferralInfo] = useState<{
+    type: "PERCENTAGE" | "FIXED";
+    value: number;
+    max_discount?: number | null;
+  } | null>(null);
+  const [referralSuccessMsg, setReferralSuccessMsg] = useState("");
+  const [referralErrorMsg, setReferralErrorMsg] = useState("");
+  const [isValidatingReferral, setIsValidatingReferral] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<"CASH" | "BANK_TRANSFER" | "QRIS">("CASH");
 
   const syncParticipants = (qty: number) => {
     setParticipants((prev) => {
@@ -144,6 +155,21 @@ export default function WalkInPage() {
   const totalPrice = unitPrice * quantity;
   const priceOf = (t: TicketTypeItem) => Number(t.final_price ?? t.price ?? 0);
 
+  const discountAmount = useMemo(() => {
+    if (!referralInfo) return 0;
+    const subtotal = totalPrice;
+    let discount = 0;
+    if (referralInfo.type === "PERCENTAGE") {
+      discount = Math.floor((subtotal * referralInfo.value) / 100);
+      if (referralInfo.max_discount) {
+        discount = Math.min(discount, referralInfo.max_discount);
+      }
+    } else if (referralInfo.type === "FIXED") {
+      discount = referralInfo.value;
+    }
+    return Math.min(discount, subtotal);
+  }, [totalPrice, referralInfo]);
+
   const minQty = selectedTicket ? Math.max(1, Number(selectedTicket.min_purchase ?? 1)) : 1;
   const maxQty = selectedTicket
     ? Math.max(minQty, Math.min(Number(selectedTicket.max_purchase ?? 10), Number(selectedTicket.remaining_quota ?? selectedTicket.quota ?? 10)))
@@ -171,6 +197,45 @@ export default function WalkInPage() {
     setParticipants(updated);
   };
 
+  const handleValidateReferral = async () => {
+    const code = referralCode.trim();
+    if (!code || !selectedTicket) return;
+    setIsValidatingReferral(true);
+    setReferralSuccessMsg("");
+    setReferralErrorMsg("");
+    try {
+      const res = await fetch("/api/referrals/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ referralCode: code, eventId: selectedTicket.event_id }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setReferralInfo(null);
+        setReferralErrorMsg(data.message || "Kode referal tidak valid.");
+        return;
+      }
+      setReferralInfo(data.discount);
+      const discountInfo = data.discount;
+      const subtotal = unitPrice * quantity;
+      let discount = 0;
+      if (discountInfo.type === "PERCENTAGE") {
+        discount = Math.floor((subtotal * discountInfo.value) / 100);
+        if (discountInfo.max_discount) {
+          discount = Math.min(discount, discountInfo.max_discount);
+        }
+      } else if (discountInfo.type === "FIXED") {
+        discount = discountInfo.value;
+      }
+      discount = Math.min(discount, subtotal);
+      setReferralSuccessMsg(`Kode referal valid! Diskon Rp ${discount.toLocaleString("id-ID")}`);
+    } catch (err: unknown) {
+      setReferralErrorMsg(err instanceof Error ? err.message : "Gagal memvalidasi kode referal.");
+    } finally {
+      setIsValidatingReferral(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedTicketId) {
@@ -192,6 +257,7 @@ export default function WalkInPage() {
         studyProgram: p.studyProgram.trim() || "-",
         instagram: p.instagram?.trim() || undefined,
       })),
+      referralCode: referralCode.trim() || undefined,
       paymentMethod,
     };
 
@@ -227,6 +293,11 @@ export default function WalkInPage() {
     setErrorMsg(null);
     setQuantity(1);
     setParticipants([{ fullName: "", email: "", whatsapp: "", nim: "", faculty: "Fakultas Ilmu Terapan", studyProgram: "", instagram: "" }]);
+    setReferralCode("");
+    setReferralInfo(null);
+    setReferralSuccessMsg("");
+    setReferralErrorMsg("");
+    setPaymentMethod("CASH");
   };
 
   return (
@@ -423,7 +494,7 @@ export default function WalkInPage() {
           <div className="w-full lg:w-5/12 space-y-6">
             <div className="rounded-3xl border border-navy-900/20 bg-navy-950 text-ivory-100 p-6 shadow-md space-y-5">
               <h3 className="font-display text-lg font-bold border-b border-navy-800 pb-3 text-gold-400">
-                2. Pilih Tiket & Metode
+                2. Pilih Tiket & Referal
               </h3>
 
               {loadingTickets ? (
@@ -496,22 +567,67 @@ export default function WalkInPage() {
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-ivory-200/80 mb-2">Metode Pembayaran Kasir</label>
-                    <select
-                      value={paymentMethod}
-                      onChange={(e) => setPaymentMethod(e.target.value as "CASH" | "BANK_TRANSFER" | "QRIS")}
-                      className="w-full rounded-xl border border-navy-800 bg-navy-900 px-3 py-2 text-xs text-ivory-100"
-                    >
-                      <option value="CASH">CASH / TUNAI</option>
-                      <option value="QRIS">QRIS ONSITE</option>
-                      <option value="BANK_TRANSFER">TRANSFER BANK</option>
-                    </select>
+                  <div className="rounded-xl border border-navy-800 bg-navy-900/60 p-3">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-ivory-200/80 mb-2">
+                      Kode Referal / Promo <span className="font-normal normal-case text-ivory-200/50">(Opsional)</span>
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={referralCode}
+                        onChange={(e) => {
+                          setReferralCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""));
+                          setReferralInfo(null);
+                          setReferralSuccessMsg("");
+                          setReferralErrorMsg("");
+                        }}
+                        placeholder="Contoh: OPENMIND50"
+                        className="w-full min-w-0 rounded-xl border border-navy-800 bg-navy-950 px-3 py-2 text-xs font-mono font-bold tracking-wider text-gold-400 placeholder:font-sans placeholder:font-normal placeholder:tracking-normal placeholder:text-ivory-200/30 focus:border-gold-500 focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleValidateReferral}
+                        disabled={isValidatingReferral || !referralCode.trim()}
+                        className="shrink-0 inline-flex items-center justify-center gap-1.5 rounded-xl bg-gold-500 px-4 py-2 text-xs font-bold text-navy-950 hover:bg-gold-400 transition disabled:opacity-50 cursor-pointer"
+                      >
+                        {isValidatingReferral ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                        )}
+                        Terapkan
+                      </button>
+                    </div>
+                    {referralErrorMsg && (
+                      <p className="mt-1.5 flex items-center gap-1 text-[11px] font-semibold text-red-400">
+                        <AlertCircle className="h-3 w-3 shrink-0" />
+                        {referralErrorMsg}
+                      </p>
+                    )}
+                    {referralSuccessMsg && (
+                      <p className="mt-1.5 text-[11px] font-semibold text-emerald-400">{referralSuccessMsg}</p>
+                    )}
                   </div>
 
-                  <div className="border-t border-navy-800 pt-4 flex justify-between items-baseline">
-                    <span className="text-xs font-bold">Total Pembayaran:</span>
-                    <span className="font-display text-2xl font-black text-gold-400">Rp {totalPrice.toLocaleString("id-ID")}</span>
+                  
+
+                  <div className="border-t border-navy-800 pt-4 space-y-2">
+                    <div className="flex justify-between text-xs text-ivory-200/80">
+                      <span>Subtotal Tiket</span>
+                      <span>Rp {totalPrice.toLocaleString("id-ID")}</span>
+                    </div>
+                    {referralInfo && discountAmount > 0 && (
+                      <div className="flex justify-between text-xs font-semibold text-emerald-400">
+                        <span>Diskon Referal{referralCode ? ` (${referralCode})` : ""}</span>
+                        <span>- Rp {discountAmount.toLocaleString("id-ID")}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between items-baseline pt-1 border-t border-navy-800">
+                      <span className="text-xs font-bold">Total Pembayaran:</span>
+                      <span className="font-display text-2xl font-black text-gold-400">
+                        Rp {Math.max(0, totalPrice - discountAmount).toLocaleString("id-ID")}
+                      </span>
+                    </div>
                   </div>
 
                   <button

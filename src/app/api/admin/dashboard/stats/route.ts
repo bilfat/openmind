@@ -4,7 +4,7 @@ import { withTimeoutGuard } from '@/lib/timeout'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-const APPROVED_STATUSES = ['APPROVED', 'TICKET_ISSUED']
+const APPROVED_STATUSES = ['APPROVED', 'TICKET_ISSUED', 'WAITING_VERIFICATION']
 
 async function handleGetDashboardStats() {
   const auth = await requireActiveAdmin()

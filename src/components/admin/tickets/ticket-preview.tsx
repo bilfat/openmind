@@ -68,6 +68,12 @@ export function TicketPreview({ formData }: TicketPreviewProps) {
                     <span>PRIVATE</span>
                   </span>
                 )}
+                {formData.badge && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-gold-500/20 px-2 py-0.5 text-[10px] font-bold text-gold-400 border border-gold-500/40">
+                    <Sparkles className="h-2.5 w-2.5" />
+                    <span>{formData.badge}</span>
+                  </span>
+                )}
               </div>
               <h3 className="font-display text-2xl font-black text-ivory-100">
                 {formData.name || "Nama Jenis Tiket"}

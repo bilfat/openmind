@@ -360,6 +360,11 @@ export default function AdminTicketsListPage() {
                         >
                           {ticket.name}
                         </Link>
+                        {ticket.badge && (
+                          <span className="inline-block mt-0.5 rounded-full bg-gold-500/15 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-gold-600 border border-gold-500/30">
+                            {ticket.badge}
+                          </span>
+                        )}
                         <span className="text-[10px] text-muted-foreground font-mono">
                           ID: {ticket.id}
                         </span>

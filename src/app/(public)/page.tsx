@@ -432,7 +432,7 @@ export default function BerandaPage() {
                   salesEnd: ticket.sales_end_at,
                   status: ticket.status,
                   benefits: ticket.benefits || [],
-                  badge: ticket.code === "EARLY" ? "Best Seller" : ticket.base_price === 0 ? "Limited Quota" : "Standard"
+                  badge: ticket.badge || (ticket.code === "EARLY" ? "Best Seller" : ticket.base_price === 0 ? "Limited Quota" : "Standard")
                 }}
                 featured={ticket.code === "EARLY"}
               />

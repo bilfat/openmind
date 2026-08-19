@@ -154,7 +154,8 @@ export async function POST(request: Request) {
       sales_start_at,
       sales_end_at,
       benefits = [],
-      status = 'DRAFT'
+      status = 'DRAFT',
+      badge = 'EXTEND'
     } = body
 
     // 1. Validasi Input Dasar
@@ -224,7 +225,8 @@ export async function POST(request: Request) {
         sales_start_at,
         sales_end_at,
         benefits: Array.isArray(benefits) ? JSON.stringify(benefits) : JSON.stringify([]),
-        status
+        status,
+        badge
       })
       .select()
       .single()

@@ -152,7 +152,8 @@ export async function PUT(
       sales_start_at,
       sales_end_at,
       benefits,
-      status
+      status,
+      badge
     } = body
 
     // Fetch existing ticket type first to ensure it exists
@@ -219,6 +220,7 @@ export async function PUT(
     if (sales_end_at !== undefined) updateData.sales_end_at = finalEnd
     if (benefits !== undefined) updateData.benefits = Array.isArray(benefits) ? JSON.stringify(benefits) : JSON.stringify([])
     if (status !== undefined) updateData.status = status
+    if (badge !== undefined) updateData.badge = badge
 
     // Update row
     const { data: updatedTicket, error: updateError } = await supabase

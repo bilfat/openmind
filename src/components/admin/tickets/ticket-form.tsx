@@ -39,6 +39,7 @@ export function TicketForm({ initialData, isEdit = false }: TicketFormProps) {
     salesStart: initialData?.salesStart || "2026-08-01T00:00",
     salesEnd: initialData?.salesEnd || "2026-09-17T23:59",
     status: initialData?.status || ("ACTIVE" as TicketStatus),
+    badge: initialData?.badge || "EXTEND",
     benefits: initialData?.benefits || [
       "Access to Main Stage OPEN MIND 2026",
       "Official Digital E-Ticket & QR Pass",
@@ -167,6 +168,7 @@ export function TicketForm({ initialData, isEdit = false }: TicketFormProps) {
       sales_end_at: new Date(formData.salesEnd).toISOString(),
       benefits: formData.benefits,
       status: targetStatus,
+      badge: formData.badge,
     };
 
     try {
@@ -362,6 +364,42 @@ export function TicketForm({ initialData, isEdit = false }: TicketFormProps) {
                   Memerlukan pembayaran transfer rekening bank dan verifikasi panitia.
                 </p>
               </button>
+            </div>
+
+            {/* Badge / Label Selector */}
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-navy-900 mb-1.5">
+                Badge / Label Tiket
+              </label>
+              <div className="grid grid-cols-3 gap-3">
+                {(["EARLY", "LIMITED", "EXTEND"] as const).map((badgeOption) => (
+                  <button
+                    key={badgeOption}
+                    type="button"
+                    onClick={() => handleChange("badge", badgeOption)}
+                    className={cn(
+                      "rounded-xl border-2 px-3 py-3 text-center transition-all space-y-1",
+                      formData.badge === badgeOption
+                        ? "border-gold-500 bg-gold-500/10 shadow-sm ring-2 ring-gold-500/20"
+                        : "border-border bg-secondary/20 hover:border-gold-500/40"
+                    )}
+                  >
+                    <span className="block text-xs font-black uppercase tracking-wider text-navy-900">
+                      {badgeOption}
+                    </span>
+                    <span className="block text-[10px] text-muted-foreground">
+                      {badgeOption === "EARLY"
+                        ? "Early Bird / Best Seller"
+                        : badgeOption === "LIMITED"
+                        ? "Kuota Terbatas"
+                        : "Tiket Reguler"}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1.5 text-[10px] text-muted-foreground">
+                Badge akan tampil di pojok atas kartu tiket di halaman publik.
+              </p>
             </div>
 
             {/* Paid Fields */}

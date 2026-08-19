@@ -38,6 +38,7 @@ export default function EditTicketPage() {
             salesStart: t.sales_start_at.substring(0, 16),
             salesEnd: t.sales_end_at.substring(0, 16),
             status: t.status,
+            badge: t.badge || "EXTEND",
             benefits: t.benefits || []
           });
         }

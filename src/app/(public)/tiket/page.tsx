@@ -341,7 +341,7 @@ function TiketPageContent() {
                           salesEnd: t.sales_end_at,
                           status: t.status,
                           benefits: t.benefits || [],
-                          badge: t.code === "EARLY" ? "Best Seller" : t.base_price === 0 ? "Limited Quota" : "Standard",
+                          badge: t.badge || (t.code === "EARLY" ? "Best Seller" : t.base_price === 0 ? "Limited Quota" : "Standard"),
                         }}
                         featured={t.code === "EARLY"}
                       />

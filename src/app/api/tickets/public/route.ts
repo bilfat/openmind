@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { PAYMENT_WINDOW_HOURS } from '@/lib/payment-window'
 
 export async function GET(request: Request) {
   try {
@@ -117,6 +118,8 @@ export async function GET(request: Request) {
           id: order.id,
           orderId: order.order_code,
           orderCode: order.order_code,
+          status: order.status,
+          paymentDeadline: new Date(new Date(order.created_at).getTime() + PAYMENT_WINDOW_HOURS * 60 * 60 * 1000).toISOString(),
           qrToken,
           customerName,
           ticketName: (Array.isArray(firstItem?.ticket_types) ? (firstItem?.ticket_types as any)[0]?.name : (firstItem?.ticket_types as any)?.name) || 'Tiket',

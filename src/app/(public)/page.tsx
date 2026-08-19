@@ -68,12 +68,28 @@ export default function BerandaPage() {
   const [homeTickets, setHomeTickets] = useState<any[]>([]);
 
   useEffect(() => {
-    fetch("/api/tickets/public")
-      .then(async (res) => {
+    let isCancelled = false;
+
+    async function fetchTickets() {
+      try {
+        const res = await fetch("/api/tickets/public");
+        if (isCancelled) return;
         const json = await res.json();
         if (json.success) setHomeTickets(json.data.slice(0, 3));
-      })
-      .catch(() => {});
+      } catch {
+        // Keep existing tickets on failure
+      }
+    }
+
+    fetchTickets();
+
+    // Poll catalog every 30s so sold-out/remaining quota stays fresh
+    const intervalId = setInterval(fetchTickets, 30000);
+
+    return () => {
+      isCancelled = true;
+      clearInterval(intervalId);
+    };
   }, []);
 
   const valueIcons: Record<string, React.ElementType> = {

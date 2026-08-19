@@ -16,13 +16,32 @@ import {
   Clock,
   Ticket,
   AlertCircle,
-  FileSpreadsheet,
   Loader2,
   Mail,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useToast } from "@/components/ui/toast";
+
+// Must match the payment window used by the cleanup RPC
+// (cleanup_expired_orders_rpc p_stale_hours DEFAULT 3).
+import { PAYMENT_WINDOW_HOURS } from "@/lib/payment-window";
+
+// Merged tab: old-system PENDING_PAYMENT orders (no longer created in the new
+// checkout flow) are shown together with DRAFT under "Pesanan Baru Masuk".
+const NEW_ORDERS_STATUS = "DRAFT,PENDING_PAYMENT";
+
+function formatRemaining(deadline: number, now: number): string {
+  const diff = deadline - now;
+  if (diff <= 0) return "Kadaluarsa";
+  const totalSec = Math.floor(diff / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
 
 type ApiOrder = {
   id: string;
@@ -45,6 +64,7 @@ type AdminOrder = OrderItem & {
   issuedTicketCount: number;
   hasTicketEmailJob: boolean;
   paymentProofUrl?: string;
+  paymentDeadline?: number;
   orderParticipants?: OrderParticipantDetail[];
 };
 
@@ -87,11 +107,14 @@ function toLegacyOrder(order: ApiOrder): AdminOrder {
     source: order.source,
     issuedTicketCount: order.issued_ticket_count,
     hasTicketEmailJob: order.has_ticket_email_job,
+    paymentDeadline: new Date(order.created_at).getTime() + PAYMENT_WINDOW_HOURS * 60 * 60 * 1000,
   };
 }
 
 function statusBadge(status: string) {
   switch (status) {
+    case "DRAFT":
+      return { cls: "bg-gold-500/15 text-gold-700", icon: Clock, label: "PESANAN BARU" };
     case "TICKET_ISSUED":
       return { cls: "bg-emerald-500/15 text-emerald-700", icon: Ticket, label: "TIKET DITERBITKAN" };
     case "APPROVED":
@@ -118,7 +141,10 @@ function OrdersPageContent() {
 
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
-  const [issuedTicketCount, setIssuedTicketCount] = useState(0);
+  const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 1 });
+  const [page, setPage] = useState(1);
+  const requestSeq = useRef(0);
+  const PAGE_SIZE = 50;
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState(initialStatusParam);
   const [ticketFilter, setTicketFilter] = useState("all");
@@ -130,9 +156,20 @@ function OrdersPageContent() {
   const [sendingIds, setSendingIds] = useState<Set<string>>(new Set());
   const [sendConfirmOrder, setSendConfirmOrder] = useState<AdminOrder | null>(null);
   const actionLocks = useRef<Set<string>>(new Set());
+  const [now, setNow] = useState(() => Date.now());
 
-  const refreshOrders = async () => {
-    const params = new URLSearchParams({ page: "1", limit: "50" });
+  // Live tick only while any DRAFT (waiting-payment) order is visible,
+  // so the "Sisa Waktu" countdown stays current without constant re-renders.
+  useEffect(() => {
+    const hasPendingDrafts = orders.some((o) => (o.status === "DRAFT" || o.status === "PENDING_PAYMENT") && o.paymentDeadline);
+    if (!hasPendingDrafts) return;
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [orders]);
+
+  const refreshOrders = async (targetPage: number) => {
+    const seq = ++requestSeq.current;
+    const params = new URLSearchParams({ page: String(targetPage), limit: String(PAGE_SIZE) });
     if (searchQuery.trim()) params.set("search", searchQuery.trim());
     if (statusFilter !== "all") params.set("status", statusFilter);
     if (ticketFilter !== "all") params.set("ticket_type", ticketFilter);
@@ -140,18 +177,42 @@ function OrdersPageContent() {
     const response = await fetch(`/api/admin/orders?${params.toString()}`, { cache: "no-store" });
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.message || "Gagal mengambil pesanan.");
+    if (seq !== requestSeq.current) return; // a newer request is already in flight
     const nextOrders = (payload.items ?? []) as ApiOrder[];
     setOrders(nextOrders.map(toLegacyOrder));
     setStatusCounts(payload.statusCounts ?? {});
-    setIssuedTicketCount(payload.issuedTicketCount ?? 0);
+    setPagination(payload.pagination ?? { page: targetPage, total: 0, totalPages: 1 });
   };
+
+  // Reset to the first page whenever any filter changes.
+  useEffect(() => {
+    setPage(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery, statusFilter, ticketFilter, facultyFilter]);
 
   useEffect(() => {
     // Fetch after the effect commits so the server refresh does not run in the effect body.
-    const refresh = () => { void refreshOrders().catch((error) => console.error(error)); };
+    const refresh = () => { void refreshOrders(page).catch((error) => console.error(error)); };
     queueMicrotask(refresh);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery, statusFilter, ticketFilter, facultyFilter]);
+  }, [page, searchQuery, statusFilter, ticketFilter, facultyFilter]);
+
+  const goToPage = (targetPage: number) => {
+    if (targetPage < 1 || targetPage > pagination.totalPages) return;
+    setPage(targetPage);
+  };
+
+  const pageNumbers: number[] = [];
+  {
+    const total = pagination.totalPages;
+    const current = pagination.page;
+    const windowStart = Math.max(1, Math.min(current - 2, total - 4));
+    const windowEnd = Math.min(total, windowStart + 4);
+    for (let p = windowStart; p <= windowEnd; p++) pageNumbers.push(p);
+  }
+
+  const displayedStart = pagination.total === 0 ? 0 : (pagination.page - 1) * PAGE_SIZE + 1;
+  const displayedEnd = Math.min(pagination.page * PAGE_SIZE, pagination.total);
 
   const handleReviewOrder = async (order: AdminOrder) => {
     try {
@@ -218,7 +279,7 @@ function OrdersPageContent() {
         );
       }
       alert("Pesanan berhasil disetujui!");
-      await refreshOrders().catch((error) => console.error(error));
+      await refreshOrders(page).catch((error) => console.error(error));
       setSelectedOrder(null);
     } catch (err: any) {
       console.error(err);
@@ -243,7 +304,7 @@ function OrdersPageContent() {
         return;
       }
       alert("Pesanan berhasil ditolak!");
-      refreshOrders();
+      refreshOrders(page);
       setRejectModalOpen(false);
       setSelectedOrder(null);
       setRejectReason("");
@@ -252,26 +313,6 @@ function OrdersPageContent() {
       alert("Terjadi kesalahan jaringan.");
     }
   };
-
-  // Filtering
-  const filteredOrders = orders.filter((order) => {
-    const matchesSearch =
-      order.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.orderId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.nim.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.email.toLowerCase().includes(searchQuery.toLowerCase());
-
-    const matchesStatus =
-      statusFilter === "all" || order.status === statusFilter;
-
-    const matchesTicket =
-      ticketFilter === "all" || order.ticketId === ticketFilter;
-
-    const matchesFaculty =
-      facultyFilter === "all" || order.faculty.includes(facultyFilter);
-
-    return matchesSearch && matchesStatus && matchesTicket && matchesFaculty;
-  });
 
   const handleDownload = async (order: AdminOrder) => {
     await withActionLock(actionLocks.current, `download:${order.databaseId}`, async () => {
@@ -329,7 +370,7 @@ function OrdersPageContent() {
         }
         toast.success(isResend ? "E-tiket berhasil dikirim ulang." : "e-tiket berhasil dikirim ke email peserta.");
         setSendConfirmOrder(null);
-        void refreshOrders().catch((error) => console.error(error));
+        void refreshOrders(page).catch((error) => console.error(error));
       } catch (err) {
         console.error(err);
         toast.error("Gagal mengirim e-ticket.");
@@ -343,83 +384,30 @@ function OrdersPageContent() {
     });
   };
 
-  const exportCSV = () => {
-    const headers = [
-      "Order ID",
-      "Nama Peserta",
-      "Email",
-      "WhatsApp",
-      "NIM",
-      "Fakultas",
-      "Prodi",
-      "Tiket",
-      "Jumlah",
-      "Total Bayar",
-      "Status",
-      "Waktu Daftar",
-    ];
-
-    const rows = filteredOrders.map((o) => [
-      o.orderId,
-      `"${o.customerName}"`,
-      o.email,
-      o.whatsapp,
-      o.nim,
-      `"${o.faculty}"`,
-      `"${o.studyProgram}"`,
-      o.ticketName,
-      o.quantity,
-      o.totalPrice,
-      o.paymentStatus,
-      `"${o.createdAt}"`,
-    ]);
-
-    const csvContent =
-      "data:text/csv;charset=utf-8," +
-      [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
-
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `peserta_open_mind_2026_${statusFilter}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-3 h-full min-h-0">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 sm:p-8 rounded-3xl border border-border shadow-sm">
+      <div className="flex items-center justify-between gap-3 bg-white px-4 sm:px-5 py-3 rounded-2xl border border-border shadow-sm">
         <div>
-          <h1 className="font-display text-2xl sm:text-3xl font-bold text-navy-900">
+          <h1 className="font-display text-base sm:text-lg font-bold text-navy-900">
             Manajemen Pesanan Tiket
           </h1>
-          <p className="text-xs sm:text-sm text-navy-900/70 mt-1">
-            Kelola, verifikasi pembayaran struk transfer, dan ekspor data peserta OPEN MIND 2026.
+          <p className="text-[10px] sm:text-xs text-navy-900/70 mt-0.5">
+            Kelola & verifikasi pembayaran peserta OPEN MIND 2026.
           </p>
         </div>
-
-        <button
-          type="button"
-          onClick={exportCSV}
-          className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-xs sm:text-sm font-bold text-white hover:bg-emerald-700 transition-all shadow-md active:scale-95 self-start sm:self-auto"
-        >
-          <FileSpreadsheet className="h-4 w-4" />
-          <span>Ekspor Data (CSV)</span>
-        </button>
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="rounded-3xl border border-border bg-white p-5 sm:p-6 shadow-sm space-y-4">
+      <div className="rounded-2xl border border-border bg-white px-4 sm:px-5 py-3 shadow-sm space-y-3">
         {/* Status Tabs */}
-        <div className="flex flex-wrap items-center gap-2 border-b border-border pb-4">
+        <div className="flex flex-wrap items-center gap-2 border-b border-border pb-2.5">
           {[
             { id: "all", label: "Semua Pesanan", count: statusCounts.ALL ?? orders.length },
             {
-              id: "PENDING_PAYMENT",
-              label: "Menunggu Pembayaran",
-              count: statusCounts.PENDING_PAYMENT ?? 0,
+              id: NEW_ORDERS_STATUS,
+              label: "Pesanan Baru Masuk",
+              count: (statusCounts.DRAFT ?? 0) + (statusCounts.PENDING_PAYMENT ?? 0),
             },
             {
               id: "WAITING_VERIFICATION",
@@ -427,19 +415,19 @@ function OrdersPageContent() {
               count: statusCounts.WAITING_VERIFICATION ?? 0,
             },
             {
-              id: "APPROVED",
-              label: "Disetujui",
-              count: statusCounts.APPROVED ?? 0,
-            },
-            {
               id: "TICKET_ISSUED",
               label: "Tiket Diterbitkan",
-              count: issuedTicketCount,
+              count: statusCounts.TICKET_ISSUED ?? 0,
             },
             {
               id: "REJECTED",
               label: "Ditolak",
               count: statusCounts.REJECTED ?? 0,
+            },
+            {
+              id: "EXPIRED",
+              label: "Kadaluarsa",
+              count: statusCounts.EXPIRED ?? 0,
             },
           ].map((tab) => (
             <button
@@ -518,35 +506,47 @@ function OrdersPageContent() {
       </div>
 
       {/* Orders Table */}
-      <div className="rounded-3xl border border-border bg-white shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-secondary/40 text-navy-900 uppercase font-bold text-[10px] tracking-wider border-b border-border">
+      <div className="rounded-2xl border border-border bg-white shadow-sm overflow-hidden flex-1 min-h-0 flex flex-col">
+        <div className="flex-1 min-h-0 overflow-auto">
+          <table className="w-full text-xs border-separate border-spacing-0">
+            <thead className="bg-navy-900 text-gold-400 uppercase font-bold text-[10px] tracking-wider sticky top-0 z-10">
               <tr>
-                <th className="px-5 py-4">Order ID</th>
-                <th className="px-5 py-4">Peserta</th>
-                <th className="px-5 py-4">Fakultas & Prodi</th>
-                <th className="px-5 py-4">Tiket</th>
-                <th className="px-5 py-4">Total</th>
-                <th className="px-5 py-4">Status</th>
-                <th className="px-5 py-4">Waktu</th>
-                <th className="px-5 py-4 text-right">Aksi</th>
+                <th className="px-5 py-4 text-center border-b border-navy-700">No</th>
+                <th className="px-5 py-4 text-center border-b border-navy-700 border-l border-navy-700">Order ID</th>
+                <th className="px-5 py-4 text-center border-b border-navy-700 border-l border-navy-700">Peserta</th>
+                <th className="px-5 py-4 text-center border-b border-navy-700 border-l border-navy-700">Fakultas & Prodi</th>
+                <th className="px-5 py-4 text-center border-b border-navy-700 border-l border-navy-700">Tiket</th>
+                <th className="px-5 py-4 text-center border-b border-navy-700 border-l border-navy-700">Total</th>
+                <th className="px-5 py-4 text-center border-b border-navy-700 border-l border-navy-700">Status</th>
+                <th className="px-5 py-4 text-center border-b border-navy-700 border-l border-navy-700">Waktu</th>
+                <th className="px-5 py-4 text-center border-b border-navy-700 border-l border-navy-700">Sisa Waktu</th>
+                <th className="px-5 py-4 text-center border-b border-navy-700 border-l border-navy-700">Aksi</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border">
-              {filteredOrders.length === 0 ? (
+            <tbody>
+              {orders.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-5 py-12 text-center text-muted-foreground">
+                  <td colSpan={10} className="px-5 py-12 text-center text-muted-foreground">
                     Tidak ada data pesanan yang sesuai dengan filter pencarian.
                   </td>
                 </tr>
               ) : (
-                filteredOrders.map((order) => (
-                  <tr key={order.orderId} className="hover:bg-secondary/20 transition-colors">
-                    <td className="px-5 py-4 font-mono font-bold text-navy-900 whitespace-nowrap">
+                orders.map((order, index) => (
+                  <tr
+                    key={order.orderId}
+                    className={cn(
+                      "transition-colors",
+                      index % 2 === 0 ? "bg-white" : "bg-secondary/30",
+                      "hover:bg-secondary/50"
+                    )}
+                  >
+                    <td className="px-5 py-4 font-mono font-bold text-navy-900 whitespace-nowrap text-center border-b border-border/70">
+                      {(page - 1) * PAGE_SIZE + index + 1}
+                    </td>
+                    <td className="px-5 py-4 font-mono font-bold text-navy-900 whitespace-nowrap border-b border-border/70 border-l border-border/70">
                       {order.orderId}
                     </td>
-                    <td className="px-5 py-4">
+                    <td className="px-5 py-4 border-b border-border/70 border-l border-border/70">
                       <strong className="block text-navy-900 font-bold">
                         {order.customerName}
                       </strong>
@@ -554,7 +554,7 @@ function OrdersPageContent() {
                         NIM: {order.nim} • {order.whatsapp}
                       </span>
                     </td>
-                    <td className="px-5 py-4 max-w-[200px]">
+                    <td className="px-5 py-4 max-w-[200px] border-b border-border/70 border-l border-border/70">
                       <span className="text-navy-900 font-medium block truncate">
                         {order.studyProgram}
                       </span>
@@ -562,7 +562,7 @@ function OrdersPageContent() {
                         {order.faculty}
                       </span>
                     </td>
-                    <td className="px-5 py-4 whitespace-nowrap">
+                    <td className="px-5 py-4 whitespace-nowrap border-b border-border/70 border-l border-border/70">
                       <span className="font-bold text-gold-600">
                         {order.ticketName}
                       </span>
@@ -570,12 +570,12 @@ function OrdersPageContent() {
                         {order.quantity} Pax
                       </span>
                     </td>
-                    <td className="px-5 py-4 font-bold text-navy-900 whitespace-nowrap">
+                    <td className="px-5 py-4 font-bold text-navy-900 whitespace-nowrap border-b border-border/70 border-l border-border/70">
                       {order.totalPrice === 0
                         ? "GRATIS"
                         : `Rp ${order.totalPrice.toLocaleString("id-ID")}`}
                     </td>
-                    <td className="px-5 py-4 whitespace-nowrap">
+                    <td className="px-5 py-4 whitespace-nowrap border-b border-border/70 border-l border-border/70">
                       {(() => {
                         const badge = statusBadge(order.status);
                         const BadgeIcon = badge.icon;
@@ -592,11 +592,27 @@ function OrdersPageContent() {
                         );
                       })()}
                     </td>
-                    <td className="px-5 py-4 text-[11px] text-muted-foreground whitespace-nowrap">
+                    <td className="px-5 py-4 text-[11px] text-muted-foreground whitespace-nowrap border-b border-border/70 border-l border-border/70">
                       {order.createdAt}
                     </td>
-                    <td className="px-5 py-4 text-right whitespace-nowrap">
-                      <div className="flex items-center justify-end gap-1.5">
+                    <td className="px-5 py-4 whitespace-nowrap border-b border-border/70 border-l border-border/70">
+                      {(order.status === "DRAFT" || order.status === "PENDING_PAYMENT") && order.paymentDeadline ? (
+                        <span
+                          className={cn(
+                            "font-mono text-[11px] font-bold tabular-nums",
+                            order.paymentDeadline <= now
+                              ? "text-destructive"
+                              : "text-gold-600"
+                          )}
+                        >
+                          {formatRemaining(order.paymentDeadline, now)}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground">—</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-4 whitespace-nowrap border-b border-border/70 border-l border-border/70">
+                      <div className="flex items-center justify-center gap-1.5">
                         <button
                           type="button"
                           onClick={() => handleReviewOrder(order)}
@@ -644,6 +660,51 @@ function OrdersPageContent() {
               )}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* Pagination */}
+      <div className="rounded-2xl border border-border bg-white shadow-sm px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <p className="text-xs text-muted-foreground">
+          Menampilkan {displayedStart}–{displayedEnd} dari {pagination.total} pesanan
+        </p>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => goToPage(pagination.page - 1)}
+            disabled={pagination.page <= 1}
+            className="inline-flex items-center gap-1 rounded-xl border border-border bg-secondary/30 px-3 py-2 text-xs font-semibold text-navy-900 hover:bg-secondary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            <span className="hidden sm:inline">Sebelumnya</span>
+          </button>
+
+          {pagination.totalPages > 1 &&
+            pageNumbers.map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => goToPage(p)}
+                className={cn(
+                  "min-w-9 rounded-xl px-3 py-2 text-xs font-bold transition-colors",
+                  p === pagination.page
+                    ? "bg-navy-900 text-gold-400 shadow-sm"
+                    : "bg-secondary/30 text-navy-900/70 hover:bg-secondary hover:text-navy-900"
+                )}
+              >
+                {p}
+              </button>
+            ))}
+
+          <button
+            type="button"
+            onClick={() => goToPage(pagination.page + 1)}
+            disabled={pagination.page >= pagination.totalPages}
+            className="inline-flex items-center gap-1 rounded-xl border border-border bg-secondary/30 px-3 py-2 text-xs font-semibold text-navy-900 hover:bg-secondary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <span className="hidden sm:inline">Selanjutnya</span>
+            <ChevronRight className="h-4 w-4" />
+          </button>
         </div>
       </div>
 
@@ -771,6 +832,27 @@ function OrdersPageContent() {
                   <CheckCircle2 className="h-4 w-4" />
                   <span>Ubah ke Disetujui (Approve)</span>
                 </button>
+              )}
+
+              {selectedOrder.status === "EXPIRED" && (
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-600 bg-slate-500/10 px-4 py-2 rounded-xl">
+                  <Clock className="h-4 w-4" />
+                  <span>Kadaluarsa: {PAYMENT_WINDOW_HOURS} jam tanpa bukti pembayaran. Kuota telah dilepas — pembeli perlu checkout ulang.</span>
+                </div>
+              )}
+
+              {(selectedOrder.status === "DRAFT" || selectedOrder.status === "PENDING_PAYMENT") && (
+                <div className="flex items-center gap-2 text-xs font-bold text-gold-700 bg-gold-500/10 px-4 py-2 rounded-xl">
+                  <Clock className="h-4 w-4" />
+                  <span>
+                    {selectedOrder.status === "DRAFT" ? "Pesanan baru" : "Menunggu pembayaran"} — belum ada bukti pembayaran.
+                    {selectedOrder.paymentDeadline && (
+                      <span className="font-mono tabular-nums ml-1">
+                        Sisa {formatRemaining(selectedOrder.paymentDeadline, now)}
+                      </span>
+                    )}
+                  </span>
+                </div>
               )}
             </div>
           </div>

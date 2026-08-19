@@ -62,7 +62,9 @@ export default function AdminTicketsListPage() {
           maxPurchase: Number(t.max_purchase),
           salesStart: t.sales_start_at,
           salesEnd: t.sales_end_at,
-          issued: Number(t.issued ?? 0)
+          issued: Number(t.issued ?? 0),
+          reserved: Number(t.reserved ?? 0),
+          remainingQuota: Number(t.remaining_quota ?? 0)
         }));
         setTickets(mapped);
       }
@@ -77,8 +79,9 @@ export default function AdminTicketsListPage() {
     refreshList();
   }, [refreshList]);
 
-  // Subscribe to Supabase Realtime on issued_tickets so the Issued / Sisa
-  // column updates automatically whenever new tickets are published.
+  // Subscribe to Supabase Realtime on issued_tickets + ticket_reservations
+  // so the Issued / Sisa column updates automatically whenever tickets are
+  // published or quota gets reserved/released by new or expired drafts.
   useEffect(() => {
     const supabase = createClient();
     const channel = supabase
@@ -86,6 +89,13 @@ export default function AdminTicketsListPage() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "issued_tickets" },
+        () => {
+          refreshList();
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "ticket_reservations" },
         () => {
           refreshList();
         }
@@ -100,7 +110,7 @@ export default function AdminTicketsListPage() {
     if (t.status === "ARCHIVED" || t.status === "DRAFT" || t.status === "PAUSED") {
       return t.status;
     }
-    if (t.issued >= t.quota) {
+    if (Number(t.issued) + Number(t.reserved ?? 0) >= Number(t.quota)) {
       return "SOLD_OUT";
     }
     const end = new Date(t.salesEnd).getTime();
@@ -348,7 +358,8 @@ export default function AdminTicketsListPage() {
                 <th className="px-5 py-4">Visibility</th>
                 <th className="px-5 py-4">Price</th>
                 <th className="px-5 py-4">Quota</th>
-                <th className="px-5 py-4">Issued / Sisa</th>
+                <th className="px-5 py-4">Periode Penjualan</th>
+                <th className="px-5 py-4">Terbeli / Sisa</th>
                 <th className="px-5 py-4">Status</th>
                 <th className="px-5 py-4 text-right">Action</th>
               </tr>
@@ -356,7 +367,7 @@ export default function AdminTicketsListPage() {
             <tbody className="divide-y divide-border">
               {filteredTickets.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-5 py-12 text-center text-muted-foreground">
+                  <td colSpan={9} className="px-5 py-12 text-center text-muted-foreground">
                     Belum ada tiket yang sesuai dengan filter atau pencarian Anda.
                   </td>
                 </tr>
@@ -365,7 +376,7 @@ export default function AdminTicketsListPage() {
                   const derivedStatus = getDerivedTicketStatus(ticket);
                   const isFree = ticket.type === "FREE";
                   const isPrivate = ticket.visibility === "PRIVATE";
-                  const remaining = Math.max(0, Number(ticket.quota) - Number(ticket.issued));
+                  const remaining = Number(ticket.remainingQuota ?? (Number(ticket.quota) - Number(ticket.issued) - Number(ticket.reserved ?? 0)));
 
                   return (
                     <tr
@@ -450,11 +461,32 @@ export default function AdminTicketsListPage() {
                         {ticket.quota} <span className="text-muted-foreground font-normal">Pax</span>
                       </td>
 
+                      {/* Periode Penjualan */}
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        {ticket.salesStart && ticket.salesEnd ? (
+                          <>
+                            <span className="block text-[11px] font-bold text-navy-900">
+                              {new Date(ticket.salesStart).toLocaleString("id-ID", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                            </span>
+                            <span className="block text-[10px] text-muted-foreground">
+                              s/d {new Date(ticket.salesEnd).toLocaleString("id-ID", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground">—</span>
+                        )}
+                      </td>
+
                       {/* Issued / Remaining */}
                       <td className="px-5 py-4">
                         <span className="font-bold text-navy-900 block">
-                          {ticket.issued} Terbit
+                          {Number(ticket.issued) + Number(ticket.reserved)} Terbeli
                         </span>
+                        {Number(ticket.reserved) > 0 && (
+                          <span className="text-[10px] text-amber-600 block">
+                            ({ticket.issued} terbit · {ticket.reserved} ditahan)
+                          </span>
+                        )}
                         <span className="text-[10px] text-gold-600">
                           Sisa {remaining}
                         </span>

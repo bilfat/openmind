@@ -6,6 +6,11 @@ import { withTimeoutGuard } from '@/lib/timeout'
 
 const ORDER_STATUSES = ['DRAFT', 'PENDING_PAYMENT', 'WAITING_VERIFICATION', 'APPROVED', 'REJECTED', 'CANCELLED', 'EXPIRED', 'TICKET_ISSUED']
 const TICKET_TYPES = ['FREE', 'PAID']
+// DRAFT orders are hidden checkout sessions (no proof uploaded yet) and
+// EXPIRED orders are stale drafts beyond the payment window — both are
+// excluded from the default "all" listing & counters to keep the admin
+// clean. Explicit status filters still work.
+const HIDDEN_STATUSES = ['DRAFT', 'EXPIRED']
 
 async function handleGetOrders(request: Request) {
   const auth = await requireActiveAdmin()
@@ -20,7 +25,8 @@ async function handleGetOrders(request: Request) {
   const status = url.searchParams.get('status')?.trim() || ''
   const ticketType = url.searchParams.get('ticket_type')?.trim().toUpperCase() || ''
   const faculty = url.searchParams.get('faculty')?.trim() || ''
-  if (status && !ORDER_STATUSES.includes(status)) return jsonError('Status filter tidak valid.', 400)
+  const statusList = status ? status.split(',').map((s) => s.trim()).filter(Boolean) : []
+  if (statusList.some((s) => !ORDER_STATUSES.includes(s))) return jsonError('Status filter tidak valid.', 400)
   if (ticketType && !TICKET_TYPES.includes(ticketType)) return jsonError('Ticket type filter tidak valid.', 400)
   if (faculty.length > 100) return jsonError('Faculty filter maksimal 100 karakter.', 400)
 
@@ -91,6 +97,7 @@ async function handleGetOrders(request: Request) {
     const buildCountQuery = (status?: string) => {
       let q = supabase.from('orders').select('id', { count: 'exact', head: true })
       if (status) q = q.eq('status', status)
+      else q = q.not('status', 'in', `(${HIDDEN_STATUSES.join(',')})`)
       if (matchingOrderIds) q = q.in('id', matchingOrderIds)
       return q
     }
@@ -132,7 +139,8 @@ async function handleGetOrders(request: Request) {
     let query = supabase
       .from('orders')
       .select('id, order_code, event_id, status, source, subtotal, discount_total, total_amount, currency, created_at, updated_at, events(id, name)', { count: 'exact' })
-    if (status) query = query.eq('status', status)
+    if (statusList.length) query = query.in('status', statusList)
+    else query = query.not('status', 'in', `(${HIDDEN_STATUSES.join(',')})`)
     if (matchingOrderIds) query = query.in('id', matchingOrderIds)
 
     const { data, count, error } = await query

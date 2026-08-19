@@ -2,8 +2,10 @@
 
 import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import Image from "next/image";
 import { StepIndicator } from "@/components/checkout/step-indicator";
+import { PaymentCountdown } from "@/components/checkout/payment-countdown";
 import {
   Upload,
   AlertCircle,
@@ -14,11 +16,14 @@ import {
   Loader2,
 } from "lucide-react";
 import { useActiveEvent } from "@/hooks/use-active-event";
+import { PAYMENT_WINDOW_HOURS } from "@/lib/payment-window";
 
 interface PublicOrderData {
   id: string;
   orderId: string;
   orderCode: string;
+  status: string;
+  paymentDeadline: string;
   customerName: string;
   ticketName: string;
   quantity: number;
@@ -40,6 +45,17 @@ function PaymentContent() {
   const [proofPreview, setProofPreview] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadError, setUploadError] = useState("");
+  const [deadlinePassed, setDeadlinePassed] = useState(false);
+
+  const isPaymentPending =
+    order?.status === "DRAFT" ||
+    order?.status === "PENDING_PAYMENT" ||
+    order?.status === "REJECTED";
+
+  const isOrderExpired =
+    order?.status === "EXPIRED" ||
+    order?.status === "CANCELLED" ||
+    (isPaymentPending && deadlinePassed);
 
   useEffect(() => {
     async function fetchOrder() {
@@ -225,6 +241,47 @@ function PaymentContent() {
             </div>
           </div>
 
+          {isOrderExpired ? (
+            <div className="rounded-3xl border border-border bg-white p-6 sm:p-8 shadow-sm space-y-6">
+              <div className="flex items-center gap-3 border-b border-border pb-4">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-destructive/10 text-destructive">
+                  <AlertCircle className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-display text-lg font-bold text-navy-900">
+                    Pesanan Kadaluarsa
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    {order?.status === "CANCELLED"
+                      ? "Pesanan ini telah dibatalkan."
+                      : `Waktu pembayaran (${PAYMENT_WINDOW_HOURS} jam) untuk pesanan ini telah berakhir.`}
+                  </p>
+                </div>
+              </div>
+              <div className="text-center space-y-4 py-4">
+                <p className="text-sm text-navy-900/70 max-w-md mx-auto">
+                  Bukti pembayaran tidak dapat lagi diunggah untuk pesanan ini.
+                  Silakan buat pesanan baru dan selesaikan pembayaran dalam waktu {PAYMENT_WINDOW_HOURS} jam.
+                </p>
+                <Link
+                  href="/tiket"
+                  className="inline-flex items-center gap-2 rounded-2xl bg-gold-500 px-6 py-3 text-sm font-bold text-navy-950 hover:bg-gold-400 transition-all shadow-lg shadow-gold-500/20"
+                >
+                  Buat Pesanan Baru
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </div>
+            </div>
+          ) : (
+          <>
+          {/* Payment Deadline Countdown */}
+          {isPaymentPending && (
+            <PaymentCountdown
+              deadline={new Date(order.paymentDeadline).getTime()}
+              onExpired={() => setDeadlinePassed(true)}
+            />
+          )}
+
           {/* QRIS Payment Section */}
           <div className="rounded-3xl border border-border bg-white p-6 sm:p-8 shadow-sm space-y-6">
             <div className="flex items-center gap-3 border-b border-border pb-4">
@@ -349,6 +406,8 @@ function PaymentContent() {
               </button>
             </div>
           </div>
+          </>
+          )}
         </div>
       </div>
     </div>

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Users, Search, Download, ChevronLeft, ChevronRight, CheckCircle2, AlertTriangle } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
+import { cn } from "@/lib/utils";
 
 type ParticipantRow = {
   id: string;
@@ -97,30 +98,206 @@ export default function ParticipantsPage() {
   const fromCount = pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1;
   const toCount = Math.min(pagination.page * pagination.limit, pagination.total);
 
+  const pageNumbers: number[] = [];
+  {
+    const total = Math.max(1, pagination.totalPages);
+    const current = pagination.page;
+    const windowStart = Math.max(1, Math.min(current - 2, total - 4));
+    const windowEnd = Math.min(total, windowStart + 4);
+    for (let p = windowStart; p <= windowEnd; p++) pageNumbers.push(p);
+  }
+
   return (
-    <div>
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold font-display text-navy-900">Participants</h1>
-        <button onClick={exportCSV} disabled={exporting} className="flex items-center gap-2 px-4 py-2 bg-navy-800 text-white rounded-lg text-sm font-semibold hover:bg-navy-700 transition btn-scale touch-target disabled:opacity-50"><Download className="w-4 h-4" />{exporting ? "Mengekspor..." : "Export CSV"}</button>
-      </div>
-      <div className="bg-white p-6 rounded-xl shadow-md">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-          <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" /><input type="text" placeholder="Search by name, NIM, or email..." value={searchTerm} onChange={(event) => { setSearchTerm(event.target.value); setPage(1); }} className="w-full pl-10 pr-4 py-2 border rounded-lg" aria-label="Cari peserta" /></div>
-          <select value={faculty} onChange={(event) => { setFaculty(event.target.value); setPage(1); }} className="w-full px-4 py-2 border rounded-lg bg-white" aria-label="Filter fakultas"><option value="all">All Faculties</option>{faculties.map((value) => <option key={value} value={value}>{value}</option>)}</select>
-          <select value={ticketType} onChange={(event) => { setTicketType(event.target.value); setPage(1); }} className="w-full px-4 py-2 border rounded-lg bg-white" aria-label="Filter tipe tiket"><option value="all">All Ticket Types</option><option value="FREE">Free</option><option value="PAID">Paid</option></select>
+    <div className="flex flex-col gap-3 h-full min-h-0">
+      {/* Top Header */}
+      <div className="flex items-center justify-between gap-3 bg-white px-4 sm:px-5 py-3 rounded-2xl border border-border shadow-sm">
+        <div>
+          <h1 className="font-display text-base sm:text-lg font-bold text-navy-900">
+            Manajemen Peserta
+          </h1>
+          <p className="text-[10px] sm:text-xs text-navy-900/70 mt-0.5">
+            Daftar seluruh peserta OPEN MIND 2026.
+          </p>
         </div>
-        {loading ? <div className="py-12 text-center text-gray-500">Memuat peserta...</div> : participants.length === 0 ? <EmptyState icon={Users} title="Peserta tidak ditemukan" description="Tidak ada peserta yang sesuai dengan filter saat ini." /> : <div className="overflow-x-auto"><table className="w-full text-sm text-left"><thead className="text-xs text-gray-700 uppercase bg-gray-50"><tr><th className="px-6 py-3">No</th><th className="px-6 py-3">Order</th><th className="px-6 py-3">Nama</th><th className="px-6 py-3">NIM</th><th className="px-6 py-3">Fakultas</th><th className="px-6 py-3">Prodi</th><th className="px-6 py-3">Gmail</th><th className="px-6 py-3">No HP</th><th className="px-6 py-3">Keterangan</th></tr></thead><tbody>{participants.map((participant, index) => <tr key={participant.id} className="bg-white border-b hover:bg-gray-50"><td className="px-6 py-4 text-gray-500">{(pagination.page - 1) * pagination.limit + index + 1}</td><td className="px-6 py-4 font-mono whitespace-nowrap">{participant.orders.map((order) => order.order?.order_code ?? "-").join(", ")}</td><td className="px-6 py-4 font-medium text-gray-900">{participant.full_name}</td><td className="px-6 py-4 whitespace-nowrap">{participant.nim}</td><td className="px-6 py-4">{participant.faculty}</td><td className="px-6 py-4">{participant.study_program}</td><td className="px-6 py-4">{participant.email}</td><td className="px-6 py-4 whitespace-nowrap">{participant.whatsapp}</td><td className="px-6 py-4 whitespace-nowrap">{participant.is_present ? <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[10px] font-bold uppercase text-emerald-700"><CheckCircle2 className="h-3 w-3" />Sudah Hadir</span> : <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2.5 py-0.5 text-[10px] font-bold uppercase text-amber-700"><AlertTriangle className="h-3 w-3" />Belum Hadir</span>}</td></tr>)}</tbody></table></div>}
-        {!loading && participants.length > 0 && (
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-2 py-4">
-            <p className="text-sm text-gray-500">Menampilkan <strong className="text-navy-900">{fromCount}</strong>–<strong className="text-navy-900">{toCount}</strong> dari <strong className="text-navy-900">{pagination.total}</strong> peserta</p>
-            <div className="flex items-center gap-2">
-              <button type="button" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))} className="inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-navy-900 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"><ChevronLeft className="h-4 w-4" /> Sebelumnya</button>
-              <span className="text-sm font-bold text-navy-900 px-2">Halaman {pagination.page} / {Math.max(1, pagination.totalPages)}</span>
-              <button type="button" disabled={page >= pagination.totalPages} onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))} className="inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-navy-900 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">Berikutnya <ChevronRight className="h-4 w-4" /></button>
-            </div>
-          </div>
-        )}
+
+        <button
+          type="button"
+          onClick={exportCSV}
+          disabled={exporting}
+          className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-4 py-2.5 text-xs sm:text-sm font-bold text-white hover:bg-emerald-700 transition-all shadow-md active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          <Download className="h-4 w-4" />
+          <span>{exporting ? "Mengekspor..." : "Ekspor CSV"}</span>
+        </button>
       </div>
+
+      {/* Filter Bar */}
+      <div className="rounded-2xl border border-border bg-white px-4 sm:px-5 py-3 shadow-sm space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+          {/* Search Box */}
+          <div className="sm:col-span-6 relative">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Cari nama, NIM, atau email..."
+              value={searchTerm}
+              onChange={(event) => { setSearchTerm(event.target.value); setPage(1); }}
+              className="w-full rounded-xl border border-border bg-secondary/20 py-2.5 pl-10 pr-4 text-xs text-navy-900 placeholder:text-muted-foreground focus:border-gold-500 focus:bg-white focus:outline-none"
+            />
+          </div>
+
+          {/* Faculty Filter */}
+          <div className="sm:col-span-3">
+            <select
+              value={faculty}
+              onChange={(event) => { setFaculty(event.target.value); setPage(1); }}
+              className="w-full rounded-xl border border-border bg-secondary/20 py-2.5 px-3 text-xs text-navy-900 focus:border-gold-500 focus:bg-white focus:outline-none"
+            >
+              <option value="all">Semua Fakultas</option>
+              {faculties.map((value) => <option key={value} value={value}>{value}</option>)}
+            </select>
+          </div>
+
+          {/* Ticket Type Filter */}
+          <div className="sm:col-span-3">
+            <select
+              value={ticketType}
+              onChange={(event) => { setTicketType(event.target.value); setPage(1); }}
+              className="w-full rounded-xl border border-border bg-secondary/20 py-2.5 px-3 text-xs text-navy-900 focus:border-gold-500 focus:bg-white focus:outline-none"
+            >
+              <option value="all">Semua Tipe Tiket</option>
+              <option value="FREE">FREE</option>
+              <option value="PAID">PAID</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Participants Table */}
+      <div className="rounded-2xl border border-border bg-white shadow-sm overflow-hidden flex-1 min-h-0 flex flex-col">
+        <div className="flex-1 min-h-0 overflow-auto">
+          {loading ? (
+            <div className="py-12 text-center text-sm font-semibold text-gold-600 animate-pulse">
+              Memuat peserta...
+            </div>
+          ) : participants.length === 0 ? (
+            <EmptyState icon={Users} title="Peserta tidak ditemukan" description="Tidak ada peserta yang sesuai dengan filter saat ini." />
+          ) : (
+            <table className="w-full text-xs border-separate border-spacing-0">
+              <thead className="bg-navy-900 text-gold-400 uppercase font-bold text-[10px] tracking-wider sticky top-0 z-10">
+                <tr>
+                  <th className="px-5 py-4 text-center border-b border-navy-700">No</th>
+                  <th className="px-5 py-4 text-center border-b border-navy-700 border-l border-navy-700">Order</th>
+                  <th className="px-5 py-4 text-center border-b border-navy-700 border-l border-navy-700">Nama</th>
+                  <th className="px-5 py-4 text-center border-b border-navy-700 border-l border-navy-700">NIM</th>
+                  <th className="px-5 py-4 text-center border-b border-navy-700 border-l border-navy-700">Fakultas</th>
+                  <th className="px-5 py-4 text-center border-b border-navy-700 border-l border-navy-700">Prodi</th>
+                  <th className="px-5 py-4 text-center border-b border-navy-700 border-l border-navy-700">Gmail</th>
+                  <th className="px-5 py-4 text-center border-b border-navy-700 border-l border-navy-700">No HP</th>
+                  <th className="px-5 py-4 text-center border-b border-navy-700 border-l border-navy-700">Keterangan</th>
+                </tr>
+              </thead>
+              <tbody>
+                {participants.map((participant, index) => (
+                  <tr
+                    key={participant.id}
+                    className={cn(
+                      "transition-colors",
+                      index % 2 === 0 ? "bg-white" : "bg-secondary/30",
+                      "hover:bg-secondary/50"
+                    )}
+                  >
+                    <td className="px-5 py-4 font-mono font-bold text-navy-900 whitespace-nowrap text-center border-b border-border/70">
+                      {(pagination.page - 1) * pagination.limit + index + 1}
+                    </td>
+                    <td className="px-5 py-4 font-mono whitespace-nowrap border-b border-border/70 border-l border-border/70">
+                      {participant.orders.map((order) => order.order?.order_code ?? "-").join(", ")}
+                    </td>
+                    <td className="px-5 py-4 border-b border-border/70 border-l border-border/70">
+                      <strong className="block text-navy-900 font-bold">{participant.full_name}</strong>
+                    </td>
+                    <td className="px-5 py-4 whitespace-nowrap border-b border-border/70 border-l border-border/70">
+                      {participant.nim}
+                    </td>
+                    <td className="px-5 py-4 border-b border-border/70 border-l border-border/70">
+                      {participant.faculty}
+                    </td>
+                    <td className="px-5 py-4 border-b border-border/70 border-l border-border/70">
+                      {participant.study_program}
+                    </td>
+                    <td className="px-5 py-4 border-b border-border/70 border-l border-border/70">
+                      {participant.email}
+                    </td>
+                    <td className="px-5 py-4 whitespace-nowrap border-b border-border/70 border-l border-border/70">
+                      {participant.whatsapp}
+                    </td>
+                    <td className="px-5 py-4 whitespace-nowrap border-b border-border/70 border-l border-border/70">
+                      {participant.is_present ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[10px] font-bold uppercase text-emerald-700">
+                          <CheckCircle2 className="h-3 w-3" />
+                          Sudah Hadir
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2.5 py-0.5 text-[10px] font-bold uppercase text-amber-700">
+                          <AlertTriangle className="h-3 w-3" />
+                          Belum Hadir
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+
+      {/* Pagination */}
+      {!loading && participants.length > 0 && (
+        <div className="rounded-2xl border border-border bg-white shadow-sm px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <p className="text-xs text-muted-foreground">
+            Menampilkan {fromCount}–{toCount} dari {pagination.total} peserta
+          </p>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              className="inline-flex items-center gap-1 rounded-xl border border-border bg-secondary/30 px-3 py-2 text-xs font-semibold text-navy-900 hover:bg-secondary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              <span className="hidden sm:inline">Sebelumnya</span>
+            </button>
+
+            {Math.max(1, pagination.totalPages) > 1 &&
+              pageNumbers.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setPage(p)}
+                  className={cn(
+                    "min-w-9 rounded-xl px-3 py-2 text-xs font-bold transition-colors",
+                    p === pagination.page
+                      ? "bg-navy-900 text-gold-400 shadow-sm"
+                      : "bg-secondary/30 text-navy-900/70 hover:bg-secondary hover:text-navy-900"
+                  )}
+                >
+                  {p}
+                </button>
+              ))}
+
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.min(Math.max(1, pagination.totalPages), p + 1))}
+              disabled={page >= pagination.totalPages}
+              className="inline-flex items-center gap-1 rounded-xl border border-border bg-secondary/30 px-3 py-2 text-xs font-semibold text-navy-900 hover:bg-secondary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <span className="hidden sm:inline">Selanjutnya</span>
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

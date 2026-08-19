@@ -96,9 +96,12 @@ function TiketPageContent() {
   const [loadingTickets, setLoadingTickets] = useState(true);
 
   useEffect(() => {
+    let isCancelled = false;
+
     async function fetchTickets() {
       try {
         const res = await fetch("/api/tickets/public");
+        if (isCancelled) return;
         const json = await res.json();
         if (json.success) {
           setTickets(json.data);
@@ -106,11 +109,22 @@ function TiketPageContent() {
       } catch (err) {
         console.error("Error fetching tickets:", err);
       } finally {
-        setLoadingTickets(false);
+        if (!isCancelled) setLoadingTickets(false);
       }
     }
+
     fetchTickets();
-  }, []);
+
+    // Poll catalog every 30s so sold-out/remaining quota stays fresh
+    const intervalId = setInterval(() => {
+      if (activeTab === "catalog") fetchTickets();
+    }, 30000);
+
+    return () => {
+      isCancelled = true;
+      clearInterval(intervalId);
+    };
+  }, [activeTab]);
 
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);

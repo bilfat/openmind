@@ -47,7 +47,7 @@ export async function POST(req: Request) {
     }
 
     // 2. Validate order status eligibility
-    if (!['PENDING_PAYMENT', 'WAITING_VERIFICATION', 'REJECTED'].includes(order.status)) {
+    if (!['DRAFT', 'PENDING_PAYMENT', 'WAITING_VERIFICATION', 'REJECTED'].includes(order.status)) {
       return NextResponse.json({
         success: false,
         message: `Order dengan status ${order.status} tidak dapat menerima bukti pembayaran.`

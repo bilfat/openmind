@@ -101,7 +101,7 @@ export default function TicketDetailPage() {
     if (t.status === "ARCHIVED" || t.status === "DRAFT" || t.status === "PAUSED") {
       return t.status;
     }
-    if (t.issued >= t.quota) {
+    if (Number(t.issued) + Number(t.reserved ?? 0) >= Number(t.quota)) {
       return "SOLD_OUT";
     }
     const end = new Date(t.sales_end_at).getTime();
@@ -114,10 +114,12 @@ export default function TicketDetailPage() {
   const derivedStatus = getDerivedTicketStatus(ticket);
   const isFree = ticket.ticket_type === "FREE";
   const isPrivate = ticket.visibility === "PRIVATE";
-  const remaining = Math.max(0, Number(ticket.quota) - Number(ticket.issued));
+  const reserved = Number(ticket.reserved ?? 0);
+  const used = Number(ticket.issued ?? 0) + reserved;
+  const remaining = Number(ticket.remaining_quota ?? Math.max(0, Number(ticket.quota) - used));
   const salesPercent = Math.min(
     100,
-    Math.round((ticket.issued / ticket.quota) * 100)
+    Math.round((used / Number(ticket.quota)) * 100)
   );
 
   const origin =
@@ -361,11 +363,16 @@ export default function TicketDetailPage() {
 
         <div className="rounded-3xl border border-border bg-white p-6 shadow-sm space-y-1">
           <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-            TERBIT / TERJUAL
+            TERBELI / TERJUAL
           </span>
           <p className="font-display text-3xl font-black text-emerald-600">
-            {ticket.issued} <span className="text-sm font-semibold text-muted-foreground">Tiket</span>
+            {used} <span className="text-sm font-semibold text-muted-foreground">Tiket</span>
           </p>
+          {reserved > 0 && (
+            <p className="text-xs font-semibold text-amber-600">
+              {ticket.issued} terbit · {reserved} ditahan
+            </p>
+          )}
         </div>
 
         <div className="rounded-3xl border border-border bg-white p-6 shadow-sm space-y-1">

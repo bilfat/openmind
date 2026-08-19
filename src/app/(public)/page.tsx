@@ -92,7 +92,7 @@ export default function BerandaPage() {
   const venueLabel = event?.venue || eventData.venue;
   const heroTitle = event?.hero_title || null;
   const showYearSeparately = !event?.hero_title;
-  const heroSubtitle = event?.hero_subtitle || tagline;
+  const heroSubtitle = tagline || event?.hero_subtitle;
 
   const talentList = [...speakers]
     .filter((s) => s.is_visible)

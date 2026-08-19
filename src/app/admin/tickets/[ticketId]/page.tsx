@@ -114,7 +114,7 @@ export default function TicketDetailPage() {
   const derivedStatus = getDerivedTicketStatus(ticket);
   const isFree = ticket.ticket_type === "FREE";
   const isPrivate = ticket.visibility === "PRIVATE";
-  const remaining = Math.max(0, ticket.quota - ticket.issued);
+  const remaining = Math.max(0, Number(ticket.quota) - Number(ticket.issued));
   const salesPercent = Math.min(
     100,
     Math.round((ticket.issued / ticket.quota) * 100)

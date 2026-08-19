@@ -75,8 +75,58 @@ async function handleGetOrders(request: Request) {
       }
       matchingOrderIds = [...candidateIds]
       if (!matchingOrderIds.length) {
-        return NextResponse.json({ success: true, items: [], pagination: { page: pagination.page, limit: pagination.limit, total: 0, totalPages: 0 } })
+        return NextResponse.json({
+          success: true,
+          items: [],
+          pagination: { page: pagination.page, limit: pagination.limit, total: 0, totalPages: 0 },
+          statusCounts: { ALL: 0, ...Object.fromEntries(ORDER_STATUSES.map((s) => [s, 0])) },
+          issuedTicketCount: 0,
+        })
       }
+    }
+
+    // Server-side totals so tab badges stay accurate even when the order count
+    // exceeds the page limit (previously tab counts were derived from the
+    // loaded page only, so they became partial once orders passed the limit).
+    const buildCountQuery = (status?: string) => {
+      let q = supabase.from('orders').select('id', { count: 'exact', head: true })
+      if (status) q = q.eq('status', status)
+      if (matchingOrderIds) q = q.in('id', matchingOrderIds)
+      return q
+    }
+    const allCountResult = await buildCountQuery()
+    if (allCountResult.error) throw new Error(allCountResult.error.message)
+    const statusCounts: Record<string, number> = { ALL: allCountResult.count ?? 0 }
+    for (const s of ORDER_STATUSES) {
+      const { count, error } = await buildCountQuery(s)
+      if (error) throw new Error(error.message)
+      statusCounts[s] = count ?? 0
+    }
+
+    // Total issued tickets (not orders) for TICKET_ISSUED orders. An order can
+    // contain multiple tickets (e.g. one buyer purchasing 2 tickets), so the
+    // badge counts tickets, matching the "Terbit" figure on the tickets page.
+    const issuedOrderIds: string[] = []
+    const issuedPageSize = 1000
+    let issuedFrom = 0
+    while (true) {
+      let q = supabase.from('orders').select('id').eq('status', 'TICKET_ISSUED')
+      if (matchingOrderIds) q = q.in('id', matchingOrderIds)
+      const { data, error } = await q.range(issuedFrom, issuedFrom + issuedPageSize - 1)
+      if (error) throw new Error(error.message)
+      issuedOrderIds.push(...(data ?? []).map((row) => row.id))
+      if ((data ?? []).length < issuedPageSize) break
+      issuedFrom += issuedPageSize
+    }
+    let issuedTicketCount = 0
+    if (issuedOrderIds.length) {
+      const { count, error } = await supabase
+        .from('issued_tickets')
+        .select('id', { count: 'exact', head: true })
+        .in('order_id', issuedOrderIds)
+        .neq('status', 'CANCELLED')
+      if (error) throw new Error(error.message)
+      issuedTicketCount = count ?? 0
     }
 
     let query = supabase
@@ -149,7 +199,13 @@ async function handleGetOrders(request: Request) {
       }
     })
     const total = count ?? 0
-    return NextResponse.json({ success: true, items, pagination: { page: pagination.page, limit: pagination.limit, total, totalPages: Math.ceil(total / pagination.limit) } })
+    return NextResponse.json({
+      success: true,
+      items,
+      pagination: { page: pagination.page, limit: pagination.limit, total, totalPages: Math.ceil(total / pagination.limit) },
+      statusCounts,
+      issuedTicketCount,
+    })
   } catch (error) {
     console.error('Admin orders read error:', error)
     return jsonError('Gagal mengambil data pesanan.', 500)

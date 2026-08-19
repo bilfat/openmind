@@ -117,6 +117,8 @@ function OrdersPageContent() {
   const toast = useToast();
 
   const [orders, setOrders] = useState<AdminOrder[]>([]);
+  const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
+  const [issuedTicketCount, setIssuedTicketCount] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState(initialStatusParam);
   const [ticketFilter, setTicketFilter] = useState("all");
@@ -140,6 +142,8 @@ function OrdersPageContent() {
     if (!response.ok) throw new Error(payload.message || "Gagal mengambil pesanan.");
     const nextOrders = (payload.items ?? []) as ApiOrder[];
     setOrders(nextOrders.map(toLegacyOrder));
+    setStatusCounts(payload.statusCounts ?? {});
+    setIssuedTicketCount(payload.issuedTicketCount ?? 0);
   };
 
   useEffect(() => {
@@ -411,31 +415,31 @@ function OrdersPageContent() {
         {/* Status Tabs */}
         <div className="flex flex-wrap items-center gap-2 border-b border-border pb-4">
           {[
-            { id: "all", label: "Semua Pesanan", count: orders.length },
+            { id: "all", label: "Semua Pesanan", count: statusCounts.ALL ?? orders.length },
             {
               id: "PENDING_PAYMENT",
               label: "Menunggu Pembayaran",
-              count: orders.filter((o) => o.status === "PENDING_PAYMENT").length,
+              count: statusCounts.PENDING_PAYMENT ?? 0,
             },
             {
               id: "WAITING_VERIFICATION",
               label: "Perlu Verifikasi",
-              count: orders.filter((o) => o.status === "WAITING_VERIFICATION").length,
+              count: statusCounts.WAITING_VERIFICATION ?? 0,
             },
             {
               id: "APPROVED",
               label: "Disetujui",
-              count: orders.filter((o) => o.status === "APPROVED").length,
+              count: statusCounts.APPROVED ?? 0,
             },
             {
               id: "TICKET_ISSUED",
               label: "Tiket Diterbitkan",
-              count: orders.filter((o) => o.status === "TICKET_ISSUED").length,
+              count: issuedTicketCount,
             },
             {
               id: "REJECTED",
               label: "Ditolak",
-              count: orders.filter((o) => o.status === "REJECTED").length,
+              count: statusCounts.REJECTED ?? 0,
             },
           ].map((tab) => (
             <button

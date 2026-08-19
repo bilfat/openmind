@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { TicketStatus } from "@/data/tickets";
 import { PrivateLinkModal } from "@/components/admin/tickets/private-link-modal";
+import { createClient } from "@/lib/supabase/browser";
 import {
   Plus,
   Search,
@@ -46,9 +47,9 @@ export default function AdminTicketsListPage() {
 
   const { success, error, warning } = useToast();
 
-  const refreshList = async () => {
+  const refreshList = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/tickets");
+      const res = await fetch("/api/admin/tickets", { cache: "no-store" });
       const json = await res.json();
       if (json.success) {
         const mapped = json.data.map((t: any) => ({
@@ -61,7 +62,7 @@ export default function AdminTicketsListPage() {
           maxPurchase: Number(t.max_purchase),
           salesStart: t.sales_start_at,
           salesEnd: t.sales_end_at,
-          issued: Number(t.quota) - Number(t.remaining_quota || t.quota)
+          issued: Number(t.issued ?? 0)
         }));
         setTickets(mapped);
       }
@@ -70,11 +71,30 @@ export default function AdminTicketsListPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     refreshList();
-  }, []);
+  }, [refreshList]);
+
+  // Subscribe to Supabase Realtime on issued_tickets so the Issued / Sisa
+  // column updates automatically whenever new tickets are published.
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel("tickets_issued_realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "issued_tickets" },
+        () => {
+          refreshList();
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [refreshList]);
 
   function getDerivedTicketStatus(t: any): TicketStatus {
     if (t.status === "ARCHIVED" || t.status === "DRAFT" || t.status === "PAUSED") {
@@ -345,7 +365,7 @@ export default function AdminTicketsListPage() {
                   const derivedStatus = getDerivedTicketStatus(ticket);
                   const isFree = ticket.type === "FREE";
                   const isPrivate = ticket.visibility === "PRIVATE";
-                  const remaining = Math.max(0, ticket.quota - ticket.issued);
+                  const remaining = Math.max(0, Number(ticket.quota) - Number(ticket.issued));
 
                   return (
                     <tr

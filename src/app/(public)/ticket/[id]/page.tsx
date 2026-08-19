@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ETicketCard } from "@/components/ticket-view/e-ticket-card";
+import { ETicketCard, ETicketActions } from "@/components/ticket-view/e-ticket-card";
 import { OrderItem } from "@/data/orders";
 import {
   Ticket,
@@ -194,6 +194,12 @@ export default function TicketDetailPage() {
             />
           ))}
         </div>
+
+        {data.tickets.length > 0 && (
+          <div className="mt-10">
+            <ETicketActions order={data.tickets[0]} />
+          </div>
+        )}
       </div>
     </div>
   );

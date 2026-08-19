@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { loadIssuedTicketPdfDataByToken, safeFilename } from '@/lib/tickets/ticket-pdf-data'
+import { loadOrderPdfDataByToken, safeFilename } from '@/lib/tickets/ticket-pdf-data'
 import { renderTicketsPdf } from '@/lib/tickets/pdf-renderer'
 
 export const runtime = 'nodejs'
@@ -20,22 +20,22 @@ export async function GET(
     }
 
     const supabase = createAdminClient()
-    const ticket = await loadIssuedTicketPdfDataByToken(supabase, token)
+    const result = await loadOrderPdfDataByToken(supabase, token)
 
-    if (!ticket) {
+    if (!result || !result.tickets.length) {
       return NextResponse.json(
         { success: false, message: 'Tiket tidak ditemukan atau tidak dapat diunduh.' },
         { status: 404 }
       )
     }
 
-    const body = await renderTicketsPdf([ticket])
+    const body = await renderTicketsPdf(result.tickets)
 
     return new NextResponse(body, {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${safeFilename(`OPEN-MIND-2026-${ticket.ticketCode}`, 'e-ticket')}"`,
+        'Content-Disposition': `attachment; filename="${safeFilename(`OPEN-MIND-2026-${result.orderCode}`, 'e-ticket')}"`,
         'Cache-Control': 'private, no-store, max-age=0',
         'X-Content-Type-Options': 'nosniff',
       },

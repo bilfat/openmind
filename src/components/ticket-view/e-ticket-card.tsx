@@ -60,7 +60,7 @@ export function ETicketCard({ order }: ETicketCardProps) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `OPEN-MIND-2026-${issuedTicket.ticketCode || order.orderId}.pdf`;
+      a.download = `OPEN-MIND-2026-${order.orderId}.pdf`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

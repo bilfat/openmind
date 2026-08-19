@@ -4,7 +4,8 @@ import { withTimeoutGuard } from '@/lib/timeout'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-const APPROVED_STATUSES = ['APPROVED', 'TICKET_ISSUED', 'WAITING_VERIFICATION']
+const APPROVED_STATUSES = ['APPROVED', 'TICKET_ISSUED']
+const REVENUE_STATUSES = ['APPROVED', 'TICKET_ISSUED', 'WAITING_VERIFICATION']
 
 async function handleGetDashboardStats() {
   const auth = await requireActiveAdmin()
@@ -23,7 +24,7 @@ async function handleGetDashboardStats() {
         .from('orders')
         .select('id', { count: 'exact', head: true })
         .in('status', APPROVED_STATUSES),
-      supabase.from('orders').select('total_amount').in('status', APPROVED_STATUSES),
+      supabase.from('orders').select('total_amount').in('status', REVENUE_STATUSES),
     ])
 
     if (totalOrdersQuery.error) throw new Error(totalOrdersQuery.error.message)

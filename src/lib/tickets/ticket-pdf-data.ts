@@ -89,6 +89,17 @@ export async function loadIssuedTicketPdfDataByToken(supabase: PdfSupabase, qrTo
   return toTicketPdfData(data, order, participant, ticketType, event)
 }
 
+export async function loadOrderPdfDataByToken(supabase: PdfSupabase, qrToken: string): Promise<{ orderCode: string; tickets: TicketPdfData[] } | null> {
+  const { data: seed, error: seedError } = await supabase
+    .from('issued_tickets')
+    .select('order_id, status')
+    .eq('qr_token', qrToken.toLowerCase())
+    .maybeSingle<{ order_id: string; status: string }>()
+  if (seedError) throw seedError
+  if (!seed || !['ACTIVE', 'CHECKED_IN'].includes(seed.status)) return null
+  return loadOrderPdfData(supabase, seed.order_id)
+}
+
 export async function loadOrderPdfData(supabase: PdfSupabase, orderId: string): Promise<{ orderCode: string; tickets: TicketPdfData[] } | null> {
   const { data: order, error: orderError } = await supabase.from('orders').select('id, order_code, event_id').eq('id', orderId).maybeSingle<OrderRow>()
   if (orderError) throw orderError

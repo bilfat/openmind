@@ -12,7 +12,8 @@ import {
   BookOpen,
   Loader2,
   Minus,
-  Plus
+  Plus,
+  ArrowLeft
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useActiveEvent } from "@/hooks/use-active-event";
@@ -253,6 +254,16 @@ function CheckoutContent() {
 
   return (
     <div className="pt-24 pb-20">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+        <Link
+          href="/tiket"
+          className="inline-flex items-center gap-2 rounded-full border border-border bg-white px-4 py-2 text-sm font-bold text-navy-900 shadow-sm hover:bg-secondary/40 transition-all"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          <span>Kembali ke Pilih Tiket</span>
+        </Link>
+      </div>
+
        <section className="bg-secondary/40 border-b border-border py-10 px-4 sm:px-6 lg:px-8">
          <div className="max-w-4xl mx-auto text-center space-y-2">
            <h1 className="font-display text-3xl sm:text-4xl lg:text-5xl font-bold text-navy-900">

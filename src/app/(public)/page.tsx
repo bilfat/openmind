@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
+import { motion, type Variants } from "framer-motion";
 import { eventData } from "@/data/event";
 import { TalentItem } from "@/data/talents";
 import { CountdownTimer } from "@/components/landing/countdown-timer";
@@ -27,6 +28,16 @@ import {
   Mic,
   Star,
 } from "lucide-react";
+
+const fadeUp: Variants = {
+  hidden: { opacity: 0, y: 26 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } },
+};
+
+const staggerContainer: Variants = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.09 } },
+};
 
 const mockFAQs = [
   {
@@ -108,17 +119,25 @@ export default function BerandaPage() {
         <div className="absolute inset-0 bg-[radial-gradient(#C9A24A_1px,transparent_1px)] [background-size:32px_32px] opacity-10" />
 
         {/* Hero Main Content */}
-        <div className="relative z-10 mx-auto max-w-5xl px-4 text-center space-y-8">
+        <motion.div
+          variants={staggerContainer}
+          initial="hidden"
+          animate="visible"
+          className="relative z-10 mx-auto max-w-5xl px-4 text-center space-y-8"
+        >
           {/* Organizer Badge */}
-          <div className="inline-flex items-center gap-2 rounded-full border border-gold-500/30 bg-navy-900/80 px-3 sm:px-4 py-1.5 backdrop-blur-md max-w-full">
+          <motion.div
+            variants={fadeUp}
+            className="inline-flex items-center gap-2 rounded-full border border-gold-500/30 bg-navy-900/80 px-3 sm:px-4 py-1.5 backdrop-blur-md max-w-full"
+          >
             <span className="h-2 w-2 rounded-full bg-gold-500 animate-pulse flex-shrink-0" />
             <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-[0.18em] sm:tracking-[0.25em] text-gold-400">
               HIPMI PT TELKOM UNIVERSITY PRESENTS
             </span>
-          </div>
+          </motion.div>
 
           {/* Headline */}
-          <div className="space-y-3">
+          <motion.div variants={fadeUp} className="space-y-3">
             <h1 className="font-display text-4xl sm:text-7xl md:text-8xl lg:text-9xl font-black tracking-wider text-ivory-100 drop-shadow-2xl break-words">
               {heroTitle ?? name}
             </h1>
@@ -127,15 +146,18 @@ export default function BerandaPage() {
                 {year}
               </p>
             )}
-          </div>
+          </motion.div>
 
           {/* Tagline */}
-          <p className="mx-auto max-w-2xl text-lg sm:text-2xl font-light text-ivory-200/90 leading-relaxed italic">
+          <motion.p
+            variants={fadeUp}
+            className="mx-auto max-w-2xl text-lg sm:text-2xl font-light text-ivory-200/90 leading-relaxed italic"
+          >
             &ldquo;{heroSubtitle}&rdquo;
-          </p>
+          </motion.p>
 
           {/* Event Meta Badges */}
-          <div className="flex flex-wrap items-center justify-center gap-4 text-sm text-ivory-200/80">
+          <motion.div variants={fadeUp} className="flex flex-wrap items-center justify-center gap-4 text-sm text-ivory-200/80">
             <div className="flex items-center gap-2 rounded-full bg-navy-900/80 border border-gold-500/20 px-4 py-2 backdrop-blur-md">
               <Calendar className="h-4 w-4 text-gold-400" />
               <span>{dateLabel}</span>
@@ -148,18 +170,18 @@ export default function BerandaPage() {
               <MapPin className="h-4 w-4 text-gold-400" />
               <span>{venueLabel}</span>
             </div>
-          </div>
+          </motion.div>
 
           {/* Live Countdown Timer */}
-          <div className="pt-4">
+          <motion.div variants={fadeUp} className="pt-4">
             <p className="text-xs uppercase tracking-[0.2em] text-gold-400/80 mb-3 font-semibold">
               COUNTDOWN TO EVENT
             </p>
             <CountdownTimer />
-          </div>
+          </motion.div>
 
           {/* Hero CTAs */}
-          <div className="flex flex-wrap items-center justify-center gap-4 pt-4">
+          <motion.div variants={fadeUp} className="flex flex-wrap items-center justify-center gap-4 pt-4">
             <Link
               href="/tiket"
               className="inline-flex items-center gap-2 rounded-full bg-gold-500 px-8 py-4 text-sm sm:text-base font-bold text-navy-950 transition-all duration-300 hover:bg-gold-400 hover:scale-105 shadow-xl shadow-gold-500/20"
@@ -184,8 +206,8 @@ export default function BerandaPage() {
                 <span>Gabung Grup WhatsApp</span>
               </a>
             )} */}
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
 
         {/* Bottom Smooth Transition to White Content Area */}
         <div className="absolute bottom-0 left-0 right-0 h-28 bg-gradient-to-t from-white to-transparent pointer-events-none" />
@@ -193,21 +215,38 @@ export default function BerandaPage() {
 
       {/* ================= VALUE PROPOSITION (Why OPEN MIND) ================= */}
       <section className="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-        <SectionHeading
-          badge="Mengapa Harus Hadir"
-          title={`Why ${displayName}?`}
-          subtitle="Event tahunan terbesar persembahan HIPMI Telkom University untuk mengakselerasi potensi kewirausahaan generasi muda."
-        />
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-80px" }}
+          transition={{ duration: 0.6 }}
+        >
+          <SectionHeading
+            badge="Mengapa Harus Hadir"
+            title={`Why ${displayName}?`}
+            subtitle="Event tahunan terbesar persembahan HIPMI Telkom University untuk mengakselerasi potensi kewirausahaan generasi muda."
+          />
+        </motion.div>
 
-        <div className="mt-14 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <motion.div
+          variants={staggerContainer}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, margin: "-60px" }}
+          className="mt-14 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"
+        >
           {eventData.values.map((val, idx) => {
             const Icon = valueIcons[val.icon] || Sparkles;
             return (
-              <div
+              <motion.div
                 key={val.title}
+                variants={fadeUp}
                 className="group relative rounded-3xl border border-border bg-white p-8 transition-all duration-300 hover:-translate-y-2 hover:border-gold-500 hover:shadow-xl hover:shadow-gold-500/10"
               >
-                <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-gold-500/10 text-gold-600 transition-colors duration-300 group-hover:bg-gold-500 group-hover:text-navy-950">
+                <div className="pointer-events-none absolute -right-5 -top-7 font-display text-8xl font-black text-gold-500/5 transition-colors duration-300 group-hover:text-gold-500/15">
+                  0{idx + 1}
+                </div>
+                <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-gold-500/10 text-gold-600 transition-all duration-300 group-hover:scale-110 group-hover:bg-gold-500 group-hover:text-navy-950">
                   <Icon className="h-7 w-7" />
                 </div>
                 <div className="text-xs font-bold text-gold-500 tracking-widest uppercase mb-1">
@@ -219,10 +258,10 @@ export default function BerandaPage() {
                 <p className="text-sm leading-relaxed text-navy-900/70 font-light">
                   {val.description}
                 </p>
-              </div>
+              </motion.div>
             );
           })}
-        </div>
+        </motion.div>
       </section>
 
       {/* ================= THEATRICAL POSTER STAGE SHOWCASE ================= */}
@@ -289,15 +328,29 @@ export default function BerandaPage() {
       {/* ================= AGENDA / RUNDOWN (LIVE FROM CMS) ================= */}
       {visibleAgenda.length > 0 && (
         <section className="py-20 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto">
-          <SectionHeading
-            badge="Rundown"
-            title="Agenda Acara"
-            subtitle={`Jadwal lengkap sesi seminar, workshop, dan networking di ${displayName}.`}
-          />
-          <div className="mt-12 space-y-4">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-80px" }}
+            transition={{ duration: 0.6 }}
+          >
+            <SectionHeading
+              badge="Rundown"
+              title="Agenda Acara"
+              subtitle={`Jadwal lengkap sesi seminar, workshop, dan networking di ${displayName}.`}
+            />
+          </motion.div>
+          <motion.div
+            variants={staggerContainer}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: "-40px" }}
+            className="mt-12 space-y-4"
+          >
             {visibleAgenda.map((item, idx) => (
-              <div
+              <motion.div
                 key={item.id}
+                variants={fadeUp}
                 className="group flex items-start gap-4 sm:gap-6 rounded-2xl border border-border bg-white p-5 sm:p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-gold-500 hover:shadow-lg hover:shadow-gold-500/10"
               >
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gold-500/10 text-gold-600 font-display font-bold text-sm group-hover:bg-gold-500 group-hover:text-navy-950 transition-colors duration-300">
@@ -336,56 +389,65 @@ export default function BerandaPage() {
                     })()}
                   </div>
                 </div>
-              </div>
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         </section>
       )}
 
       {/* ================= TICKET VOUCHER PREVIEW ================= */}
-      <section className="py-24 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-        <SectionHeading
-          badge="Katalog Tiket Resmi"
-          title="Pilih Paket Tiket Anda"
-          subtitle="Tersedia kuota Free Pass untuk mahasiswa serta paket Early Bird dengan merchandise eksklusif."
-        />
+      <section className="relative overflow-hidden bg-navy-950 py-24 px-4 sm:px-6 lg:px-8 max-w-none">
+        <div className="pointer-events-none absolute left-1/2 top-0 h-72 w-[700px] -translate-x-1/2 rounded-full bg-gold-500/10 blur-[120px]" />
+        <div className="pointer-events-none absolute -left-24 top-24 h-64 w-64 rounded-full bg-gold-500/10 blur-3xl" />
+        <div className="pointer-events-none absolute -right-24 bottom-24 h-64 w-64 rounded-full bg-burgundy-600/20 blur-3xl" />
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(#C9A24A_1px,transparent_1px)] [background-size:28px_28px] opacity-[0.06]" />
 
-        <div className="mt-14 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 items-start">
-          {homeTickets.map((ticket) => (
-            <TicketVoucherCard
-              key={ticket.id}
-              ticket={{
-                id: ticket.id,
-                name: ticket.name,
-                description: ticket.description || "",
-                type: ticket.ticket_type,
-                visibility: ticket.visibility,
-                price: Number(ticket.base_price),
-                discountPercentage: Number(ticket.discount_percentage),
-                finalPrice: Number(ticket.final_price),
-                quota: Number(ticket.quota),
-                issued: Number(ticket.quota) - Number(ticket.remaining_quota),
-                minPurchase: Number(ticket.min_purchase),
-                maxPurchase: Number(ticket.max_purchase),
-                salesStart: ticket.sales_start_at,
-                salesEnd: ticket.sales_end_at,
-                status: ticket.status,
-                benefits: ticket.benefits || [],
-                badge: ticket.code === "EARLY" ? "Best Seller" : ticket.base_price === 0 ? "Limited Quota" : "Standard"
-              }}
-              featured={ticket.code === "EARLY"}
-            />
-          ))}
-        </div>
+        <div className="relative mx-auto max-w-7xl">
+          <SectionHeading
+            dark
+            badge="Katalog Tiket Resmi"
+            title="Pilih Paket Tiket Anda"
+            subtitle="Tersedia kuota Free Pass untuk mahasiswa serta paket Early Bird dengan merchandise eksklusif."
+          />
 
-        <div className="mt-12 text-center">
-          <Link
-            href="/tiket"
-            className="inline-flex items-center gap-2 rounded-full border border-border bg-white px-8 py-3.5 text-sm font-bold text-navy-900 hover:border-gold-500 hover:text-gold-600 transition-all shadow-sm"
-          >
-            <span>Buka Halaman Tiket Lengkap</span>
-            <ArrowRight className="h-4 w-4" />
-          </Link>
+          <div className="mt-14 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 items-start">
+            {homeTickets.map((ticket, idx) => (
+              <TicketVoucherCard
+                key={ticket.id}
+                index={idx}
+                ticket={{
+                  id: ticket.id,
+                  name: ticket.name,
+                  description: ticket.description || "",
+                  type: ticket.ticket_type,
+                  visibility: ticket.visibility,
+                  price: Number(ticket.base_price),
+                  discountPercentage: Number(ticket.discount_percentage),
+                  finalPrice: Number(ticket.final_price),
+                  quota: Number(ticket.quota),
+                  issued: Number(ticket.quota) - Number(ticket.remaining_quota),
+                  minPurchase: Number(ticket.min_purchase),
+                  maxPurchase: Number(ticket.max_purchase),
+                  salesStart: ticket.sales_start_at,
+                  salesEnd: ticket.sales_end_at,
+                  status: ticket.status,
+                  benefits: ticket.benefits || [],
+                  badge: ticket.code === "EARLY" ? "Best Seller" : ticket.base_price === 0 ? "Limited Quota" : "Standard"
+                }}
+                featured={ticket.code === "EARLY"}
+              />
+            ))}
+          </div>
+
+          <div className="mt-12 text-center">
+            <Link
+              href="/tiket"
+              className="inline-flex items-center gap-2 rounded-full border border-gold-500/40 bg-white/5 px-8 py-3.5 text-sm font-bold text-ivory-100 backdrop-blur-md transition-all duration-300 hover:bg-gold-500 hover:text-navy-950 hover:shadow-lg hover:shadow-gold-500/30"
+            >
+              <span>Buka Halaman Tiket Lengkap</span>
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
         </div>
       </section>
 
@@ -419,40 +481,67 @@ export default function BerandaPage() {
       </section>
 
       {/* ================= FAQ HIGHLIGHT ================= */}
-      <section className="py-20 bg-secondary/30 border-t border-border">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <SectionHeading
-            badge="Tanya Jawab"
-            title="Pertanyaan Umum (FAQ)"
-            subtitle={`Semua hal yang sering ditanyakan seputar pendaftaran, tiket, dan acara ${displayName}.`}
-          />
+      <section className="relative overflow-hidden bg-secondary/30 border-t border-border py-20">
+        <div className="pointer-events-none absolute -left-24 top-20 h-64 w-64 rounded-full bg-gold-500/10 blur-3xl" />
+        <div className="pointer-events-none absolute -right-24 bottom-20 h-64 w-64 rounded-full bg-gold-500/10 blur-3xl" />
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(#C9A24A_1px,transparent_1px)] [background-size:28px_28px] opacity-[0.04]" />
 
-          <div className="mt-12 space-y-4">
+        <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-80px" }}
+            transition={{ duration: 0.6 }}
+          >
+            <SectionHeading
+              badge="Tanya Jawab"
+              title="Pertanyaan Umum (FAQ)"
+              subtitle={`Semua hal yang sering ditanyakan seputar pendaftaran, tiket, dan acara ${displayName}.`}
+            />
+          </motion.div>
+
+          <motion.div
+            variants={staggerContainer}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: "-40px" }}
+            className="mt-12 space-y-4"
+          >
             {mockFAQs.map((faq) => (
-              <div
+              <motion.div
                 key={faq.id}
-                className="rounded-2xl border border-border bg-white p-6 shadow-sm"
+                variants={fadeUp}
+                className="group relative overflow-hidden rounded-2xl border border-border bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-gold-500 hover:shadow-lg hover:shadow-gold-500/10"
               >
+                <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-transparent via-gold-500 to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
                 <h3 className="font-display text-lg font-bold text-navy-900 mb-2 flex items-start gap-3">
-                  <HelpCircle className="h-5 w-5 text-gold-500 flex-shrink-0 mt-0.5" />
-                  <span>{faq.question}</span>
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gold-500/10 text-gold-500 transition-all duration-300 group-hover:bg-gold-500 group-hover:text-navy-950">
+                    <HelpCircle className="h-4 w-4" />
+                  </span>
+                  <span className="pt-1">{faq.question}</span>
                 </h3>
-                <p className="text-sm leading-relaxed text-navy-900/70 pl-8 font-light">
+                <p className="text-sm leading-relaxed text-navy-900/70 pl-11 font-light">
                   {faq.answer}
                 </p>
-              </div>
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
 
-          <div className="mt-8 text-center">
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-40px" }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+            className="mt-8 text-center"
+          >
             <Link
               href="/faq"
-              className="inline-flex items-center gap-2 text-sm font-bold text-gold-600 hover:text-gold-500"
+              className="group inline-flex items-center gap-2 rounded-full border border-gold-500/30 bg-white px-6 py-3 text-sm font-bold text-gold-600 shadow-sm transition-all duration-300 hover:border-gold-500 hover:shadow-lg hover:shadow-gold-500/10"
             >
               <span>Lihat Semua Pertanyaan di FAQ</span>
-              <ArrowRight className="h-4 w-4" />
+              <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
             </Link>
-          </div>
+          </motion.div>
         </div>
       </section>
 

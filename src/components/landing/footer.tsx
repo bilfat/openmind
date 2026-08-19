@@ -27,7 +27,7 @@ export function Footer() {
   const waDisplay = event?.contact_whatsapp_display || formatWhatsAppDisplay(waNumber) || contactWhatsApp.display;
   const contactEmail = event?.contact_email || "openmind@hipmi.telu.ac.id";
   const waHref = waLink(waNumber) || `https://wa.me/${contactWhatsApp.number}`;
-  const whatsappGroupUrl = event?.whatsapp_group_url;
+  const whatsappGroupUrl = "https://chat.whatsapp.com/CcstelOPT3o7PYItLVJf77?s=cl&p=i&mlu=0";
 
   const openMindLinks: { name: string; url: string }[] = [
     { name: "Instagram", url: event?.instagram_url || "" },
@@ -171,17 +171,15 @@ export function Footer() {
                 <Mail className="h-4 w-4" />
                 <span>{contactEmail}</span>
               </a>
-              {whatsappGroupUrl && (
-                <a
-                  href={whatsappGroupUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-sm text-green-400 hover:text-green-300 transition-colors duration-200"
-                >
-                  <MessageSquare className="h-4 w-4" />
-                  <span>Grup WhatsApp Event</span>
-                </a>
-              )}
+              <a
+                href={whatsappGroupUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-sm text-green-400 hover:text-green-300 transition-colors duration-200"
+              >
+                <MessageSquare className="h-4 w-4" />
+                <span>Grup WhatsApp Event</span>
+              </a>
             </div>
           </div>
         </div>

@@ -18,12 +18,7 @@ export const mockFAQs: FAQItem[] = [
     answer: "Acara akan diselenggarakan pada tanggal 18 September 2026, dari pukul 09:00 - 17:00 WIB, bertempat di Telkom University.",
     category: "general",
   },
-  {
-    id: "faq-3",
-    question: "Apa saja jenis tiket yang tersedia?",
-    answer: "Kami menyediakan beberapa jenis tiket: FREE PASS (kuota terbatas), EARLY BIRD (harga spesial), dan NORMAL PASS. Setiap tiket memiliki benefit yang berbeda.",
-    category: "ticketing",
-  },
+
   {
     id: "faq-4",
     question: "Bagaimana cara saya mendapatkan tiket?",

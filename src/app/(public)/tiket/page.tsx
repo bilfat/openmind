@@ -441,7 +441,7 @@ function TiketPageContent() {
                     placeholder="Contoh: OM26-00124"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full rounded-full border border-white/15 bg-white/10 py-3.5 pl-12 pr-32 text-sm font-semibold text-ivory-100 backdrop-blur-md transition-all duration-300 placeholder:text-ivory-200/40 focus:border-gold-500 focus:bg-white/15 focus:outline-none focus:ring-2 focus:ring-gold-500/30"
+                    className="w-full rounded-full border border-white/30 bg-white py-3.5 pl-12 pr-32 text-sm font-semibold text-navy-950 transition-all duration-300 placeholder:text-navy-900/40 focus:border-gold-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-gold-500/30"
                   />
                   <button
                     type="submit"

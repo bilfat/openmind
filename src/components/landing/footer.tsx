@@ -195,6 +195,9 @@ export function Footer() {
             <span className="gold-divider text-gold-500/60">✦</span>
             <span>{tagline}</span>
           </div>
+          <p className="text-xs text-ivory-200/40">
+            © bilfat
+          </p>
         </div>
       </div>
     </footer>

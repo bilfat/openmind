@@ -12,6 +12,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useActiveEvent } from "@/hooks/use-active-event";
 
 const faculties = [
   "Fakultas Ilmu Terapan",
@@ -59,6 +60,7 @@ interface SuccessInfo {
 }
 
 export default function WalkInPage() {
+  const { event: activeEvent } = useActiveEvent();
   const [tickets, setTickets] = useState<TicketTypeItem[]>([]);
   const [loadingTickets, setLoadingTickets] = useState(true);
   const [ticketsError, setTicketsError] = useState<string | null>(null);
@@ -82,7 +84,7 @@ export default function WalkInPage() {
   const [referralSuccessMsg, setReferralSuccessMsg] = useState("");
   const [referralErrorMsg, setReferralErrorMsg] = useState("");
   const [isValidatingReferral, setIsValidatingReferral] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<"CASH" | "BANK_TRANSFER" | "QRIS">("CASH");
+  const [paymentMethod, setPaymentMethod] = useState<"CASH" | "BANK_TRANSFER" | "QRIS">("QRIS");
 
   const syncParticipants = (qty: number) => {
     setParticipants((prev) => {
@@ -297,7 +299,7 @@ export default function WalkInPage() {
     setReferralInfo(null);
     setReferralSuccessMsg("");
     setReferralErrorMsg("");
-    setPaymentMethod("CASH");
+    setPaymentMethod("QRIS");
   };
 
   return (
@@ -609,7 +611,29 @@ export default function WalkInPage() {
                     )}
                   </div>
 
-                  
+                  {/* Payment QRIS */}
+                  <div className="rounded-xl border border-navy-800 bg-navy-900/60 p-3">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-ivory-200/80 mb-2">
+                      Pembayaran QRIS
+                    </label>
+                    {activeEvent?.qris_image_url ? (
+                      <div className="flex flex-col items-center gap-3 rounded-xl bg-navy-950 border border-navy-800 p-4">
+                        <img
+                          src={activeEvent.qris_image_url}
+                          alt="QRIS Pembayaran"
+                          className="w-48 sm:w-56 max-w-full h-auto object-contain rounded-lg bg-white p-2"
+                        />
+                        <p className="text-[10px] font-semibold text-ivory-200/60 text-center">
+                          Tampilkan QRIS ini kepada pelanggan untuk melakukan pembayaran.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="flex items-start gap-2 rounded-xl border border-navy-800 bg-navy-950 p-3 text-[11px] text-ivory-200/60">
+                        <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-gold-400" />
+                        <span>Belum ada gambar QRIS. Unggah melalui menu Event Settings &gt; QRIS Pembayaran terlebih dahulu.</span>
+                      </div>
+                    )}
+                  </div>
 
                   <div className="border-t border-navy-800 pt-4 space-y-2">
                     <div className="flex justify-between text-xs text-ivory-200/80">

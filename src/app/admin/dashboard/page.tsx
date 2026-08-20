@@ -612,6 +612,8 @@ export default function AdminDashboardPage() {
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [multiPaxOpen, setMultiPaxOpen] = useState(false);
+  const [pendingPaxOpen, setPendingPaxOpen] = useState(false);
+  const [totalPaxOpen, setTotalPaxOpen] = useState(false);
   const [revenueDetailOpen, setRevenueDetailOpen] = useState(false);
   const [revenueVisible, setRevenueVisible] = useState(false);
 
@@ -856,15 +858,15 @@ export default function AdminDashboardPage() {
           icon={ShoppingCart}
           iconClass="bg-navy-900/10 text-navy-900"
           note={loading ? "..." : `${stats.issuedTicketOrders} order terbit + ${stats.pendingVerification} order belum di-approve${stats.multiPaxOrders.length ? ` · ${stats.multiPaxOrders.length} order beli >1 pax` : ""}`}
-          href="/admin/orders"
+          onAction={stats.multiPaxOrders.length > 0 ? () => setMultiPaxOpen(true) : undefined}
         />
         <StatCard
           title="Pending Verifikasi"
           value={loading ? "..." : stats.pendingVerification}
           icon={Clock}
           iconClass="bg-orange-500/10 text-orange-600"
-          note="Tiket menunggu verifikasi admin"
-          href="/admin/orders?status=WAITING_VERIFICATION"
+          note={stats.multiPaxOrders.length > 0 ? `${stats.pendingVerification} order perlu verifikasi · ${stats.multiPaxOrders.length} order beli >1 pax` : "Tiket menunggu verifikasi admin"}
+          onAction={stats.multiPaxOrders.length > 0 ? () => setPendingPaxOpen(true) : undefined}
         />
         <StatCard
           title="Tiket Telah Terbit"
@@ -877,7 +879,7 @@ export default function AdminDashboardPage() {
               : "Dihitung per tiket yang telah terbit"
           }
           href={stats.multiPaxOrders.length > 0 ? undefined : "/admin/orders?status=TICKET_ISSUED"}
-          onAction={stats.multiPaxOrders.length > 0 ? () => setMultiPaxOpen(true) : undefined}
+          onAction={stats.multiPaxOrders.length > 0 ? () => setTotalPaxOpen(true) : undefined}
         />
         <StatCard
           title="Pesanan Baru"
@@ -1375,22 +1377,20 @@ export default function AdminDashboardPage() {
       )}
 
       {/* ── Modal Order Multi Pax (beli >1 tiket dalam 1 order) ───────── */}
-      {multiPaxOpen && (
+{/* ── Modal Order Multi Pax - Tiket Terbit (only TICKET_ISSUED) ───────── */}
+      {totalPaxOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
           <div className="w-full max-w-2xl rounded-3xl bg-white shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-border px-5 sm:px-7 py-4">
               <div>
 
                 <h3 className="font-display text-lg sm:text-xl font-bold text-navy-900">
-                  Detail Tiket Telah Terbit
+                  Detail Order Multi Pax (Tiket Terbit)
                 </h3>
-                <p className="text-[11px] text-muted-foreground">
-                  {stats.issuedOrders} tiket terbit
-                </p>
               </div>
               <button
                 type="button"
-                onClick={() => setMultiPaxOpen(false)}
+                onClick={() => setTotalPaxOpen(false)}
                 className="rounded-full p-2 text-muted-foreground hover:bg-secondary transition-colors"
                 aria-label="Tutup"
               >
@@ -1400,21 +1400,21 @@ export default function AdminDashboardPage() {
 
             <div className="p-5 sm:p-7 space-y-6">
               {(() => {
-                const issuedOrders = stats.multiPaxOrders.filter(
+                const totalPaxIssued = stats.multiPaxOrders.filter(
                   (order) => order.status === "TICKET_ISSUED"
                 );
                 return (
                   <section className="space-y-2">
                     <h4 className="text-xs font-bold uppercase tracking-wider text-navy-900">
-                      Detail Order Multi Pax ({issuedOrders.length})
+                      {totalPaxIssued.length === 0 ? 'Tidak ada order multi pax terbit' : `Detail Order Multi Pax (${totalPaxIssued.length} order terbit)`}
                     </h4>
-                    {issuedOrders.length === 0 ? (
+                    {totalPaxIssued.length === 0 ? (
                       <p className="py-4 text-center text-xs text-muted-foreground">
                         Tidak ada order multi pax.
                       </p>
                     ) : (
                       <div className="space-y-3">
-                        {issuedOrders.map((order) => (
+                        {totalPaxIssued.map((order) => (
                           <div key={order.order_id} className="rounded-2xl border border-border bg-secondary/20 p-4 space-y-3">
                             <div className="flex items-center justify-between gap-2">
                               <div className="min-w-0">
@@ -1426,7 +1426,7 @@ export default function AdminDashboardPage() {
                               <div className="flex flex-shrink-0 items-center gap-1.5">
 
                                 <span className="rounded-full bg-gold-500/15 px-2.5 py-1 text-[10px] font-bold text-gold-700">
-                                  {order.items.filter((item) => item.ticket_code).length} pax
+                                  {order.ticketCount} pax
                                 </span>
                               </div>
                             </div>
@@ -1458,7 +1458,7 @@ export default function AdminDashboardPage() {
                                       </span>
                                       <p className="font-mono text-[10px] font-bold text-gold-700">{item.ticket_code}</p>
                                       <p className="text-[10px] text-muted-foreground truncate">
-                                         {item.email}
+                                        {item.email}
                                       </p>
                                     </div>
                                   </div>
@@ -1469,6 +1469,282 @@ export default function AdminDashboardPage() {
                       </div>
                     )}
                   </section>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Order Multi Pax - Pending Verifikasi (only WAITING_VERIFICATION) ───────── */}
+      {pendingPaxOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-2xl rounded-3xl bg-white shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-border px-5 sm:px-7 py-4">
+              <div>
+
+                <h3 className="font-display text-lg sm:text-xl font-bold text-navy-900">
+                  Detail Order Multi Pax (Perlu Verifikasi)
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPendingPaxOpen(false)}
+                className="rounded-full p-2 text-muted-foreground hover:bg-secondary transition-colors"
+                aria-label="Tutup"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 sm:p-7 space-y-6">
+              {(() => {
+                const pendingPaxOrders = stats.multiPaxOrders.filter(
+                  (order) => order.status === "WAITING_VERIFICATION"
+                );
+                return (
+                  <section className="space-y-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-navy-900">
+                      {pendingPaxOrders.length === 0 ? 'Tidak ada order multi pax perlu verifikasi' : `Detail Order Multi Pax (${pendingPaxOrders.length} order perlu verifikasi)`}
+                    </h4>
+                    {pendingPaxOrders.length === 0 ? (
+                      <p className="py-4 text-center text-xs text-muted-foreground">
+                        Tidak ada order multi pax.
+                      </p>
+                    ) : (
+                      <div className="space-y-3">
+                        {pendingPaxOrders.map((order) => (
+                          <div key={order.order_id} className="rounded-2xl border border-border bg-secondary/20 p-4 space-y-3">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="font-mono text-sm font-bold text-navy-900 truncate">{order.order_code}</p>
+                                <p className="text-[10px] text-muted-foreground">
+                                  {order.created_at ? formatTime(order.created_at) : "-"}
+                                </p>
+                              </div>
+                              <div className="flex flex-shrink-0 items-center gap-1.5">
+
+                                <span className="rounded-full bg-orange-500/15 px-2.5 py-1 text-[10px] font-bold text-orange-600">
+                                  {order.ticketCount} pax
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="space-y-2">
+                              {order.items.map((item, i) => (
+                                <div
+                                  key={`${item.ticket_code ?? `ticket-${i}`}-${i}`}
+                                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-xl border border-border bg-white px-3 py-2"
+                                >
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-bold text-navy-900">{item.full_name}</p>
+                                    <p className="text-[10px] text-muted-foreground truncate">
+                                      {item.nim} · {item.faculty}
+                                    </p>
+                                  </div>
+                                  <div className="sm:text-right space-y-1">
+                                    <span
+                                      className={cn(
+                                        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase",
+                                        item.ticket_type === "FREE"
+                                          ? "bg-emerald-500/15 text-emerald-700"
+                                          : "bg-gold-500/20 text-gold-700"
+                                      )}
+                                    >
+                                      {item.ticket_name}
+                                    </span>
+                                    <p className="font-mono text-[10px] font-bold text-orange-600">
+                                      {item.ticket_code ? item.ticket_code : 'Belum terbit'}
+                                    </p>
+                                    <p className="text-[10px] text-muted-foreground truncate">
+                                      {item.email}
+                                    </p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+
+{/* ── Modal Order Multi Pax - Combined (both TICKET_ISSUED + WAITING_VERIFICATION) ───────── */}
+      {multiPaxOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-2xl rounded-3xl bg-white shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-border px-5 sm:px-7 py-4">
+              <div>
+
+                <h3 className="font-display text-lg sm:text-xl font-bold text-navy-900">
+                  Detail Order Multi Pax
+                </h3>
+                <p className="text-[11px] text-muted-foreground">
+                  {stats.multiPaxOrders.filter(o => o.status === "TICKET_ISSUED").length} terbit + {stats.multiPaxOrders.filter(o => o.status === "WAITING_VERIFICATION").length} perlu verifikasi
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMultiPaxOpen(false)}
+                className="rounded-full p-2 text-muted-foreground hover:bg-secondary transition-colors"
+                aria-label="Tutup"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 sm:p-7 space-y-6">
+              {(() => {
+                const multiPaxIssued = stats.multiPaxOrders.filter(
+                  (order) => order.status === "TICKET_ISSUED"
+                );
+                const multiPaxPending = stats.multiPaxOrders.filter(
+                  (order) => order.status === "WAITING_VERIFICATION"
+                );
+                return (
+                  <div className="space-y-6">
+                    {/* Tiket Terbit Section */}
+                    {multiPaxIssued.length > 0 && (
+                      <section className="space-y-3">
+                        <div className="flex items-center gap-2">
+                          <span className="rounded-full bg-emerald-500/15 px-2.5 py-1 text-[10px] font-bold text-emerald-700">
+                            Tiket Terbit ({multiPaxIssued.length} order)
+                          </span>
+                          <div className="h-px flex-1 bg-emerald-500/20" />
+                        </div>
+                        <div className="space-y-3">
+                          {multiPaxIssued.map((order) => (
+                            <div key={order.order_id} className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-3">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="min-w-0">
+                                  <p className="font-mono text-sm font-bold text-navy-900 truncate">{order.order_code}</p>
+                                  <p className="text-[10px] text-muted-foreground">
+                                    {order.created_at ? formatTime(order.created_at) : "-"}
+                                  </p>
+                                </div>
+                                <div className="flex flex-shrink-0 items-center gap-1.5">
+                                  <span className="rounded-full bg-emerald-500/15 px-2.5 py-1 text-[10px] font-bold text-emerald-700">
+                                    {order.ticketCount} pax
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="space-y-2">
+                                {order.items.map((item, i) => (
+                                  <div
+                                    key={`${item.ticket_code ?? `ticket-${i}`}-${i}`}
+                                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-xl border border-emerald-500/10 bg-white px-3 py-2"
+                                  >
+                                    <div className="min-w-0">
+                                      <p className="text-xs font-bold text-navy-900">{item.full_name}</p>
+                                      <p className="text-[10px] text-muted-foreground truncate">
+                                        {item.nim} · {item.faculty}
+                                      </p>
+                                    </div>
+                                    <div className="sm:text-right space-y-1">
+                                      <span
+                                        className={cn(
+                                          "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase",
+                                          item.ticket_type === "FREE"
+                                            ? "bg-emerald-500/15 text-emerald-700"
+                                            : "bg-gold-500/20 text-gold-700"
+                                        )}
+                                      >
+                                        {item.ticket_name}
+                                      </span>
+                                      <p className="font-mono text-[10px] font-bold text-emerald-700">
+                                        {item.ticket_code ? item.ticket_code : 'Belum terbit'}
+                                      </p>
+                                      <p className="text-[10px] text-muted-foreground truncate">
+                                        {item.email}
+                                      </p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+                    )}
+
+                    {/* Perlu Verifikasi Section */}
+                    {multiPaxPending.length > 0 && (
+                      <section className="space-y-3">
+                        <div className="flex items-center gap-2">
+                          <span className="rounded-full bg-orange-500/15 px-2.5 py-1 text-[10px] font-bold text-orange-600">
+                            Perlu Verifikasi ({multiPaxPending.length} order)
+                          </span>
+                          <div className="h-px flex-1 bg-orange-500/20" />
+                        </div>
+                        <div className="space-y-3">
+                          {multiPaxPending.map((order) => (
+                            <div key={order.order_id} className="rounded-2xl border border-orange-500/20 bg-orange-500/5 p-4 space-y-3">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="min-w-0">
+                                  <p className="font-mono text-sm font-bold text-navy-900 truncate">{order.order_code}</p>
+                                  <p className="text-[10px] text-muted-foreground">
+                                    {order.created_at ? formatTime(order.created_at) : "-"}
+                                  </p>
+                                </div>
+                                <div className="flex flex-shrink-0 items-center gap-1.5">
+                                  <span className="rounded-full bg-orange-500/15 px-2.5 py-1 text-[10px] font-bold text-orange-600">
+                                    {order.ticketCount} pax
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="space-y-2">
+                                {order.items.map((item, i) => (
+                                  <div
+                                    key={`${item.ticket_code ?? `ticket-${i}`}-${i}`}
+                                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-xl border border-orange-500/10 bg-white px-3 py-2"
+                                  >
+                                    <div className="min-w-0">
+                                      <p className="text-xs font-bold text-navy-900">{item.full_name}</p>
+                                      <p className="text-[10px] text-muted-foreground truncate">
+                                        {item.nim} · {item.faculty}
+                                      </p>
+                                    </div>
+                                    <div className="sm:text-right space-y-1">
+                                      <span
+                                        className={cn(
+                                          "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase",
+                                          item.ticket_type === "FREE"
+                                            ? "bg-emerald-500/15 text-emerald-700"
+                                            : "bg-gold-500/20 text-gold-700"
+                                        )}
+                                      >
+                                        {item.ticket_name}
+                                      </span>
+                                      <p className="font-mono text-[10px] font-bold text-orange-600">
+                                        {item.ticket_code ? item.ticket_code : 'Belum terbit'}
+                                      </p>
+                                      <p className="text-[10px] text-muted-foreground truncate">
+                                        {item.email}
+                                      </p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+                    )}
+
+                    {multiPaxIssued.length === 0 && multiPaxPending.length === 0 && (
+                      <p className="py-4 text-center text-xs text-muted-foreground">
+                        Tidak ada order multi pax.
+                      </p>
+                    )}
+                  </div>
                 );
               })()}
             </div>

@@ -160,8 +160,7 @@ function OrdersPageContent() {
   const PAGE_SIZE = 50;
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState(initialStatusParam);
-  const [ticketFilter, setTicketFilter] = useState("all");
-  const [facultyFilter, setFacultyFilter] = useState("all");
+  const [sourceFilter, setSourceFilter] = useState("all");
   const [selectedOrder, setSelectedOrder] = useState<AdminOrder | null>(null);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
@@ -185,8 +184,7 @@ function OrdersPageContent() {
     const params = new URLSearchParams({ page: String(targetPage), limit: String(PAGE_SIZE) });
     if (searchQuery.trim()) params.set("search", searchQuery.trim());
     if (statusFilter !== "all") params.set("status", statusFilter);
-    if (ticketFilter !== "all") params.set("ticket_type", ticketFilter);
-    if (facultyFilter !== "all") params.set("faculty", facultyFilter);
+    if (sourceFilter !== "all") params.set("source", sourceFilter);
     const response = await fetch(`/api/admin/orders?${params.toString()}`, { cache: "no-store" });
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.message || "Gagal mengambil pesanan.");
@@ -201,14 +199,14 @@ function OrdersPageContent() {
   useEffect(() => {
     setPage(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery, statusFilter, ticketFilter, facultyFilter]);
+  }, [searchQuery, statusFilter, sourceFilter]);
 
   useEffect(() => {
     // Fetch after the effect commits so the server refresh does not run in the effect body.
     const refresh = () => { void refreshOrders(page).catch((error) => console.error(error)); };
     queueMicrotask(refresh);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, searchQuery, statusFilter, ticketFilter, facultyFilter]);
+  }, [page, searchQuery, statusFilter, sourceFilter]);
 
   const goToPage = (targetPage: number) => {
     if (targetPage < 1 || targetPage > pagination.totalPages) return;
@@ -475,7 +473,7 @@ function OrdersPageContent() {
         {/* Search & Secondary Filters Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
           {/* Search Box */}
-          <div className="sm:col-span-6 relative">
+          <div className="sm:col-span-9 relative">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <input
               type="text"
@@ -486,36 +484,16 @@ function OrdersPageContent() {
             />
           </div>
 
-          {/* Ticket Type Filter */}
+          {/* Source Filter (Walk-in / Online) */}
           <div className="sm:col-span-3">
             <select
-              value={ticketFilter}
-              onChange={(e) => setTicketFilter(e.target.value)}
+              value={sourceFilter}
+              onChange={(e) => setSourceFilter(e.target.value)}
               className="w-full rounded-xl border border-border bg-secondary/20 py-2.5 px-3 text-xs text-navy-900 focus:border-gold-500 focus:bg-white focus:outline-none"
             >
-              <option value="all">Semua Jenis Tiket</option>
-              <option value="free-pass">FREE PASS</option>
-              <option value="early-bird">EARLY BIRD</option>
-              <option value="regular-pass">NORMAL PASS</option>
-              <option value="vip-pass">VIP PASS</option>
-            </select>
-          </div>
-
-          {/* Faculty Filter */}
-          <div className="sm:col-span-3">
-            <select
-              value={facultyFilter}
-              onChange={(e) => setFacultyFilter(e.target.value)}
-              className="w-full rounded-xl border border-border bg-secondary/20 py-2.5 px-3 text-xs text-navy-900 focus:border-gold-500 focus:bg-white focus:outline-none"
-            >
-              <option value="all">Semua Fakultas</option>
-              <option value="Terapan">Fakultas Ilmu Terapan (FIT)</option>
-              <option value="Kreatif">Fakultas Industri Kreatif (FIK)</option>
-              <option value="Informatika">Fakultas Informatika (FIF)</option>
-              <option value="Elektro">Fakultas Teknik Elektro (FTE)</option>
-              <option value="Rekayasa">Fakultas Rekayasa Industri (FRI)</option>
-              <option value="Ekonomi">Fakultas Ekonomi dan Bisnis (FEB)</option>
-              <option value="Komunikasi">Fakultas Komunikasi Sosial (FKS)</option>
+              <option value="all">Semua Sumber</option>
+              <option value="MANUAL">Walk-in</option>
+              <option value="ONLINE">Online</option>
             </select>
           </div>
         </div>

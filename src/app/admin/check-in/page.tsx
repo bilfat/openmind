@@ -151,6 +151,9 @@ export default function AdminCheckInPage() {
   const [listLoading, setListLoading] = useState(true);
   const [listRefreshTick, setListRefreshTick] = useState(0);
 
+  // Current user's role (staff sees scan + manual input only, no participant table)
+  const [userRole, setUserRole] = useState<string | null>(null);
+
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const scanIntervalRef = useRef<number | null>(null);
@@ -187,6 +190,7 @@ export default function AdminCheckInPage() {
 
   // Fetch paginated participant list
   useEffect(() => {
+    if (userRole === "STAFF") return;
     let cancelled = false;
     const timer = window.setTimeout(
       () => {
@@ -220,7 +224,27 @@ export default function AdminCheckInPage() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [listPage, listStatus, listSearch, listRefreshTick]);
+  }, [listPage, listStatus, listSearch, listRefreshTick, userRole]);
+
+  // Resolve the current user's role for UI gating
+  useEffect(() => {
+    let cancelled = false;
+    supabase.auth
+      .getUser()
+      .then(async ({ data: { user } }) => {
+        if (!user || cancelled) return;
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", user.id)
+          .single();
+        if (profile && !cancelled) setUserRole(profile.role);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase]);
 
   // Initial statistics fetch on page mount + realtime subscription
   useEffect(() => {
@@ -876,7 +900,8 @@ export default function AdminCheckInPage() {
         </div>
       </div>
 
-      {/* Paginated Participant List */}
+      {/* Paginated Participant List (hidden for staff — gate staff only scans & inputs manually) */}
+      {userRole !== "STAFF" && (
       <div className="rounded-3xl border border-border bg-white shadow-sm overflow-hidden">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 p-5 sm:p-6 border-b border-border">
           <div>
@@ -1055,6 +1080,7 @@ export default function AdminCheckInPage() {
           </div>
         </div>
       </div>
+      )}
 
       {/* Success Check-In Popup Modal */}
       {scanPopup && (

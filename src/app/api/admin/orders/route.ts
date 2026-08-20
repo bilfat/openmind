@@ -23,10 +23,12 @@ async function handleGetOrders(request: Request) {
   if ('error' in parsedSearch) return jsonError(parsedSearch.error ?? 'Parameter search tidak valid.', 400)
 
   const status = url.searchParams.get('status')?.trim() || ''
+  const source = url.searchParams.get('source')?.trim().toUpperCase() || ''
   const ticketType = url.searchParams.get('ticket_type')?.trim().toUpperCase() || ''
   const faculty = url.searchParams.get('faculty')?.trim() || ''
   const statusList = status ? status.split(',').map((s) => s.trim()).filter(Boolean) : []
   if (statusList.some((s) => !ORDER_STATUSES.includes(s))) return jsonError('Status filter tidak valid.', 400)
+  if (source && !['ONLINE', 'MANUAL'].includes(source)) return jsonError('Source filter tidak valid.', 400)
   if (ticketType && !TICKET_TYPES.includes(ticketType)) return jsonError('Ticket type filter tidak valid.', 400)
   if (faculty.length > 100) return jsonError('Faculty filter maksimal 100 karakter.', 400)
 
@@ -98,6 +100,7 @@ async function handleGetOrders(request: Request) {
       let q = supabase.from('orders').select('id', { count: 'exact', head: true })
       if (status) q = q.eq('status', status)
       else q = q.not('status', 'in', `(${HIDDEN_STATUSES.join(',')})`)
+      if (source) q = q.eq('source', source)
       if (matchingOrderIds) q = q.in('id', matchingOrderIds)
       return q
     }
@@ -118,6 +121,7 @@ async function handleGetOrders(request: Request) {
     let issuedFrom = 0
     while (true) {
       let q = supabase.from('orders').select('id').eq('status', 'TICKET_ISSUED')
+      if (source) q = q.eq('source', source)
       if (matchingOrderIds) q = q.in('id', matchingOrderIds)
       const { data, error } = await q.range(issuedFrom, issuedFrom + issuedPageSize - 1)
       if (error) throw new Error(error.message)
@@ -141,6 +145,7 @@ async function handleGetOrders(request: Request) {
       .select('id, order_code, event_id, status, source, subtotal, discount_total, total_amount, currency, created_by, created_at, updated_at, events(id, name)', { count: 'exact' })
     if (statusList.length) query = query.in('status', statusList)
     else query = query.not('status', 'in', `(${HIDDEN_STATUSES.join(',')})`)
+    if (source) query = query.eq('source', source)
     if (matchingOrderIds) query = query.in('id', matchingOrderIds)
 
     const { data, count, error } = await query

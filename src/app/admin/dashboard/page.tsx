@@ -616,6 +616,15 @@ export default function AdminDashboardPage() {
     queueMicrotask(refresh);
   }, []);
 
+  // Auto-refresh berkala agar angka dashboard selalu terkini tanpa perlu
+  // me-refresh halaman (card, ringkasan, dan tabel).
+  useEffect(() => {
+    const interval = setInterval(() => {
+      void fetchDashboardData().catch((error) => console.error(error));
+    }, 15000);
+    return () => clearInterval(interval);
+  }, []);
+
   const pendingApprovalOrders = orders
     .filter((o) => o.status === "WAITING_VERIFICATION")
     .slice(0, 5);
@@ -879,7 +888,8 @@ export default function AdminDashboardPage() {
               <div className="space-y-2">
                 {(activeTickets?.items ?? []).slice(0, 3).map((t) => {
                   const quota = Number(t.quota || 0);
-                  const pct = quota > 0 ? Math.min(100, Math.round((t.issued / quota) * 100)) : 0;
+                  const used = Number(t.issued || 0) + Number(t.pending || 0);
+                  const pct = quota > 0 ? Math.min(100, Math.round((used / quota) * 100)) : 0;
                   return (
                     <div key={t.id} className="rounded-xl border border-border bg-secondary/20 p-2 sm:p-2.5">
                       <div className="flex items-center justify-between gap-2">
@@ -905,9 +915,9 @@ export default function AdminDashboardPage() {
                         />
                       </div>
                       <div className="mt-1 flex items-center justify-between text-[9px] text-muted-foreground">
-                        <span>Kuota terisi</span>
+                        <span>Kuota terpakai</span>
                         <span className="font-bold tabular-nums">
-                          {t.issued}/{quota} ({pct}%)
+                          {used}/{quota} ({pct}%)
                         </span>
                       </div>
                     </div>
@@ -915,7 +925,7 @@ export default function AdminDashboardPage() {
                 })}
                 <p className="flex items-start gap-1 pt-0.5 text-[9px] leading-snug text-muted-foreground sm:text-[10px]">
                   <Info className="mt-0.5 h-3 w-3 flex-shrink-0 opacity-70" />
-                  <span>Pending = pesanan baru yang belum upload bukti pembayaran dan belum di approve.</span>
+                  <span>Kuota terpakai = tiket terbit + tiket belum di-approve (pending).</span>
                 </p>
               </div>
             )}

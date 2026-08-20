@@ -101,7 +101,7 @@ export default function TicketDetailPage() {
     if (t.status === "ARCHIVED" || t.status === "DRAFT" || t.status === "PAUSED") {
       return t.status;
     }
-    if (Number(t.issued) + Number(t.reserved ?? 0) >= Number(t.quota)) {
+    if (Number(t.issued) + Number(t.pending ?? 0) >= Number(t.quota)) {
       return "SOLD_OUT";
     }
     const end = new Date(t.sales_end_at).getTime();
@@ -114,8 +114,8 @@ export default function TicketDetailPage() {
   const derivedStatus = getDerivedTicketStatus(ticket);
   const isFree = ticket.ticket_type === "FREE";
   const isPrivate = ticket.visibility === "PRIVATE";
-  const reserved = Number(ticket.reserved ?? 0);
-  const used = Number(ticket.issued ?? 0) + reserved;
+  const pending = Number(ticket.pending ?? 0);
+  const used = Number(ticket.issued ?? 0) + pending;
   const remaining = Number(ticket.remaining_quota ?? Math.max(0, Number(ticket.quota) - used));
   const salesPercent = Math.min(
     100,
@@ -368,9 +368,9 @@ export default function TicketDetailPage() {
           <p className="font-display text-3xl font-black text-emerald-600">
             {used} <span className="text-sm font-semibold text-muted-foreground">Tiket</span>
           </p>
-          {reserved > 0 && (
+          {pending > 0 && (
             <p className="text-xs font-semibold text-amber-600">
-              {ticket.issued} terbit · {reserved} ditahan
+              {ticket.issued} terbit · {pending} pending
             </p>
           )}
         </div>

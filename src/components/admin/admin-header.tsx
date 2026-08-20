@@ -5,6 +5,7 @@ import { Search, User, Menu } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
 import { NotificationDropdown } from "@/components/admin/notification-dropdown";
+import { PushNotificationButton } from "@/components/admin/push-notification-button";
 
 const pageTitles: Record<string, string> = {
   "/admin/dashboard": "Dashboard",
@@ -79,6 +80,8 @@ export function AdminHeader({ onMenuToggle }: AdminHeaderProps) {
           >
             <Search className="h-5 w-5" />
           </button>
+
+          <PushNotificationButton />
 
           <NotificationDropdown />
 

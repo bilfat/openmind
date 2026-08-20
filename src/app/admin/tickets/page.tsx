@@ -64,6 +64,7 @@ export default function AdminTicketsListPage() {
           salesEnd: t.sales_end_at,
           issued: Number(t.issued ?? 0),
           reserved: Number(t.reserved ?? 0),
+          pending: Number(t.pending ?? 0),
           remainingQuota: Number(t.remaining_quota ?? 0)
         }));
         setTickets(mapped);
@@ -110,7 +111,7 @@ export default function AdminTicketsListPage() {
     if (t.status === "ARCHIVED" || t.status === "DRAFT" || t.status === "PAUSED") {
       return t.status;
     }
-    if (Number(t.issued) + Number(t.reserved ?? 0) >= Number(t.quota)) {
+    if (Number(t.issued) + Number(t.pending ?? 0) >= Number(t.quota)) {
       return "SOLD_OUT";
     }
     const end = new Date(t.salesEnd).getTime();
@@ -376,7 +377,7 @@ export default function AdminTicketsListPage() {
                   const derivedStatus = getDerivedTicketStatus(ticket);
                   const isFree = ticket.type === "FREE";
                   const isPrivate = ticket.visibility === "PRIVATE";
-                  const remaining = Number(ticket.remainingQuota ?? (Number(ticket.quota) - Number(ticket.issued) - Number(ticket.reserved ?? 0)));
+                  const remaining = Number(ticket.remainingQuota ?? (Number(ticket.quota) - Number(ticket.issued) - Number(ticket.pending ?? 0)));
 
                   return (
                     <tr
@@ -480,11 +481,11 @@ export default function AdminTicketsListPage() {
                       {/* Issued / Remaining */}
                       <td className="px-5 py-4">
                         <span className="font-bold text-navy-900 block">
-                          {Number(ticket.issued) + Number(ticket.reserved)} Terbeli
+                          {Number(ticket.issued) + Number(ticket.pending)} Terbeli
                         </span>
-                        {Number(ticket.reserved) > 0 && (
+                        {Number(ticket.pending) > 0 && (
                           <span className="text-[10px] text-amber-600 block">
-                            ({ticket.issued} terbit · {ticket.reserved} ditahan)
+                            ({ticket.issued} terbit · {ticket.pending} pending)
                           </span>
                         )}
                         <span className="text-[10px] text-gold-600">

@@ -16,6 +16,30 @@ import type { AdminNotification } from "@/components/admin/notification-shared";
 const PAGE_SIZE = 50;
 const FALLBACK_REFRESH_MS = 30000;
 
+function showBrowserNotification(record: AdminNotification) {
+  if (typeof window === "undefined") return;
+  if (!("Notification" in window) || Notification.permission !== "granted") return;
+
+  try {
+    const notification = new Notification(record.title, {
+      body: record.message,
+      icon: "/icon.jpg",
+      badge: "/icon.jpg",
+      tag: `openmind-${record.id}`,
+      data: { url: record.link || "/admin/notifications" },
+    });
+    notification.onclick = () => {
+      window.focus();
+      const url = record.link || "/admin/notifications";
+      if (url.startsWith("/")) {
+        window.location.href = url;
+      }
+    };
+  } catch (err) {
+    console.error("Browser notification failed:", err);
+  }
+}
+
 interface FetchNotificationsResponse {
   items: AdminNotification[];
   unread_count: number;
@@ -151,6 +175,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
             if (!record.is_read) {
               setUnreadCount((prev) => prev + 1);
             }
+            showBrowserNotification(record);
           }
         )
         .on(

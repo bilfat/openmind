@@ -88,7 +88,33 @@ export async function GET(
 
     const reservedCount = reservations.reduce((acc, curr) => acc + (curr.quantity || 0), 0)
 
-    const totalUsed = (issuedCount || 0) + reservedCount
+    // "Pending" = tiket dari pesanan yang belum di-approve (WAITING_VERIFICATION)
+    // + pesanan baru yang belum upload bukti pembayaran (DRAFT / PENDING_PAYMENT).
+    const { data: pendingOrders, error: pendOrderErr } = await supabase
+      .from('orders')
+      .select('id')
+      .in('status', ['DRAFT', 'PENDING_PAYMENT', 'WAITING_VERIFICATION'])
+
+    if (pendOrderErr) {
+      throw new Error(`Failed to fetch pending orders: ${pendOrderErr.message}`)
+    }
+
+    const pendingOrderIds = (pendingOrders ?? []).map((o: { id: string }) => o.id)
+    let pendingCount = 0
+    if (pendingOrderIds.length) {
+      const { count, error: pendCountErr } = await supabase
+        .from('order_items')
+        .select('id', { count: 'exact', head: true })
+        .eq('ticket_type_id', ticket.id)
+        .in('order_id', pendingOrderIds)
+
+      if (pendCountErr) {
+        throw new Error(`Failed to calculate pending count: ${pendCountErr.message}`)
+      }
+      pendingCount = count ?? 0
+    }
+
+    const totalUsed = (issuedCount || 0) + pendingCount
     const remainingQuota = Math.max(0, ticket.quota - totalUsed)
 
     // Fetch active private token if visibility is PRIVATE
@@ -112,6 +138,7 @@ export async function GET(
         ...ticket,
         issued: issuedCount || 0,
         reserved: reservedCount,
+        pending: pendingCount,
         remaining_quota: remainingQuota,
         privateToken,
         benefits: typeof ticket.benefits === 'string' ? JSON.parse(ticket.benefits) : ticket.benefits

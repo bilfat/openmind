@@ -52,9 +52,11 @@ async function handleGetDashboardSummary() {
             .select('ticket_type_id')
             .in('ticket_type_id', ticketIds)
             .neq('status', 'CANCELLED'),
-          // "Pending" = pesanan yang belum terbit tiketnya: pesanan baru yang
-          // belum upload bukti pembayaran (DRAFT pada alur baru, PENDING_PAYMENT
-          // pada alur lama) + pesanan yang belum di-approve (WAITING_VERIFICATION).
+          // "Pending" = tiket (item pesanan) dari pesanan yang belum di-approve
+          // (WAITING_VERIFICATION) + pesanan baru yang belum upload bukti
+          // pembayaran (DRAFT pada alur baru, PENDING_PAYMENT pada alur lama).
+          // Definisi ini konsisten dengan "Kuota terpakai" di dashboard (terbit
+          // + pending) dan kolom Sisa di fitur tiket.
           supabaseAdmin
             .from('orders')
             .select('id')
@@ -73,8 +75,7 @@ async function handleGetDashboardSummary() {
             .in('order_id', newOrderIds)
             .in('ticket_type_id', ticketIds)
           if (pendingError) throw new Error(pendingError.message)
-          // "Pending" = tiket dari pesanan yang belum upload bukti pembayaran
-          // dan pesanan yang belum di-approve.
+          // "Pending" = tiket dari pesanan yang belum di-approve dan pesanan baru.
           for (const row of pendingItems ?? []) {
             pendingCounts[row.ticket_type_id] = (pendingCounts[row.ticket_type_id] ?? 0) + 1
           }

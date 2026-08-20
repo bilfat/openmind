@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sanitizeMetadata } from '@/lib/audit'
+import { sendPushToProfile } from '@/lib/webpush'
 import { SupabaseClient } from '@supabase/supabase-js'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -55,6 +56,14 @@ export async function createNotification(params: CreateNotificationParams): Prom
 
     if (error) {
       console.error(`Notification insertion failed (${params.type}):`, error.message)
+    } else {
+      // FAIL-OPEN: web push never blocks the originating transaction.
+      await sendPushToProfile(params.profileId, {
+        title: params.title,
+        message: params.message,
+        link: params.link,
+        type: params.type,
+      })
     }
   } catch (err: any) {
     console.error(`Notification insertion threw (${params.type}):`, err?.message || err)
@@ -97,6 +106,18 @@ export async function broadcastToAllAdmins(params: BroadcastNotificationParams):
 
     if (error) {
       console.error(`broadcastToAllAdmins insertion failed (${params.type}):`, error.message)
+    } else {
+      // FAIL-OPEN: web push to all active admins never blocks the transaction.
+      await Promise.all(
+        admins.map((admin) =>
+          sendPushToProfile(admin.id, {
+            title: params.title,
+            message: params.message,
+            link: params.link,
+            type: params.type,
+          })
+        )
+      )
     }
   } catch (err: any) {
     console.error(`broadcastToAllAdmins threw (${params.type}):`, err?.message || err)

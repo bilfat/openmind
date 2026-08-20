@@ -30,8 +30,26 @@ export async function GET(request: Request) {
     const supabase = createAdminClient()
     const now = new Date().toISOString()
 
-    // 2. Query and update expired reservations atomically
-    const { data, error } = await supabase
+    // Primary: panggil cleanup_expired_orders_rpc (canonical) yang mengexpire
+    // reservasi kedaluwarsa DAN order DRAFT/PENDING_PAYMENT yang melewati
+    // jendela pembayaran (3 jam), sehingga tiket pending tidak lagi menahan
+    // kuota. Referal yang ditahan ikut dilepas.
+    const { data, error } = await supabase.rpc('cleanup_expired_orders_rpc', { p_stale_hours: 3 })
+
+    if (!error) {
+      const summary = (data ?? {}) as Record<string, unknown>
+      return NextResponse.json({
+        success: true,
+        message: 'Berhasil memproses pembebasan kuota dan kedaluwarsa pesanan.',
+        released_count: Number(summary.expiredReservations ?? 0),
+        expired_orders: Number(summary.expiredOrders ?? 0),
+        released_redemptions: Number(summary.releasedRedemptions ?? 0),
+        data: summary,
+      })
+    }
+
+    // Fallback (legacy): hanya menandai reservasi yang kedaluwarsa.
+    const { data: legacyData, error: legacyError } = await supabase
       .from('ticket_reservations')
       .update({
         status: 'EXPIRED',
@@ -41,19 +59,19 @@ export async function GET(request: Request) {
       .lt('reserved_until', now)
       .select()
 
-    if (error) {
-      throw new Error(`Failed to release expired reservations: ${error.message}`)
+    if (legacyError) {
+      throw new Error(`Failed to release expired reservations: ${legacyError.message}`)
     }
 
     return NextResponse.json({
       success: true,
-      message: `Berhasil memproses pembebasan kuota. Total dilepas: ${data?.length || 0} reservasi.`,
-      released_count: data?.length || 0,
-      data
+      message: `Berhasil memproses pembebasan kuota. Total dilepas: ${legacyData?.length || 0} reservasi.`,
+      released_count: legacyData?.length || 0,
+      data: legacyData
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json(
-      { success: false, message: error.message || 'Internal Server Error' },
+      { success: false, message: error instanceof Error ? error.message : 'Internal Server Error' },
       { status: 500 }
     )
   }

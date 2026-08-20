@@ -9,6 +9,7 @@ import {
   NotificationTypeIcon,
   formatTimestamp,
 } from "@/components/admin/notification-shared";
+import { PushNotificationCard } from "@/components/admin/push-notification-card";
 import { cn } from "@/lib/utils";
 
 type TabFilter = "ALL" | "UNREAD" | "READ";
@@ -91,6 +92,9 @@ export default function AdminNotificationsPage() {
           </button>
         </div>
       </div>
+
+      {/* Push notification setup */}
+      <PushNotificationCard />
 
       {/* Tabs */}
       <div className="flex items-center gap-1 rounded-xl border border-border bg-white p-1 w-fit">

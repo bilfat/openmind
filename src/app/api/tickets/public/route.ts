@@ -180,22 +180,35 @@ export async function GET(request: Request) {
         throw new Error(`Failed to calculate issued count: ${issuedError.message}`)
       }
 
-      // b. Sum active reservations
-      const { data: reservations, error: resError } = await catalogSupabase
-        .from('ticket_reservations')
-        .select('quantity')
-        .eq('ticket_type_id', ticket.id)
-        .eq('status', 'RESERVED')
-        .gt('reserved_until', now)
+      // b. Count pending tickets = tiket dari pesanan yang belum di-approve
+      // (WAITING_VERIFICATION) + pesanan baru yang belum upload bukti pembayaran
+      // (DRAFT / PENDING_PAYMENT). Konsisten dengan admin dashboard & fitur tiket.
+      const { data: pendingOrders, error: pendOrderErr } = await catalogSupabase
+        .from('orders')
+        .select('id')
+        .in('status', ['DRAFT', 'PENDING_PAYMENT', 'WAITING_VERIFICATION'])
 
-      if (resError) {
-        throw new Error(`Failed to fetch reservations: ${resError.message}`)
+      if (pendOrderErr) {
+        throw new Error(`Failed to fetch pending orders: ${pendOrderErr.message}`)
       }
 
-      const reservedCount = reservations.reduce((acc, curr) => acc + (curr.quantity || 0), 0)
+      const pendingOrderIds = (pendingOrders ?? []).map((o: { id: string }) => o.id)
+      let pendingCount = 0
+      if (pendingOrderIds.length) {
+        const { count, error: pendCountErr } = await catalogSupabase
+          .from('order_items')
+          .select('id', { count: 'exact', head: true })
+          .eq('ticket_type_id', ticket.id)
+          .in('order_id', pendingOrderIds)
+
+        if (pendCountErr) {
+          throw new Error(`Failed to calculate pending count: ${pendCountErr.message}`)
+        }
+        pendingCount = count ?? 0
+      }
 
       // c. Calculate remaining quota
-      const totalUsed = (issuedCount || 0) + reservedCount
+      const totalUsed = (issuedCount || 0) + pendingCount
       const remainingQuota = Math.max(0, ticket.quota - totalUsed)
 
       processedTickets.push({

@@ -611,7 +611,7 @@ export default function AdminDashboardPage() {
   const [now, setNow] = useState(() => Date.now());
   const [multiPaxOpen, setMultiPaxOpen] = useState(false);
   const [revenueDetailOpen, setRevenueDetailOpen] = useState(false);
-  const [revenueVisible, setRevenueVisible] = useState(true);
+  const [revenueVisible, setRevenueVisible] = useState(false);
 
   useEffect(() => {
     const hasActiveDraft = newOrdersList.some(

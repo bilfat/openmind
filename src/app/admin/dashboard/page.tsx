@@ -22,6 +22,7 @@ import {
   Loader2,
   Copy,
   Check,
+  Eye,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
@@ -64,8 +65,9 @@ interface RevenueBreakdownRow {
 
 interface RevenueDiscountRow {
   code: string;
-  count: number;
-  total: number;
+  order_code: string;
+  discount: number;
+  tickets: { name: string; unit_price: number; count: number }[];
 }
 
 interface DashboardStats {
@@ -552,28 +554,36 @@ function DiscountTable({ rows }: { rows: RevenueDiscountRow[] }) {
   if (rows.length === 0) {
     return <p className="py-3 text-center text-xs text-muted-foreground">Tidak ada data.</p>;
   }
-  const total = rows.reduce((sum, row) => sum + row.total, 0);
+  const total = rows.reduce((sum, row) => sum + row.discount, 0);
   return (
     <table className="w-full text-xs">
       <thead>
         <tr className="text-left text-[10px] uppercase tracking-wider text-muted-foreground border-b border-border">
           <th className="py-2">Kode Referal</th>
-          <th className="py-2 text-right">Dipakai</th>
-          <th className="py-2 text-right">Total Diskon</th>
+          <th className="py-2">Order</th>
+          <th className="py-2">Tiket</th>
+          <th className="py-2 text-right">Diskon</th>
         </tr>
       </thead>
       <tbody className="divide-y divide-border/70">
         {rows.map((row) => (
-          <tr key={row.code}>
+          <tr key={`${row.code}-${row.order_code}`}>
             <td className="py-2 font-mono font-bold text-navy-900">{row.code}</td>
-            <td className="py-2 text-right">{row.count}×</td>
+            <td className="py-2 font-mono text-muted-foreground">{row.order_code}</td>
+            <td className="py-2 text-navy-900">
+              {row.tickets.map((t) => (
+                <span key={`${t.name}-${t.unit_price}`} className="block">
+                  {t.name} ×{t.count} · {formatRupiah(t.unit_price)}
+                </span>
+              ))}
+            </td>
             <td className="py-2 text-right font-bold text-burgundy-600">
-              −{formatRupiah(row.total)}
+              −{formatRupiah(row.discount)}
             </td>
           </tr>
         ))}
         <tr className="border-t border-border">
-          <td colSpan={2} className="py-2 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+          <td colSpan={3} className="py-2 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
             Total Potongan
           </td>
           <td className="py-2 text-right font-bold text-burgundy-600">−{formatRupiah(total)}</td>
@@ -601,6 +611,7 @@ export default function AdminDashboardPage() {
   const [now, setNow] = useState(() => Date.now());
   const [multiPaxOpen, setMultiPaxOpen] = useState(false);
   const [revenueDetailOpen, setRevenueDetailOpen] = useState(false);
+  const [revenueVisible, setRevenueVisible] = useState(true);
 
   useEffect(() => {
     const hasActiveDraft = newOrdersList.some(
@@ -801,17 +812,21 @@ export default function AdminDashboardPage() {
             aria-hidden
             className="pointer-events-none absolute -right-8 -top-10 h-36 w-36 rounded-full bg-gold-500/15 blur-2xl"
           />
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-gold-400 sm:text-xs">
-              Total Revenue
-            </span>
-            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gold-500/15 text-gold-400 sm:h-9 sm:w-9">
-              <Wallet className="h-4 w-4 sm:h-[18px] sm:w-[18px]" />
-            </span>
-          </div>
-          <p className="mt-2 font-display text-2xl font-bold text-gold-300 sm:text-[26px]">
-            {loading ? "..." : formatRupiah(stats.totalRevenue)}
-          </p>
+<div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-gold-400 sm:text-xs">
+                Total Revenue
+              </span>
+              <span
+                className="flex h-8 w-8 items-center justify-center rounded-xl bg-gold-500/15 text-gold-400 sm:h-9 sm:w-9 cursor-pointer"
+                onClick={() => setRevenueVisible((v) => !v)}
+              >
+                <Wallet className="h-4 w-4 sm:h-[18px] sm:w-[18px]" />
+                <Eye className="h-4 w-4 sm:h-[18px] sm:w-[18px]" />
+              </span>
+            </div>
+            <p className="mt-2 font-display text-2xl font-bold text-gold-300 sm:text-[26px]">
+              {loading ? "..." : (revenueVisible ? formatRupiah(stats.totalRevenue) : "Rp —")}
+            </p>
           <div className="mt-2 flex items-start gap-1.5 text-[10px] leading-snug text-ivory-200/60">
             <Info className="mt-0.5 h-3 w-3 flex-shrink-0 opacity-70" />
             <span>

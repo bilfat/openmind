@@ -125,27 +125,69 @@ async function handleGetDashboardStats() {
     // order_items.line_total selalu harga penuh. Ambil redemption dari order
     // berstatus revenue (APPROVED / TICKET_ISSUED / WAITING_VERIFICATION) agar
     // jumlahnya cocok dengan selisih subtotal breakdown vs totalRevenue.
+    // Ditampilkan per order + jenis tiket yang ada di order tersebut.
     const { data: discountRows, error: discountErr } = await supabase
       .from('referral_redemptions')
-      .select('discount_amount, referral_codes(code), orders(order_code, status)')
+      .select('discount_amount, referral_codes(code), orders(id, order_code, status)')
       .in('status', ['RESERVED', 'CONSUMED'])
     if (discountErr) throw new Error(discountErr.message)
 
     const revenueStatusSet = new Set(REVENUE_STATUSES)
-    const discountMap = new Map<string, { code: string; count: number; total: number }>()
-    let totalDiscount = 0
+    const discountedOrders: Array<{
+      code: string
+      order_id: string
+      order_code: string
+      discount: number
+    }> = []
     for (const row of discountRows ?? []) {
       const order = Array.isArray(row.orders) ? row.orders[0] : row.orders
       if (!order || !revenueStatusSet.has(order.status)) continue
-      const code = (Array.isArray(row.referral_codes) ? row.referral_codes[0] : row.referral_codes)?.code ?? '-'
-      const amount = Number(row.discount_amount ?? 0)
-      totalDiscount += amount
-      const cur = discountMap.get(code) ?? { code, count: 0, total: 0 }
-      cur.count += 1
-      cur.total += amount
-      discountMap.set(code, cur)
+      discountedOrders.push({
+        code: (Array.isArray(row.referral_codes) ? row.referral_codes[0] : row.referral_codes)?.code ?? '-',
+        order_id: order.id,
+        order_code: order.order_code ?? '-',
+        discount: Number(row.discount_amount ?? 0),
+      })
     }
-    const discountBreakdown = [...discountMap.values()].sort((a, b) => b.total - a.total)
+    const totalDiscount = discountedOrders.reduce((sum, r) => sum + r.discount, 0)
+
+    let discountBreakdown: any[] = []
+    if (discountedOrders.length) {
+      const discountedOrderIds = [...new Set(discountedOrders.map((r) => r.order_id))]
+      const { data: discountItems, error: discountItemsErr } = await supabase
+        .from('order_items')
+        .select('order_id, unit_price, ticket_types(name)')
+        .in('order_id', discountedOrderIds)
+      if (discountItemsErr) throw new Error(discountItemsErr.message)
+
+      const itemsByOrder = new Map<string, any[]>()
+      for (const item of discountItems ?? []) {
+        const list = itemsByOrder.get(item.order_id) ?? []
+        list.push(item)
+        itemsByOrder.set(item.order_id, list)
+      }
+
+      discountBreakdown = discountedOrders
+        .map((r) => {
+          const tickets = new Map<string, { name: string; unit_price: number; count: number }>()
+          for (const item of itemsByOrder.get(r.order_id) ?? []) {
+            const t = Array.isArray(item.ticket_types) ? item.ticket_types[0] : item.ticket_types
+            const name = t?.name ?? '-'
+            const price = Number(item.unit_price ?? 0)
+            const key = `${name}|${price}`
+            const cur = tickets.get(key) ?? { name, unit_price: price, count: 0 }
+            cur.count += 1
+            tickets.set(key, cur)
+          }
+          return {
+            code: r.code,
+            order_code: r.order_code,
+            discount: r.discount,
+            tickets: [...tickets.values()],
+          }
+        })
+        .sort((a, b) => b.discount - a.discount)
+    }
 
     // Order yang membeli lebih dari 1 tiket (multi pax) untuk detail dashboard.
     const { data: issuedRows, error: issuedRowsError } = await supabase

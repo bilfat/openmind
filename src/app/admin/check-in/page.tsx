@@ -71,6 +71,7 @@ interface ScanResponseData {
   checkInId?: string;
   checkedInAt?: string;
   checkedInBy?: string;
+  operatorName?: string;
   method?: string;
   ticket?: ScanResponseTicket;
   orderCode?: string;
@@ -96,7 +97,7 @@ type ParticipantRow = {
   participant: { id: string; full_name: string; nim: string; faculty: string; email: string } | null;
   order: { order_code: string } | null;
   ticketTypeName: string;
-  checkIn: { id: string; checked_in_at: string; method: string } | null;
+  checkIn: { id: string; checked_in_at: string; method: string; checked_in_by: string | null; profiles?: { full_name: string; role: string } | null } | null;
   isCheckedIn: boolean;
 };
 
@@ -862,6 +863,12 @@ export default function AdminCheckInPage() {
                     <span className="opacity-70">Jenis Tiket:</span>
                     <span>{scanResult.data.ticket.ticketTypeName}</span>
                   </div>
+                  {scanResult.data.operatorName && (
+                    <div className="flex justify-between">
+                      <span className="opacity-70">Check-in oleh:</span>
+                      <span className="font-semibold text-gold-300">{scanResult.data.operatorName}</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -997,9 +1004,20 @@ export default function AdminCheckInPage() {
                       )}
                     </td>
                     <td className="px-5 py-4 text-muted-foreground whitespace-nowrap">
-                      {row.checkIn
-                        ? new Date(row.checkIn.checked_in_at).toLocaleString("id-ID", { dateStyle: "short", timeStyle: "short" })
-                        : "-"}
+                      {row.checkIn ? (
+                        <span>
+                          <span className="block">
+                            {new Date(row.checkIn.checked_in_at).toLocaleString("id-ID", { dateStyle: "short", timeStyle: "short" })}
+                          </span>
+                          {row.checkIn.profiles?.full_name && (
+                            <span className="text-[10px] text-gold-600 block font-semibold">
+                              {row.checkIn.method === "MANUAL" ? "Manual" : "Scan"} oleh {row.checkIn.profiles.full_name}
+                            </span>
+                          )}
+                        </span>
+                      ) : (
+                        "-"
+                      )}
                     </td>
                   </tr>
                 ))
@@ -1077,6 +1095,12 @@ export default function AdminCheckInPage() {
                   <span className="text-xs text-white/50">Tiket</span>
                   <span className="font-mono text-xs font-bold text-emerald-300">{scanPopup.data.ticket.ticketCode}</span>
                 </div>
+                {scanPopup.data.operatorName && (
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-white/50">Check-in oleh</span>
+                    <span className="font-semibold text-gold-300">{scanPopup.data.operatorName}</span>
+                  </div>
+                )}
               </div>
             )}
 

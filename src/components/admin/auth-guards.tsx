@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { LogIn } from "lucide-react";
 import { createClient } from "@/lib/supabase/browser";
 
-export function AccessDenied() {
+export function AccessDenied({ fallbackHref = "/admin/dashboard" }: { fallbackHref?: string }) {
   const router = useRouter();
 
   return (
@@ -15,11 +15,11 @@ export function AccessDenied() {
         <h2 className="mt-2 text-2xl font-bold text-navy-900">ACCESS DENIED</h2>
         <p className="mt-3 text-sm text-muted-foreground">Anda tidak memiliki izin untuk mengakses halaman ini.</p>
         <button
-          onClick={() => router.push("/admin/dashboard")}
+          onClick={() => router.push(fallbackHref)}
           className="mt-6 inline-flex items-center gap-2 rounded-xl bg-navy-900 px-5 py-2.5 text-xs font-bold text-ivory-100 transition-all hover:bg-gold-500 hover:text-navy-950"
         >
           <LogIn className="h-3.5 w-3.5" />
-          <span>Back to Dashboard</span>
+          <span>Kembali ke halaman utama</span>
         </button>
       </div>
     </div>
@@ -82,6 +82,8 @@ const SUPER_ADMIN_ROUTES = [
   "/admin/settings",
 ];
 
+const STAFF_ROUTES = ["/admin/walk-in", "/admin/check-in"];
+
 export function RoleGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [role, setRole] = useState<string | null>(null);
@@ -114,8 +116,15 @@ export function RoleGuard({ children }: { children: React.ReactNode }) {
   const requiresSuperAdmin = SUPER_ADMIN_ROUTES.some(
     (route) => pathname === route || pathname.startsWith(`${route}/`)
   );
+  const isStaffRoute = STAFF_ROUTES.some(
+    (route) => pathname === route || pathname.startsWith(`${route}/`)
+  );
 
   if (loading) return <div className="min-h-screen bg-[#F5F3EE]" aria-label="Checking permissions" />;
-  if (requiresSuperAdmin && role !== "SUPER_ADMIN") return <AccessDenied />;
+  if (role === "STAFF") {
+    if (!isStaffRoute) return <AccessDenied fallbackHref="/admin/walk-in" />;
+  } else if (requiresSuperAdmin && role !== "SUPER_ADMIN") {
+    return <AccessDenied />;
+  }
   return <>{children}</>;
 }

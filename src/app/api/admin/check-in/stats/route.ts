@@ -1,4 +1,4 @@
-import { requireActiveAdmin, jsonError } from '@/lib/admin-read-auth'
+import { requireActiveOperator, jsonError } from '@/lib/admin-read-auth'
 import { createClient } from '@supabase/supabase-js'
 
 function getAdminClient() {
@@ -8,7 +8,7 @@ function getAdminClient() {
 }
 
 export async function GET() {
-  const authResult = await requireActiveAdmin()
+  const authResult = await requireActiveOperator()
   if (!authResult.authorized) {
     return jsonError(authResult.message, authResult.status)
   }

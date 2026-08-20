@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server'
-import { requireActiveAdmin, jsonError, parsePagination } from '@/lib/admin-read-auth'
+import { requireActiveOperator, jsonError, parsePagination } from '@/lib/admin-read-auth'
 import { withTimeoutGuard } from '@/lib/timeout'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 async function handleGetParticipants(request: Request) {
-  const auth = await requireActiveAdmin()
+  const auth = await requireActiveOperator()
   if (!auth.authorized) return jsonError(auth.message, auth.status)
 
   const url = new URL(request.url)
@@ -28,7 +28,7 @@ async function handleGetParticipants(request: Request) {
          participants(id, full_name, nim, faculty, email),
          orders(order_code),
          ticket_types(name),
-         check_ins(id, checked_in_at, method, checked_in_by)`,
+         check_ins(id, checked_in_at, method, checked_in_by, profiles(full_name, role))`,
         { count: 'exact' }
       )
 

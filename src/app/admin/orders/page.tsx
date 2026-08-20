@@ -54,6 +54,8 @@ type ApiOrder = {
   has_ticket_email_job: boolean;
   participants: Array<{ full_name: string; email: string; nim: string; faculty: string; study_program: string; whatsapp?: string }>;
   ticket_types: string[];
+  created_by_name: string | null;
+  created_by_role: string | null;
   created_at: string;
 };
 
@@ -63,6 +65,8 @@ type AdminOrder = OrderItem & {
   source: string;
   issuedTicketCount: number;
   hasTicketEmailJob: boolean;
+  createdByName?: string | null;
+  createdByRole?: string | null;
   paymentProofUrl?: string;
   paymentDeadline?: number;
   orderParticipants?: OrderParticipantDetail[];
@@ -107,8 +111,17 @@ function toLegacyOrder(order: ApiOrder): AdminOrder {
     source: order.source,
     issuedTicketCount: order.issued_ticket_count,
     hasTicketEmailJob: order.has_ticket_email_job,
+    createdByName: order.created_by_name ?? null,
+    createdByRole: order.created_by_role ?? null,
     paymentDeadline: new Date(order.created_at).getTime() + PAYMENT_WINDOW_HOURS * 60 * 60 * 1000,
   };
+}
+
+function operatorLabel(source: string, name?: string | null, role?: string | null): string | null {
+  if (source !== "MANUAL") return null;
+  if (!name) return "Walk-in (Manual)";
+  const roleLabel = role === "STAFF" ? "Staff" : role === "SUPER_ADMIN" ? "Super Admin" : "Admin";
+  return `Walk-in oleh ${roleLabel} ${name}`;
 }
 
 function statusBadge(status: string) {
@@ -243,6 +256,9 @@ function OrdersPageContent() {
       setSelectedOrder({
         ...order,
         status: json.order?.status ?? order.status,
+        source: json.order?.source ?? order.source,
+        createdByName: json.order?.created_by_profile?.full_name ?? order.createdByName,
+        createdByRole: json.order?.created_by_profile?.role ?? order.createdByRole,
         customerName: primary?.fullName ?? order.customerName,
         email: primary?.email ?? order.email,
         whatsapp: primary?.whatsapp ?? order.whatsapp,
@@ -545,6 +561,11 @@ function OrdersPageContent() {
                     </td>
                     <td className="px-5 py-4 font-mono font-bold text-navy-900 whitespace-nowrap border-b border-border/70 border-l border-border/70">
                       {order.orderId}
+                      {operatorLabel(order.source, order.createdByName, order.createdByRole) && (
+                        <span className="block font-sans text-[9px] font-semibold uppercase tracking-wide text-gold-600 mt-0.5">
+                          {operatorLabel(order.source, order.createdByName, order.createdByRole)}
+                        </span>
+                      )}
                     </td>
                     <td className="px-5 py-4 border-b border-border/70 border-l border-border/70">
                       <strong className="block text-navy-900 font-bold">
@@ -740,6 +761,14 @@ function OrdersPageContent() {
                 <span className="text-muted-foreground font-semibold uppercase text-[10px]">Jumlah Pemesan</span>
                 <span className="text-navy-900 font-semibold">{selectedOrder.orderParticipants?.length ?? selectedOrder.quantity}</span>
               </div>
+              {operatorLabel(selectedOrder.source, selectedOrder.createdByName, selectedOrder.createdByRole) && (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-muted-foreground font-semibold uppercase text-[10px]">Dibuat oleh</span>
+                  <span className="text-gold-600 font-bold">
+                    {operatorLabel(selectedOrder.source, selectedOrder.createdByName, selectedOrder.createdByRole)}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* All Participants */}

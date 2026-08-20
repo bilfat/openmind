@@ -266,8 +266,8 @@ export async function DELETE(
     return jsonError('Akun Super Admin tidak dapat dihapus via API ini.', 403)
   }
 
-  if (targetProfile.role !== 'ADMIN') {
-    return jsonError('Hanya akun dengan role ADMIN yang dapat dihapus.', 400)
+  if (!['ADMIN', 'STAFF'].includes(targetProfile.role)) {
+    return jsonError('Hanya akun dengan role ADMIN atau STAFF yang dapat dihapus.', 400)
   }
 
   try {

@@ -1,6 +1,6 @@
 ﻿import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { requireActiveAdmin, jsonError } from '@/lib/admin-read-auth'
+import { requireActiveOperator, jsonError } from '@/lib/admin-read-auth'
 import { broadcastToAllAdmins } from '@/lib/notifications'
 import { z } from 'zod'
 import { triggerEmailWorker } from '@/lib/tickets/trigger-email-worker'
@@ -33,8 +33,8 @@ const WalkInSchema = z.object({
 // ── POST Handler ────────────────────────────────────────────────────────────
 
 export async function POST(req: Request) {
-  // 1. Auth gate: require active ADMIN or SUPER_ADMIN
-  const auth = await requireActiveAdmin()
+  // 1. Auth gate: require active operator (ADMIN / SUPER_ADMIN / STAFF)
+  const auth = await requireActiveOperator()
   if (!auth.authorized) return jsonError(auth.message, auth.status)
 
   try {
@@ -118,16 +118,52 @@ export async function POST(req: Request) {
       console.error('Walk-in issued tickets fetch failed (fail-open):', issuedError)
     }
 
-    // 6. Notification (FAIL-OPEN): ORDER_NEW for all active admins — only after RPC success
+    // 6. Notification (FAIL-OPEN): ORDER_NEW for all active admins — only after
+    // RPC success. Include ticket summary, subtotal & the operator name so the
+    // admin/super admin immediately sees who processed the walk-in sale.
+    let operatorName = 'Admin'
+    let ticketSummary = ''
+
+    try {
+      const { data: operatorProfile } = await supabaseAdmin
+        .from('profiles')
+        .select('full_name, role')
+        .eq('id', auth.userId)
+        .maybeSingle()
+      if (operatorProfile?.full_name) {
+        const roleLabel = operatorProfile.role === 'STAFF' ? 'Staff' : operatorProfile.role === 'SUPER_ADMIN' ? 'Super Admin' : 'Admin'
+        operatorName = `${roleLabel} ${operatorProfile.full_name}`
+      }
+    } catch (operatorError: any) {
+      console.error('Walk-in operator name fetch failed (fail-open):', operatorError)
+    }
+
+    try {
+      const ticketIds = ticketSelections.map((s) => s.ticketId)
+      const { data: ticketRows } = await supabaseAdmin
+        .from('ticket_types')
+        .select('id, name')
+        .in('id', ticketIds)
+      const nameById = new Map((ticketRows || []).map((t) => [t.id, t.name]))
+      ticketSummary = ticketSelections
+        .map((s) => `${nameById.get(s.ticketId) ?? 'Tiket'} ×${s.quantity}`)
+        .join(', ')
+    } catch (ticketError: any) {
+      console.error('Walk-in ticket summary fetch failed (fail-open):', ticketError)
+    }
+
     await broadcastToAllAdmins({
       type: 'ORDER_NEW',
-      title: 'Pesanan Baru',
-      message: `Pesanan baru ${rpcResult.orderCode} telah dibuat.`,
+      title: 'Walk-In Sale Baru',
+      message: `Pesanan ${rpcResult.orderCode} • ${ticketSummary} • Rp ${Number(rpcResult.totalAmount).toLocaleString('id-ID')} • oleh ${operatorName}.`,
       link: '/admin/orders',
       metadata: {
         order_id: rpcResult.orderId,
         order_code: rpcResult.orderCode,
         created_by: auth.userId,
+        operator_name: operatorName,
+        ticket_summary: ticketSummary,
+        total_amount: rpcResult.totalAmount,
       },
       client: supabaseAdmin,
     })

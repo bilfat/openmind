@@ -33,6 +33,7 @@ interface NavItem {
   href: string;
   icon: React.ElementType;
   superAdminOnly?: boolean;
+  staffOnly?: boolean;
 }
 
 const navGroups: NavGroup[] = [
@@ -42,8 +43,8 @@ const navGroups: NavGroup[] = [
       { label: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
       { label: "Orders", href: "/admin/orders", icon: ShoppingCart },
       { label: "Participants", href: "/admin/participants", icon: Users },
-      { label: "Walk-In Sales", href: "/admin/walk-in", icon: ShoppingCart },
-      { label: "Check-in", href: "/admin/check-in", icon: ScanLine },
+      { label: "Walk-In Sales", href: "/admin/walk-in", icon: ShoppingCart, staffOnly: true },
+      { label: "Check-in", href: "/admin/check-in", icon: ScanLine, staffOnly: true },
       { label: "Notifications", href: "/admin/notifications", icon: Bell },
     ],
   },
@@ -73,7 +74,7 @@ export function AdminSidebar({ mobileOpen = false, onMobileClose }: AdminSidebar
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [role, setRole] = useState<string | null>(null);
   const { unreadCount } = useNotifications();
   const supabase = createClient();
 
@@ -89,7 +90,7 @@ export function AdminSidebar({ mobileOpen = false, onMobileClose }: AdminSidebar
         .single();
 
       if (profile) {
-        setIsSuperAdmin(profile.role === "SUPER_ADMIN");
+        setRole(profile.role);
       }
     }
     fetchUserRole();
@@ -105,11 +106,20 @@ export function AdminSidebar({ mobileOpen = false, onMobileClose }: AdminSidebar
     router.push("/admin/login");
   };
 
-  // Filter groups and items based on role
+  // Filter groups and items based on role:
+  // - STAFF: only walk-in & check-in (staffOnly items)
+  // - ADMIN: all non-super-admin items
+  // - SUPER_ADMIN: everything
+  const isStaff = role === "STAFF";
+  const isSuperAdmin = role === "SUPER_ADMIN";
   const filteredGroups = navGroups
     .map((group) => ({
       ...group,
-      items: group.items.filter((item) => !item.superAdminOnly || isSuperAdmin),
+      items: group.items.filter((item) => {
+        if (isStaff) return !!item.staffOnly;
+        if (item.superAdminOnly) return isSuperAdmin;
+        return true;
+      }),
     }))
     .filter((group) => group.items.length > 0);
 

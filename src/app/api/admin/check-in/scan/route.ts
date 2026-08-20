@@ -1,7 +1,6 @@
-import { requireActiveAdmin, jsonError } from '@/lib/admin-read-auth'
+import { requireActiveOperator, jsonError } from '@/lib/admin-read-auth'
 import { createClient } from '@supabase/supabase-js'
 import { writeAuditLog } from '@/lib/audit'
-import { broadcastToAllAdmins } from '@/lib/notifications'
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -10,7 +9,7 @@ function getAdminClient() {
 }
 
 export async function POST(req: Request) {
-  const authResult = await requireActiveAdmin()
+  const authResult = await requireActiveOperator()
   if (!authResult.authorized) {
     return jsonError(authResult.message, authResult.status)
   }
@@ -89,25 +88,6 @@ export async function POST(req: Request) {
     }
     const httpStatus = statusMap[rpcData.status] || (rpcData.success ? 200 : 400)
 
-    // Notification (FAIL-OPEN): CHECK_IN for all active admins — only on successful check-in
-    if (rpcData.status === 'SUCCESS' || rpcData.success === true) {
-      await broadcastToAllAdmins({
-        type: 'CHECK_IN',
-        title: 'Peserta Check-In',
-        message: rpcData.data?.orderCode
-          ? `Check-in order ${rpcData.data.orderCode} (${rpcData.data.checkedInCount ?? 1} peserta).`
-          : 'Seorang peserta telah melakukan check-in.',
-        link: '/admin/check-in',
-        metadata: {
-          ticket_id: rpcData.data?.ticket?.id,
-          ticket_code: rpcData.data?.ticket?.ticketCode ?? rpcData.data?.orderCode,
-          check_in_id: rpcData.data?.checkInId,
-          method: rpcData.data?.method || method,
-        },
-        client: supabaseAdmin,
-      })
-    }
-
     return Response.json(rpcData, { status: httpStatus })
   }
 
@@ -143,20 +123,6 @@ export async function POST(req: Request) {
         NOT_FOUND: 404,
       }
       const orderHttpStatus = orderStatusMap[orderRes.data.status] || (orderRes.data.success ? 200 : 400)
-
-      if (orderRes.data.status === 'SUCCESS' || orderRes.data.success === true) {
-        await broadcastToAllAdmins({
-          type: 'CHECK_IN',
-          title: 'Peserta Check-In',
-          message: `Check-in order ${orderRes.data.data?.orderCode ?? identifier} (${orderRes.data.data?.checkedInCount ?? 1} peserta).`,
-          link: '/admin/check-in',
-          metadata: {
-            ticket_code: orderRes.data.data?.orderCode ?? identifier,
-            method: 'MANUAL',
-          },
-          client: supabaseAdmin,
-        })
-      }
 
       return Response.json(orderRes.data, { status: orderHttpStatus })
     }
@@ -279,22 +245,6 @@ export async function POST(req: Request) {
     entityType: 'issued_tickets',
     entityId: ticket.id,
     metadata: {
-      ticket_code: ticket.ticket_code,
-      check_in_id: insertedCheckIn.id,
-      method,
-    },
-    client: supabaseAdmin,
-  })
-
-  // Notification (FAIL-OPEN): CHECK_IN for all active admins — after successful
-  // check-in AND audit log write succeed.
-  await broadcastToAllAdmins({
-    type: 'CHECK_IN',
-    title: 'Peserta Check-In',
-    message: 'Seorang peserta telah melakukan check-in.',
-    link: '/admin/check-in',
-    metadata: {
-      ticket_id: ticket.id,
       ticket_code: ticket.ticket_code,
       check_in_id: insertedCheckIn.id,
       method,

@@ -19,6 +19,17 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     if (orderQuery.error) throw new Error(orderQuery.error.message)
     if (!orderQuery.data) return jsonError('Order tidak ditemukan.', 404)
 
+    // Resolve the operator (admin/staff) who created walk-in / manual orders
+    let createdByProfile: { full_name: string; role: string } | null = null
+    if (orderQuery.data.created_by) {
+      const { data: opProfile } = await supabase
+        .from('profiles')
+        .select('full_name, role')
+        .eq('id', orderQuery.data.created_by)
+        .maybeSingle()
+      if (opProfile) createdByProfile = opProfile
+    }
+
     const [paymentsQuery, referralQuery, itemsQuery] = await Promise.all([
       supabase.from('payments').select('id, order_id, payment_method, amount, status, proof_path, proof_file_name, proof_mime_type, proof_size_bytes, verified_by, verified_at, rejection_reason, created_at, updated_at').eq('order_id', id).order('created_at', { ascending: false }).order('id', { ascending: false }),
       supabase.from('referral_redemptions').select('id, discount_amount, status, reserved_at, consumed_at, released_at, created_at, referral_codes(id, code, discount_type, discount_value, max_discount)').eq('order_id', id).order('created_at', { ascending: false }),
@@ -53,7 +64,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       return { ...p, proof_url: proofUrl };
     }));
 
-    return NextResponse.json({ success: true, order: orderQuery.data, payments: paymentsWithUrls, referral: referralQuery.data?.[0] ?? null, order_items: orderItems, email_jobs: emailQuery.data ?? [] })
+    return NextResponse.json({ success: true, order: { ...orderQuery.data, created_by_profile: createdByProfile }, payments: paymentsWithUrls, referral: referralQuery.data?.[0] ?? null, order_items: orderItems, email_jobs: emailQuery.data ?? [] })
   } catch (error) {
     console.error('Admin order detail read error:', error)
     return jsonError('Gagal mengambil detail pesanan.', 500)

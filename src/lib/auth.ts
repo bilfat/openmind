@@ -1,6 +1,6 @@
 "use client";
 
-export type Role = "ADMIN" | "SUPER_ADMIN";
+export type Role = "ADMIN" | "SUPER_ADMIN" | "STAFF";
 export type AccountStatus = "ACTIVE" | "INACTIVE";
 
 export type AuthUser = {

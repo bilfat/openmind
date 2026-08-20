@@ -74,8 +74,32 @@ export default function AdminLoginPage() {
         return;
       }
 
+      // Fetch role to pick the right landing page (staff only has walk-in & check-in)
+      const { data: roleProfile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+      const role = roleProfile?.role ?? "ADMIN";
+
+      const returnTo = new URLSearchParams(window.location.search).get("returnTo") || "";
+      const returnToAllowed =
+        returnTo.startsWith("/admin/") &&
+        (role === "STAFF"
+          ? returnTo === "/admin/walk-in" ||
+            returnTo === "/admin/check-in" ||
+            returnTo.startsWith("/admin/walk-in/") ||
+            returnTo.startsWith("/admin/check-in/")
+          : true);
+
+      const target = returnToAllowed
+        ? returnTo
+        : role === "STAFF"
+          ? "/admin/walk-in"
+          : "/admin/dashboard";
+
       // Redirect on successful login
-      router.push("/admin/dashboard");
+      router.push(target);
     } catch (err: any) {
       setIsLoading(false);
       setError(err.message || "Terjadi kesalahan sistem.");

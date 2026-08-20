@@ -63,7 +63,7 @@ export async function GET(req: Request) {
     if (statusFilter && ['ACTIVE', 'INACTIVE'].includes(statusFilter)) {
       query = query.eq('status', statusFilter)
     }
-    if (roleFilter && ['ADMIN', 'SUPER_ADMIN'].includes(roleFilter)) {
+    if (roleFilter && ['ADMIN', 'SUPER_ADMIN', 'STAFF'].includes(roleFilter)) {
       query = query.eq('role', roleFilter)
     }
 
@@ -147,9 +147,13 @@ export async function POST(req: Request) {
 
   const { email, password, full_name, role } = body
 
-  // Guardrail 5: Role Safety - Prevent creating SUPER_ADMIN
-  if (role && role.toUpperCase() === 'SUPER_ADMIN') {
+  // Guardrail 5: Role Safety - Prevent creating SUPER_ADMIN, allow ADMIN / STAFF
+  const targetRole = (role ?? 'ADMIN').toString().toUpperCase()
+  if (targetRole === 'SUPER_ADMIN') {
     return jsonError('Pembuatan akun Super Admin tidak diizinkan via API ini.', 400)
+  }
+  if (!['ADMIN', 'STAFF'].includes(targetRole)) {
+    return jsonError('Role tidak valid. Harus ADMIN atau STAFF.', 400)
   }
 
   if (!email || typeof email !== 'string' || !email.includes('@')) {
@@ -190,7 +194,7 @@ export async function POST(req: Request) {
       .from('profiles')
       .update({
         full_name: sanitizedFullName,
-        role: 'ADMIN',
+        role: targetRole,
         status: 'ACTIVE',
         updated_at: new Date().toISOString(),
       })

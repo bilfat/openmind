@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { requireActiveAdmin, jsonError } from '@/lib/admin-read-auth'
+import { requireActiveOperator, jsonError } from '@/lib/admin-read-auth'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -14,7 +14,7 @@ import { requireActiveAdmin, jsonError } from '@/lib/admin-read-auth'
 //   - now within sales window
 //   - remaining quota > 0
 export async function GET() {
-  const auth = await requireActiveAdmin()
+  const auth = await requireActiveOperator()
   if (!auth.authorized) return jsonError(auth.message, auth.status)
 
   const supabase = auth.supabase

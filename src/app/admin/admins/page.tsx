@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import {
-  Plus, Edit, Trash2, Shield, ShieldCheck,
+  Plus, Edit, Trash2, Shield, ShieldCheck, UserCheck,
   Search, X, Eye, EyeOff, Loader2, UserCog,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -13,7 +13,7 @@ interface AdminProfile {
   id: string;
   full_name: string;
   email: string;
-  role: "SUPER_ADMIN" | "ADMIN";
+  role: "SUPER_ADMIN" | "ADMIN" | "STAFF";
   status: "ACTIVE" | "INACTIVE";
   created_at: string;
   updated_at: string;
@@ -23,6 +23,7 @@ export default function AdminManagementPage() {
   const [admins, setAdmins] = useState<AdminProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState("");
   const { success, error, warning } = useToast();
 
   // Modals
@@ -36,6 +37,7 @@ export default function AdminManagementPage() {
   const [formName, setFormName] = useState("");
   const [formEmail, setFormEmail] = useState("");
   const [formPassword, setFormPassword] = useState("");
+  const [formRole, setFormRole] = useState<"ADMIN" | "STAFF">("ADMIN");
   const [formStatus, setFormStatus] = useState<"ACTIVE" | "INACTIVE">("ACTIVE");
   const [showFormPassword, setShowFormPassword] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -45,6 +47,7 @@ export default function AdminManagementPage() {
     try {
       const params = new URLSearchParams({ page: "1", limit: "50" });
       if (searchQuery.trim()) params.set("search", searchQuery.trim());
+      if (roleFilter) params.set("role", roleFilter);
 
       const res = await fetch(`/api/admin/admins?${params.toString()}`);
       const json = await res.json();
@@ -64,7 +67,7 @@ export default function AdminManagementPage() {
     } finally {
       setLoading(false);
     }
-  }, [searchQuery, error]);
+  }, [searchQuery, roleFilter, error]);
 
   useEffect(() => {
     fetchAdmins();
@@ -84,6 +87,7 @@ export default function AdminManagementPage() {
           full_name: formName.trim(),
           email: formEmail.trim(),
           password: formPassword,
+          role: formRole,
         }),
       });
 
@@ -98,6 +102,7 @@ export default function AdminManagementPage() {
       setFormName("");
       setFormEmail("");
       setFormPassword("");
+      setFormRole("ADMIN");
       fetchAdmins();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Gagal membuat admin baru.";
@@ -204,6 +209,7 @@ export default function AdminManagementPage() {
             setFormName("");
             setFormEmail("");
             setFormPassword("");
+            setFormRole("ADMIN");
             setShowInviteModal(true);
           }}
           className="inline-flex items-center gap-2 rounded-2xl bg-gold-500 px-5 py-3 text-xs font-bold text-navy-955 hover:bg-gold-400 shadow-md transition"
@@ -224,6 +230,19 @@ export default function AdminManagementPage() {
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full rounded-xl border bg-secondary/20 py-2 pl-9 pr-4 text-xs"
           />
+        </div>
+
+        <div className="w-full sm:w-52">
+          <select
+            value={roleFilter}
+            onChange={(e) => setRoleFilter(e.target.value)}
+            className="w-full rounded-xl border bg-secondary/20 px-3 py-2 text-xs text-navy-900"
+          >
+            <option value="">Semua Role</option>
+            <option value="SUPER_ADMIN">SUPER ADMIN</option>
+            <option value="ADMIN">ADMIN</option>
+            <option value="STAFF">STAFF</option>
+          </select>
         </div>
       </div>
 
@@ -262,8 +281,15 @@ export default function AdminManagementPage() {
                     </td>
                     <td className="p-4 text-navy-900/80">{adm.email}</td>
                     <td className="p-4 font-semibold">
-                      <span className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold", adm.role === "SUPER_ADMIN" ? "bg-gold-500/10 text-gold-600 border border-gold-500/20" : "bg-navy-100 text-navy-900")}>
-                        {adm.role === "SUPER_ADMIN" ? <ShieldCheck className="h-3 w-3" /> : <Shield className="h-3 w-3" />}
+                      <span className={cn(
+                        "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold",
+                        adm.role === "SUPER_ADMIN"
+                          ? "bg-gold-500/10 text-gold-600 border border-gold-500/20"
+                          : adm.role === "STAFF"
+                            ? "bg-emerald-500/10 text-emerald-700 border border-emerald-500/20"
+                            : "bg-navy-100 text-navy-900"
+                      )}>
+                        {adm.role === "SUPER_ADMIN" ? <ShieldCheck className="h-3 w-3" /> : adm.role === "STAFF" ? <UserCheck className="h-3 w-3" /> : <Shield className="h-3 w-3" />}
                         <span>{adm.role}</span>
                       </span>
                     </td>
@@ -333,6 +359,21 @@ export default function AdminManagementPage() {
                   onChange={(e) => setFormEmail(e.target.value)}
                   className="w-full rounded-xl border bg-secondary/20 px-3.5 py-2.5 text-sm"
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-navy-900 mb-1">Role Akun *</label>
+                <select
+                  value={formRole}
+                  onChange={(e) => setFormRole(e.target.value as "ADMIN" | "STAFF")}
+                  className="w-full rounded-xl border bg-secondary/20 px-3.5 py-2.5 text-sm"
+                >
+                  <option value="ADMIN">Admin (Full akses dashboard)</option>
+                  <option value="STAFF">Staff (Hanya Walk-In Sales & Check-in)</option>
+                </select>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Staff hanya bisa mengakses fitur Walk-In Sales dan Check-in.
+                </p>
               </div>
 
               <div>

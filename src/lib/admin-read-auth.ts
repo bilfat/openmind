@@ -3,6 +3,9 @@ import { createClient } from '@/lib/supabase/server'
 export const DEFAULT_PAGE_SIZE = 25
 export const MAX_PAGE_SIZE = 100
 
+export const OPERATOR_ROLES = ['ADMIN', 'SUPER_ADMIN', 'STAFF'] as const
+export type OperatorRole = (typeof OPERATOR_ROLES)[number]
+
 export type AdminReadAuth =
   | { authorized: true; supabase: Awaited<ReturnType<typeof createClient>>; userId: string }
   | { authorized: false; status: 401 | 403; message: string }
@@ -22,6 +25,32 @@ export async function requireActiveAdmin(): Promise<AdminReadAuth> {
     .maybeSingle()
 
   if (profileError || !profile || profile.status !== 'ACTIVE' || !['ADMIN', 'SUPER_ADMIN'].includes(profile.role)) {
+    return { authorized: false, status: 403, message: 'Forbidden: Anda tidak memiliki akses.' }
+  }
+
+  return { authorized: true, supabase, userId: user.id }
+}
+
+/**
+ * Requires an ACTIVE operator (ADMIN / SUPER_ADMIN / STAFF).
+ * Used only for operational endpoints (walk-in sales & check-in) that STAFF
+ * members are allowed to use. Read/management endpoints keep requireActiveAdmin.
+ */
+export async function requireActiveOperator(): Promise<AdminReadAuth> {
+  const supabase = await createClient()
+  const { data: { user }, error } = await supabase.auth.getUser()
+
+  if (error || !user) {
+    return { authorized: false, status: 401, message: 'Unauthorized: Sesi tidak ditemukan.' }
+  }
+
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('role, status')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  if (profileError || !profile || profile.status !== 'ACTIVE' || !OPERATOR_ROLES.includes(profile.role as OperatorRole)) {
     return { authorized: false, status: 403, message: 'Forbidden: Anda tidak memiliki akses.' }
   }
 

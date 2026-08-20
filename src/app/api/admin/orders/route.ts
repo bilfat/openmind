@@ -138,7 +138,7 @@ async function handleGetOrders(request: Request) {
 
     let query = supabase
       .from('orders')
-      .select('id, order_code, event_id, status, source, subtotal, discount_total, total_amount, currency, created_at, updated_at, events(id, name)', { count: 'exact' })
+      .select('id, order_code, event_id, status, source, subtotal, discount_total, total_amount, currency, created_by, created_at, updated_at, events(id, name)', { count: 'exact' })
     if (statusList.length) query = query.in('status', statusList)
     else query = query.not('status', 'in', `(${HIDDEN_STATUSES.join(',')})`)
     if (matchingOrderIds) query = query.in('id', matchingOrderIds)
@@ -153,6 +153,7 @@ async function handleGetOrders(request: Request) {
     let summaries: Record<string, { participants: any[]; ticketTypes: string[] }> = {}
     let issuedCounts: Record<string, number> = {}
     let ticketEmailJobCounts: Record<string, number> = {}
+    let operatorNames: Record<string, { full_name: string; role: string }> = {}
     if (orderIds.length) {
       const itemsQuery = await supabase
         .from('order_items')
@@ -168,6 +169,20 @@ async function handleGetOrders(request: Request) {
         acc[item.order_id] = current
         return acc
       }, {} as Record<string, { participants: any[]; ticketTypes: string[] }>)
+
+      // Resolve operator (admin/staff) names for walk-in / manual orders
+      const creatorIds = [...new Set((data ?? []).map((o: any) => o.created_by).filter(Boolean))] as string[]
+      if (creatorIds.length) {
+        const profilesQuery = await supabase
+          .from('profiles')
+          .select('id, full_name, role')
+          .in('id', creatorIds)
+        if (profilesQuery.error) throw new Error(profilesQuery.error.message)
+        operatorNames = (profilesQuery.data ?? []).reduce((acc, p: any) => {
+          acc[p.id] = { full_name: p.full_name, role: p.role }
+          return acc
+        }, {} as Record<string, { full_name: string; role: string }>)
+      }
 
       const [issuedQuery, emailQuery] = await Promise.all([
         supabase.from('issued_tickets').select('id, order_id').in('order_id', orderIds),
@@ -187,6 +202,7 @@ async function handleGetOrders(request: Request) {
 
     const items = (data ?? []).map((order: any) => {
       const summary = summaries[order.id] ?? { participants: [], ticketTypes: [] }
+      const operator = operatorNames[order.created_by]
       return {
         id: order.id,
         order_code: order.order_code,
@@ -202,6 +218,9 @@ async function handleGetOrders(request: Request) {
         ticket_types: summary.ticketTypes,
         issued_ticket_count: issuedCounts[order.id] ?? 0,
         has_ticket_email_job: (ticketEmailJobCounts[order.id] ?? 0) > 0,
+        created_by: order.created_by ?? null,
+        created_by_name: operator ? operator.full_name : null,
+        created_by_role: operator ? operator.role : null,
         created_at: order.created_at,
         updated_at: order.updated_at,
       }

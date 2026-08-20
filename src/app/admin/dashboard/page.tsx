@@ -36,12 +36,32 @@ interface DashboardOrder {
   participants?: Array<{ full_name?: string }>;
 }
 
+interface MultiPaxTicketItem {
+  ticket_code: string;
+  full_name: string;
+  nim: string;
+  email: string;
+  whatsapp: string;
+  faculty: string;
+  ticket_name: string;
+}
+
+interface MultiPaxOrder {
+  order_id: string;
+  order_code: string;
+  created_at: string | null;
+  ticketCount: number;
+  items: MultiPaxTicketItem[];
+}
+
 interface DashboardStats {
   totalRevenue: number;
   totalOrders: number;
   pendingVerification: number;
-  approvedOrders: number;
+  issuedOrders: number;
+  issuedTicketOrders: number;
   newOrders: number;
+  multiPaxOrders: MultiPaxOrder[];
 }
 
 interface SummaryTicket {
@@ -127,8 +147,10 @@ const INITIAL_STATS: DashboardStats = {
   totalRevenue: 0,
   totalOrders: 0,
   pendingVerification: 0,
-  approvedOrders: 0,
+  issuedOrders: 0,
+  issuedTicketOrders: 0,
   newOrders: 0,
+  multiPaxOrders: [],
 };
 
 const NEW_ORDERS_STATUS = "DRAFT,PENDING_PAYMENT";
@@ -185,6 +207,7 @@ function StatCard({
   iconClass,
   note,
   href,
+  onAction,
 }: {
   title: string;
   value: React.ReactNode;
@@ -192,6 +215,7 @@ function StatCard({
   iconClass: string;
   note: string;
   href?: string;
+  onAction?: () => void;
 }) {
   return (
     <div className="group relative flex flex-col justify-between rounded-2xl border border-border bg-white p-4 sm:p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
@@ -215,7 +239,7 @@ function StatCard({
         <Info className="mt-0.5 h-3 w-3 flex-shrink-0 opacity-70" />
         <span>{note}</span>
       </div>
-      {href && (
+      {href && !onAction && (
         <Link
           href={href}
           className="mt-3 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-gold-600 hover:text-gold-500 hover:underline"
@@ -223,6 +247,16 @@ function StatCard({
           Lihat Detail
           <ArrowRight className="h-3 w-3" />
         </Link>
+      )}
+      {onAction && (
+        <button
+          type="button"
+          onClick={onAction}
+          className="mt-3 inline-flex items-center gap-1 self-start text-[10px] font-bold uppercase tracking-wide text-gold-600 hover:text-gold-500 hover:underline cursor-pointer"
+        >
+          Lihat Detail
+          <ArrowRight className="h-3 w-3" />
+        </button>
       )}
     </div>
   );
@@ -472,6 +506,7 @@ export default function AdminDashboardPage() {
   const [busy, setBusy] = useState(false);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  const [multiPaxOpen, setMultiPaxOpen] = useState(false);
 
   useEffect(() => {
     const hasActiveDraft = newOrdersList.some(
@@ -704,12 +739,17 @@ export default function AdminDashboardPage() {
           href="/admin/orders?status=WAITING_VERIFICATION"
         />
         <StatCard
-          title="Pesanan Disetujui"
-          value={loading ? "..." : stats.approvedOrders}
-          icon={CheckCircle2}
+          title="Tiket Telah Terbit"
+          value={loading ? "..." : stats.issuedOrders}
+          icon={Ticket}
           iconClass="bg-emerald-500/10 text-emerald-600"
-          note="Pesanan berstatus disetujui"
-          href="/admin/orders?status=APPROVED"
+          note={
+            stats.issuedOrders !== stats.issuedTicketOrders
+              ? `${stats.issuedOrders} tiket dari ${stats.issuedTicketOrders} order (${stats.multiPaxOrders.length} order beli >1 pax)`
+              : "Dihitung per tiket yang telah terbit"
+          }
+          href={stats.issuedOrders !== stats.issuedTicketOrders ? undefined : "/admin/orders?status=TICKET_ISSUED"}
+          onAction={stats.issuedOrders !== stats.issuedTicketOrders ? () => setMultiPaxOpen(true) : undefined}
         />
         <StatCard
           title="Pesanan Baru"
@@ -824,7 +864,7 @@ export default function AdminDashboardPage() {
                 })}
                 <p className="flex items-start gap-1 pt-0.5 text-[9px] leading-snug text-muted-foreground sm:text-[10px]">
                   <Info className="mt-0.5 h-3 w-3 flex-shrink-0 opacity-70" />
-                  <span>Pending = pesanan baru belum upload bukti pembayaran.</span>
+                  <span>Pending = pesanan baru yang belum upload bukti pembayaran dan belum di approve.</span>
                 </p>
               </div>
             )}
@@ -1200,6 +1240,81 @@ export default function AdminDashboardPage() {
               >
                 {busy ? "Memproses..." : "Konfirmasi Tolak"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Order Multi Pax (beli >1 tiket dalam 1 order) ───────── */}
+      {multiPaxOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-2xl rounded-3xl bg-white shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-border px-5 sm:px-7 py-4">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-gold-600">
+                  ORDER MULTI PAX
+                </span>
+                <h3 className="font-display text-lg sm:text-xl font-bold text-navy-900">
+                  Order dengan Tiket Lebih dari 1 Pax
+                </h3>
+                <p className="text-[11px] text-muted-foreground">
+                  {stats.multiPaxOrders.length} order · {stats.multiPaxOrders.reduce((sum, o) => sum + o.ticketCount, 0)} tiket
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMultiPaxOpen(false)}
+                className="rounded-full p-2 text-muted-foreground hover:bg-secondary transition-colors"
+                aria-label="Tutup"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 sm:p-7 space-y-4">
+              {stats.multiPaxOrders.length === 0 ? (
+                <p className="py-8 text-center text-xs text-muted-foreground">
+                  Tidak ada order multi pax.
+                </p>
+              ) : (
+                stats.multiPaxOrders.map((order) => (
+                  <div key={order.order_id} className="rounded-2xl border border-border bg-secondary/20 p-4 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-mono text-sm font-bold text-navy-900 truncate">{order.order_code}</p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {order.created_at ? formatTime(order.created_at) : "-"}
+                        </p>
+                      </div>
+                      <span className="flex-shrink-0 rounded-full bg-gold-500/15 px-2.5 py-1 text-[10px] font-bold text-gold-700">
+                        {order.ticketCount} pax
+                      </span>
+                    </div>
+
+                    <div className="space-y-2">
+                      {order.items.map((item) => (
+                        <div
+                          key={item.ticket_code}
+                          className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 rounded-xl border border-border bg-white px-3 py-2"
+                        >
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-navy-900">{item.full_name}</p>
+                            <p className="text-[10px] text-muted-foreground truncate">
+                              {item.nim} · {item.faculty}
+                            </p>
+                          </div>
+                          <div className="sm:text-right">
+                            <p className="font-mono text-[10px] font-bold text-gold-700">{item.ticket_code}</p>
+                            <p className="text-[10px] text-muted-foreground truncate">
+                              {item.ticket_name} · {item.email}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

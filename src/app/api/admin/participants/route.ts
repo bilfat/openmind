@@ -20,21 +20,23 @@ async function handleGetParticipants(request: Request) {
   try {
     const { supabase } = auth
     let ticketTypeIds: string[] | null = null
-    let filteredParticipantIds: string[] | null = null
+    const emptyResult = () =>
+      NextResponse.json({ success: true, items: [], pagination: { page: pagination.page, limit: pagination.limit, total: 0, totalPages: 0 } })
+
+    // Peserta yang tampil hanya yang tiketnya telah terbit (issued_tickets),
+    // dihitung per tiket/pax, bukan per order (karena 1 order bisa berisi >1 pax).
+    let issuedQuery = supabase.from('issued_tickets').select('participant_id').neq('status', 'CANCELLED')
     if (ticketType) {
       const ticketQuery = await supabase.from('ticket_types').select('id').eq('ticket_type', ticketType)
       if (ticketQuery.error) throw new Error(ticketQuery.error.message)
       ticketTypeIds = (ticketQuery.data ?? []).map((ticket) => ticket.id)
-      if (!ticketTypeIds.length) {
-        return NextResponse.json({ success: true, items: [], pagination: { page: pagination.page, limit: pagination.limit, total: 0, totalPages: 0 } })
-      }
-      const allocationQuery = await supabase.from('order_items').select('participant_id').in('ticket_type_id', ticketTypeIds)
-      if (allocationQuery.error) throw new Error(allocationQuery.error.message)
-      filteredParticipantIds = [...new Set((allocationQuery.data ?? []).map((item) => item.participant_id))]
-      if (!filteredParticipantIds.length) {
-        return NextResponse.json({ success: true, items: [], pagination: { page: pagination.page, limit: pagination.limit, total: 0, totalPages: 0 } })
-      }
+      if (!ticketTypeIds.length) return emptyResult()
+      issuedQuery = issuedQuery.in('ticket_type_id', ticketTypeIds)
     }
+    const issuedResult = await issuedQuery
+    if (issuedResult.error) throw new Error(issuedResult.error.message)
+    const filteredParticipantIds = [...new Set((issuedResult.data ?? []).map((row) => row.participant_id).filter((pid): pid is string => Boolean(pid)))]
+    if (!filteredParticipantIds.length) return emptyResult()
 
     let query = supabase.from('participants').select('id, event_id, full_name, email, whatsapp, nim, faculty, study_program, instagram_username, created_at, updated_at', { count: 'exact' })
     if (parsedSearch.search) query = query.or(`full_name.ilike.%${parsedSearch.search}%,nim.ilike.%${parsedSearch.search}%,email.ilike.%${parsedSearch.search}%`)
@@ -49,7 +51,11 @@ async function handleGetParticipants(request: Request) {
     if (participantIds.length) {
       const itemsQuery = await supabase.from('order_items').select('id, order_id, participant_id, ticket_type_id, orders(id, order_code, status), ticket_types(id, name, code, ticket_type), issued_tickets(id, ticket_code, status, issued_at, check_ins(id, checked_in_at, method))').in('participant_id', participantIds).order('created_at', { ascending: false })
       if (itemsQuery.error) throw new Error(itemsQuery.error.message)
-      itemRows = itemsQuery.data ?? []
+      // Hanya item pesanan yang tiketnya telah terbit (bukan CANCELLED).
+      itemRows = (itemsQuery.data ?? []).filter((item: any) => {
+        const ticket = item.issued_tickets
+        return Boolean(ticket) && ticket.status !== 'CANCELLED'
+      })
     }
     const rowsByParticipant = itemRows.reduce((acc: Record<string, any[]>, item: any) => { (acc[item.participant_id] ??= []).push(item); return acc }, {})
     const items = participants.map((participant: any) => {

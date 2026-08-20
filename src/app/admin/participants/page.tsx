@@ -116,7 +116,7 @@ export default function ParticipantsPage() {
             Manajemen Peserta
           </h1>
           <p className="text-[10px] sm:text-xs text-navy-900/70 mt-0.5">
-            Daftar seluruh peserta OPEN MIND 2026.
+            Daftar peserta dengan tiket telah terbit (per pax).
           </p>
         </div>
 

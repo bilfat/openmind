@@ -52,12 +52,13 @@ async function handleGetDashboardSummary() {
             .select('ticket_type_id')
             .in('ticket_type_id', ticketIds)
             .neq('status', 'CANCELLED'),
-          // "Pesanan Baru" = pesanan yang belum upload bukti pembayaran
-          // (status DRAFT pada alur baru, PENDING_PAYMENT pada alur lama).
+          // "Pending" = pesanan yang belum terbit tiketnya: pesanan baru yang
+          // belum upload bukti pembayaran (DRAFT pada alur baru, PENDING_PAYMENT
+          // pada alur lama) + pesanan yang belum di-approve (WAITING_VERIFICATION).
           supabaseAdmin
             .from('orders')
             .select('id')
-            .in('status', ['DRAFT', 'PENDING_PAYMENT']),
+            .in('status', ['DRAFT', 'PENDING_PAYMENT', 'WAITING_VERIFICATION']),
         ])
         if (issuedRes.error) throw new Error(issuedRes.error.message)
         if (newOrdersRes.error) throw new Error(newOrdersRes.error.message)
@@ -72,7 +73,8 @@ async function handleGetDashboardSummary() {
             .in('order_id', newOrderIds)
             .in('ticket_type_id', ticketIds)
           if (pendingError) throw new Error(pendingError.message)
-          // "Pending" = tiket dari pesanan baru yang belum upload bukti pembayaran.
+          // "Pending" = tiket dari pesanan yang belum upload bukti pembayaran
+          // dan pesanan yang belum di-approve.
           for (const row of pendingItems ?? []) {
             pendingCounts[row.ticket_type_id] = (pendingCounts[row.ticket_type_id] ?? 0) + 1
           }

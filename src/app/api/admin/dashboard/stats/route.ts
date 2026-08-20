@@ -120,6 +120,33 @@ async function handleGetDashboardStats() {
       pending: buildBreakdown(revPendingRows, (row: any) => Number(row.line_total ?? 0)),
     }
 
+    // Potongan referal yang benar-benar mengurangi revenue. Diskon referral
+    // hanya dipotong di level order (orders.total_amount), sedangkan
+    // order_items.line_total selalu harga penuh. Ambil redemption dari order
+    // berstatus revenue (APPROVED / TICKET_ISSUED / WAITING_VERIFICATION) agar
+    // jumlahnya cocok dengan selisih subtotal breakdown vs totalRevenue.
+    const { data: discountRows, error: discountErr } = await supabase
+      .from('referral_redemptions')
+      .select('discount_amount, referral_codes(code), orders(order_code, status)')
+      .in('status', ['RESERVED', 'CONSUMED'])
+    if (discountErr) throw new Error(discountErr.message)
+
+    const revenueStatusSet = new Set(REVENUE_STATUSES)
+    const discountMap = new Map<string, { code: string; count: number; total: number }>()
+    let totalDiscount = 0
+    for (const row of discountRows ?? []) {
+      const order = Array.isArray(row.orders) ? row.orders[0] : row.orders
+      if (!order || !revenueStatusSet.has(order.status)) continue
+      const code = (Array.isArray(row.referral_codes) ? row.referral_codes[0] : row.referral_codes)?.code ?? '-'
+      const amount = Number(row.discount_amount ?? 0)
+      totalDiscount += amount
+      const cur = discountMap.get(code) ?? { code, count: 0, total: 0 }
+      cur.count += 1
+      cur.total += amount
+      discountMap.set(code, cur)
+    }
+    const discountBreakdown = [...discountMap.values()].sort((a, b) => b.total - a.total)
+
     // Order yang membeli lebih dari 1 tiket (multi pax) untuk detail dashboard.
     const { data: issuedRows, error: issuedRowsError } = await supabase
       .from('issued_tickets')
@@ -176,7 +203,11 @@ async function handleGetDashboardStats() {
         issuedTicketOrders: issuedOrderQuery.count ?? 0,
         newOrders: newOrdersQuery.count ?? 0,
         multiPaxOrders,
-        revenueBreakdown,
+        revenueBreakdown: {
+          ...revenueBreakdown,
+          discounts: discountBreakdown,
+          totalDiscount,
+        },
       },
     })
   } catch (error) {

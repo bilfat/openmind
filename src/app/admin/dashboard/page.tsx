@@ -62,6 +62,12 @@ interface RevenueBreakdownRow {
   total: number;
 }
 
+interface RevenueDiscountRow {
+  code: string;
+  count: number;
+  total: number;
+}
+
 interface DashboardStats {
   totalRevenue: number;
   totalOrders: number;
@@ -71,7 +77,12 @@ interface DashboardStats {
   issuedTicketOrders: number;
   newOrders: number;
   multiPaxOrders: MultiPaxOrder[];
-  revenueBreakdown: { issued: RevenueBreakdownRow[]; pending: RevenueBreakdownRow[] };
+  revenueBreakdown: {
+    issued: RevenueBreakdownRow[];
+    pending: RevenueBreakdownRow[];
+    discounts: RevenueDiscountRow[];
+    totalDiscount: number;
+  };
 }
 
 interface SummaryTicket {
@@ -162,7 +173,7 @@ const INITIAL_STATS: DashboardStats = {
   issuedTicketOrders: 0,
   newOrders: 0,
   multiPaxOrders: [],
-  revenueBreakdown: { issued: [], pending: [] },
+  revenueBreakdown: { issued: [], pending: [], discounts: [], totalDiscount: 0 },
 };
 
 const NEW_ORDERS_STATUS = "DRAFT,PENDING_PAYMENT";
@@ -531,6 +542,41 @@ function BreakdownTable({ rows }: { rows: RevenueBreakdownRow[] }) {
             Subtotal
           </td>
           <td className="py-2 text-right font-bold text-navy-900">{formatRupiah(subtotal)}</td>
+        </tr>
+      </tbody>
+    </table>
+  );
+}
+
+function DiscountTable({ rows }: { rows: RevenueDiscountRow[] }) {
+  if (rows.length === 0) {
+    return <p className="py-3 text-center text-xs text-muted-foreground">Tidak ada data.</p>;
+  }
+  const total = rows.reduce((sum, row) => sum + row.total, 0);
+  return (
+    <table className="w-full text-xs">
+      <thead>
+        <tr className="text-left text-[10px] uppercase tracking-wider text-muted-foreground border-b border-border">
+          <th className="py-2">Kode Referal</th>
+          <th className="py-2 text-right">Dipakai</th>
+          <th className="py-2 text-right">Total Diskon</th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-border/70">
+        {rows.map((row) => (
+          <tr key={row.code}>
+            <td className="py-2 font-mono font-bold text-navy-900">{row.code}</td>
+            <td className="py-2 text-right">{row.count}×</td>
+            <td className="py-2 text-right font-bold text-burgundy-600">
+              −{formatRupiah(row.total)}
+            </td>
+          </tr>
+        ))}
+        <tr className="border-t border-border">
+          <td colSpan={2} className="py-2 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+            Total Potongan
+          </td>
+          <td className="py-2 text-right font-bold text-burgundy-600">−{formatRupiah(total)}</td>
         </tr>
       </tbody>
     </table>
@@ -1418,26 +1464,65 @@ export default function AdminDashboardPage() {
             </div>
 
             <div className="p-5 sm:p-7 space-y-6">
-              <section className="space-y-2">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-navy-900">
-                  Tiket Terbit
-                </h4>
-                <BreakdownTable rows={stats.revenueBreakdown.issued} />
-              </section>
+              {(() => {
+                const issuedSubtotal = stats.revenueBreakdown.issued.reduce((s, r) => s + r.total, 0);
+                const pendingSubtotal = stats.revenueBreakdown.pending.reduce((s, r) => s + r.total, 0);
+                const subtotal = issuedSubtotal + pendingSubtotal;
+                const totalDiscount = stats.revenueBreakdown.totalDiscount ?? 0;
+                return (
+                  <div className="space-y-6">
+                    <section className="space-y-2">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-navy-900">
+                        Tiket Terbit
+                      </h4>
+                      <BreakdownTable rows={stats.revenueBreakdown.issued} />
+                    </section>
 
-              <section className="space-y-2">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-navy-900">
-                  Belum di-approve
-                </h4>
-                <BreakdownTable rows={stats.revenueBreakdown.pending} />
-              </section>
+                    <section className="space-y-2">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-navy-900">
+                        Belum di-approve
+                      </h4>
+                      <BreakdownTable rows={stats.revenueBreakdown.pending} />
+                    </section>
 
-              <div className="flex items-center justify-between rounded-2xl bg-navy-900 px-4 py-3">
-                <span className="text-xs font-bold uppercase tracking-wider text-gold-400">Total</span>
-                <span className="font-display text-lg font-bold text-gold-300">
-                  {formatRupiah(stats.totalRevenue)}
-                </span>
-              </div>
+                    {stats.revenueBreakdown.discounts.length > 0 && (
+                      <section className="space-y-2">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-navy-900">
+                          Diskon Referal
+                        </h4>
+                        <DiscountTable rows={stats.revenueBreakdown.discounts} />
+                      </section>
+                    )}
+
+                    <div className="space-y-2 rounded-2xl bg-navy-900 px-4 py-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold uppercase tracking-wider text-gold-400">
+                          Subtotal Tiket
+                        </span>
+                        <span className="text-sm font-bold text-white">
+                          {formatRupiah(subtotal)}
+                        </span>
+                      </div>
+                      {totalDiscount > 0 && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold uppercase tracking-wider text-gold-400/80">
+                            Potongan Referal
+                          </span>
+                          <span className="text-sm font-bold text-red-300">
+                            −{formatRupiah(totalDiscount)}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between border-t border-white/10 pt-2">
+                        <span className="text-xs font-bold uppercase tracking-wider text-gold-400">Total</span>
+                        <span className="font-display text-lg font-bold text-gold-300">
+                          {formatRupiah(stats.totalRevenue)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>

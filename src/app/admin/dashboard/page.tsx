@@ -44,6 +44,7 @@ interface MultiPaxTicketItem {
   whatsapp: string;
   faculty: string;
   ticket_name: string;
+  ticket_type: string;
 }
 
 interface MultiPaxOrder {
@@ -54,14 +55,23 @@ interface MultiPaxOrder {
   items: MultiPaxTicketItem[];
 }
 
+interface RevenueBreakdownRow {
+  ticket_name: string;
+  price: number;
+  count: number;
+  total: number;
+}
+
 interface DashboardStats {
   totalRevenue: number;
   totalOrders: number;
   pendingVerification: number;
+  pendingTickets: number;
   issuedOrders: number;
   issuedTicketOrders: number;
   newOrders: number;
   multiPaxOrders: MultiPaxOrder[];
+  revenueBreakdown: { issued: RevenueBreakdownRow[]; pending: RevenueBreakdownRow[] };
 }
 
 interface SummaryTicket {
@@ -147,10 +157,12 @@ const INITIAL_STATS: DashboardStats = {
   totalRevenue: 0,
   totalOrders: 0,
   pendingVerification: 0,
+  pendingTickets: 0,
   issuedOrders: 0,
   issuedTicketOrders: 0,
   newOrders: 0,
   multiPaxOrders: [],
+  revenueBreakdown: { issued: [], pending: [] },
 };
 
 const NEW_ORDERS_STATUS = "DRAFT,PENDING_PAYMENT";
@@ -490,6 +502,41 @@ function QuickAction({
   );
 }
 
+function BreakdownTable({ rows }: { rows: RevenueBreakdownRow[] }) {
+  if (rows.length === 0) {
+    return <p className="py-3 text-center text-xs text-muted-foreground">Tidak ada data.</p>;
+  }
+  const subtotal = rows.reduce((sum, row) => sum + row.total, 0);
+  return (
+    <table className="w-full text-xs">
+      <thead>
+        <tr className="text-left text-[10px] uppercase tracking-wider text-muted-foreground border-b border-border">
+          <th className="py-2">Jenis Tiket</th>
+          <th className="py-2 text-right">Harga</th>
+          <th className="py-2 text-right">Jumlah</th>
+          <th className="py-2 text-right">Subtotal</th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-border/70">
+        {rows.map((row) => (
+          <tr key={`${row.ticket_name}-${row.price}`}>
+            <td className="py-2 font-bold text-navy-900">{row.ticket_name}</td>
+            <td className="py-2 text-right font-semibold">{formatRupiah(row.price)}</td>
+            <td className="py-2 text-right">{row.count} tiket</td>
+            <td className="py-2 text-right font-bold text-navy-900">{formatRupiah(row.total)}</td>
+          </tr>
+        ))}
+        <tr className="border-t border-border">
+          <td colSpan={3} className="py-2 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+            Subtotal
+          </td>
+          <td className="py-2 text-right font-bold text-navy-900">{formatRupiah(subtotal)}</td>
+        </tr>
+      </tbody>
+    </table>
+  );
+}
+
 export default function AdminDashboardPage() {
   const toast = useToast();
   const [orders, setOrders] = useState<DashboardOrder[]>([]);
@@ -507,6 +554,7 @@ export default function AdminDashboardPage() {
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [multiPaxOpen, setMultiPaxOpen] = useState(false);
+  const [revenueDetailOpen, setRevenueDetailOpen] = useState(false);
 
   useEffect(() => {
     const hasActiveDraft = newOrdersList.some(
@@ -693,10 +741,7 @@ export default function AdminDashboardPage() {
           Desktop: 5 kartu dalam satu baris. */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
         {/* Revenue — hero card */}
-        <Link
-          href="/admin/orders"
-          className="group relative col-span-2 lg:col-span-1 overflow-hidden rounded-2xl border border-gold-500/30 bg-gradient-to-br from-navy-900 via-navy-800 to-navy-950 p-4 sm:p-5 shadow-md transition-all hover:-translate-y-0.5 hover:shadow-lg"
-        >
+        <div className="group relative col-span-2 lg:col-span-1 overflow-hidden rounded-2xl border border-gold-500/30 bg-gradient-to-br from-navy-900 via-navy-800 to-navy-950 p-4 sm:p-5 shadow-md transition-all hover:-translate-y-0.5 hover:shadow-lg">
           <div
             aria-hidden
             className="pointer-events-none absolute -right-8 -top-10 h-36 w-36 rounded-full bg-gold-500/15 blur-2xl"
@@ -714,20 +759,26 @@ export default function AdminDashboardPage() {
           </p>
           <div className="mt-2 flex items-start gap-1.5 text-[10px] leading-snug text-ivory-200/60">
             <Info className="mt-0.5 h-3 w-3 flex-shrink-0 opacity-70" />
-            <span>Gabungan tiket belum di-approve &amp; tiket telah terbit</span>
+            <span>
+              {loading ? "..." : `${stats.issuedOrders} tiket terbit + ${stats.pendingTickets} tiket belum di-approve`}
+            </span>
           </div>
-          <span className="mt-3 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-gold-400 opacity-80 group-hover:opacity-100">
+          <button
+            type="button"
+            onClick={() => setRevenueDetailOpen(true)}
+            className="mt-3 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-gold-400 opacity-80 group-hover:opacity-100 cursor-pointer"
+          >
             Lihat Detail
             <ArrowRight className="h-3 w-3" />
-          </span>
-        </Link>
+          </button>
+        </div>
 
         <StatCard
           title="Total Pesanan"
           value={loading ? "..." : stats.totalOrders}
           icon={ShoppingCart}
           iconClass="bg-navy-900/10 text-navy-900"
-          note="Gabungan tiket belum di-approve & tiket telah terbit"
+          note={loading ? "..." : `${stats.issuedTicketOrders} order terbit + ${stats.pendingVerification} order belum di-approve${stats.multiPaxOrders.length ? ` · ${stats.multiPaxOrders.length} order beli >1 pax` : ""}`}
           href="/admin/orders"
         />
         <StatCard
@@ -1295,7 +1346,7 @@ export default function AdminDashboardPage() {
                       {order.items.map((item) => (
                         <div
                           key={item.ticket_code}
-                          className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 rounded-xl border border-border bg-white px-3 py-2"
+                          className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-xl border border-border bg-white px-3 py-2"
                         >
                           <div className="min-w-0">
                             <p className="text-xs font-bold text-navy-900">{item.full_name}</p>
@@ -1303,7 +1354,17 @@ export default function AdminDashboardPage() {
                               {item.nim} · {item.faculty}
                             </p>
                           </div>
-                          <div className="sm:text-right">
+                          <div className="sm:text-right space-y-1">
+                            <span
+                              className={cn(
+                                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase",
+                                item.ticket_type === "FREE"
+                                  ? "bg-emerald-500/15 text-emerald-700"
+                                  : "bg-gold-500/20 text-gold-700"
+                              )}
+                            >
+                              {item.ticket_name}
+                            </span>
                             <p className="font-mono text-[10px] font-bold text-gold-700">{item.ticket_code}</p>
                             <p className="text-[10px] text-muted-foreground truncate">
                               {item.ticket_name} · {item.email}
@@ -1315,6 +1376,58 @@ export default function AdminDashboardPage() {
                   </div>
                 ))
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Rincian Revenue ─────────────────────────────────────── */}
+      {revenueDetailOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-2xl rounded-3xl bg-white shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-border px-5 sm:px-7 py-4">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-gold-600">
+                  RINCIAN REVENUE
+                </span>
+                <h3 className="font-display text-lg sm:text-xl font-bold text-navy-900">
+                  Total {formatRupiah(stats.totalRevenue)}
+                </h3>
+                <p className="text-[11px] text-muted-foreground">
+                  {stats.issuedOrders} tiket terbit · {stats.pendingTickets} tiket belum di-approve
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRevenueDetailOpen(false)}
+                className="rounded-full p-2 text-muted-foreground hover:bg-secondary transition-colors"
+                aria-label="Tutup"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 sm:p-7 space-y-6">
+              <section className="space-y-2">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-navy-900">
+                  Tiket Terbit
+                </h4>
+                <BreakdownTable rows={stats.revenueBreakdown.issued} />
+              </section>
+
+              <section className="space-y-2">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-navy-900">
+                  Belum di-approve
+                </h4>
+                <BreakdownTable rows={stats.revenueBreakdown.pending} />
+              </section>
+
+              <div className="flex items-center justify-between rounded-2xl bg-navy-900 px-4 py-3">
+                <span className="text-xs font-bold uppercase tracking-wider text-gold-400">Total</span>
+                <span className="font-display text-lg font-bold text-gold-300">
+                  {formatRupiah(stats.totalRevenue)}
+                </span>
+              </div>
             </div>
           </div>
         </div>

@@ -60,10 +60,70 @@ async function handleGetDashboardStats() {
       0
     )
 
+    // Jumlah tiket (item pesanan) dari order yang belum di-approve, bukan jumlah
+    // order. Filter embed `orders.status` pada order_items tidak andal, jadi
+    // ambil ID order WAITING_VERIFICATION dulu lalu hitung item-nya.
+    const { data: pendingOrderRows, error: pendingOrderErr } = await supabase
+      .from('orders')
+      .select('id')
+      .eq('status', 'WAITING_VERIFICATION')
+    if (pendingOrderErr) throw new Error(pendingOrderErr.message)
+    const pendingOrderIds = (pendingOrderRows ?? []).map((o: any) => o.id)
+    let pendingTickets = 0
+    if (pendingOrderIds.length) {
+      const { count, error } = await supabase
+        .from('order_items')
+        .select('id', { count: 'exact', head: true })
+        .in('order_id', pendingOrderIds)
+      if (error) throw new Error(error.message)
+      pendingTickets = count ?? 0
+    }
+
+    // Rincian revenue per jenis tiket & harga (tiket terbit + tiket pending).
+    // Dikelompokkan berdasarkan nama tiket + harga aktual dari order_items,
+    // karena harga walk-in bisa berbeda (mis. Rp 38.000) tanpa label sumber.
+    const { data: revIssuedRows, error: revIssuedErr } = await supabase
+      .from('issued_tickets')
+      .select('order_items(line_total), ticket_types(name)')
+      .neq('status', 'CANCELLED')
+    if (revIssuedErr) throw new Error(revIssuedErr.message)
+
+    let revPendingRows: any[] = []
+    if (pendingOrderIds.length) {
+      const { data, error } = await supabase
+        .from('order_items')
+        .select('line_total, ticket_types(name)')
+        .in('order_id', pendingOrderIds)
+      if (error) throw new Error(error.message)
+      revPendingRows = data ?? []
+    }
+
+    const buildBreakdown = (rows: any[], getPrice: (row: any) => number) => {
+      const map = new Map<string, { ticket_name: string; price: number; count: number }>()
+      for (const row of rows) {
+        const t = Array.isArray(row.ticket_types) ? row.ticket_types[0] : row.ticket_types
+        const price = getPrice(row)
+        const key = `${t?.name ?? '-'}|${price}`
+        const cur = map.get(key) ?? { ticket_name: t?.name ?? '-', price, count: 0 }
+        cur.count += 1
+        map.set(key, cur)
+      }
+      return [...map.values()]
+        .map((r) => ({ ...r, total: r.count * r.price }))
+        .sort((a, b) => b.price - a.price)
+    }
+
+    const revenueBreakdown = {
+      issued: buildBreakdown(revIssuedRows ?? [], (row: any) =>
+        Number((Array.isArray(row.order_items) ? row.order_items[0] : row.order_items)?.line_total ?? 0)
+      ),
+      pending: buildBreakdown(revPendingRows, (row: any) => Number(row.line_total ?? 0)),
+    }
+
     // Order yang membeli lebih dari 1 tiket (multi pax) untuk detail dashboard.
     const { data: issuedRows, error: issuedRowsError } = await supabase
       .from('issued_tickets')
-      .select('order_id, ticket_code, participants(full_name, nim, email, whatsapp, faculty), ticket_types(name)')
+      .select('order_id, ticket_code, participants(full_name, nim, email, whatsapp, faculty), ticket_types(name, code, ticket_type)')
       .neq('status', 'CANCELLED')
     if (issuedRowsError) throw new Error(issuedRowsError.message)
 
@@ -99,6 +159,7 @@ async function handleGetDashboardStats() {
             whatsapp: p?.whatsapp ?? '-',
             faculty: p?.faculty ?? '-',
             ticket_name: t?.name ?? '-',
+            ticket_type: t?.ticket_type ?? '-',
           }
         }),
       }))
@@ -110,10 +171,12 @@ async function handleGetDashboardStats() {
         totalRevenue,
         totalOrders: totalOrdersQuery.count ?? 0,
         pendingVerification: pendingQuery.count ?? 0,
+        pendingTickets,
         issuedOrders: issuedTicketQuery.count ?? 0,
         issuedTicketOrders: issuedOrderQuery.count ?? 0,
         newOrders: newOrdersQuery.count ?? 0,
         multiPaxOrders,
+        revenueBreakdown,
       },
     })
   } catch (error) {

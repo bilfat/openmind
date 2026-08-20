@@ -1458,7 +1458,7 @@ export default function AdminDashboardPage() {
                                       </span>
                                       <p className="font-mono text-[10px] font-bold text-gold-700">{item.ticket_code}</p>
                                       <p className="text-[10px] text-muted-foreground truncate">
-                                        {item.ticket_name} · {item.email}
+                                         {item.email}
                                       </p>
                                     </div>
                                   </div>

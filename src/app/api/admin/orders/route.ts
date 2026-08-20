@@ -96,6 +96,9 @@ async function handleGetOrders(request: Request) {
     // Server-side totals so tab badges stay accurate even when the order count
     // exceeds the page limit (previously tab counts were derived from the
     // loaded page only, so they became partial once orders passed the limit).
+    // Counts and the issued-ticket query are independent, so they run in
+    // parallel to keep the route fast (avoids serial round-trips that could
+    // trip the read timeout guard).
     const buildCountQuery = (status?: string) => {
       let q = supabase.from('orders').select('id', { count: 'exact', head: true })
       if (status) q = q.eq('status', status)
@@ -104,41 +107,54 @@ async function handleGetOrders(request: Request) {
       if (matchingOrderIds) q = q.in('id', matchingOrderIds)
       return q
     }
-    const allCountResult = await buildCountQuery()
-    if (allCountResult.error) throw new Error(allCountResult.error.message)
-    const statusCounts: Record<string, number> = { ALL: allCountResult.count ?? 0 }
-    for (const s of ORDER_STATUSES) {
-      const { count, error } = await buildCountQuery(s)
-      if (error) throw new Error(error.message)
-      statusCounts[s] = count ?? 0
-    }
-
-    // Total issued tickets (not orders) for TICKET_ISSUED orders. An order can
-    // contain multiple tickets (e.g. one buyer purchasing 2 tickets), so the
-    // badge counts tickets, matching the "Terbit" figure on the tickets page.
-    const issuedOrderIds: string[] = []
-    const issuedPageSize = 1000
-    let issuedFrom = 0
-    while (true) {
-      let q = supabase.from('orders').select('id').eq('status', 'TICKET_ISSUED')
-      if (source) q = q.eq('source', source)
-      if (matchingOrderIds) q = q.in('id', matchingOrderIds)
-      const { data, error } = await q.range(issuedFrom, issuedFrom + issuedPageSize - 1)
-      if (error) throw new Error(error.message)
-      issuedOrderIds.push(...(data ?? []).map((row) => row.id))
-      if ((data ?? []).length < issuedPageSize) break
-      issuedFrom += issuedPageSize
-    }
-    let issuedTicketCount = 0
-    if (issuedOrderIds.length) {
-      const { count, error } = await supabase
-        .from('issued_tickets')
-        .select('id', { count: 'exact', head: true })
-        .in('order_id', issuedOrderIds)
-        .neq('status', 'CANCELLED')
-      if (error) throw new Error(error.message)
-      issuedTicketCount = count ?? 0
-    }
+    const [statusCountsResult, issuedSummaryResult] = await Promise.all([
+      (async () => {
+        const allCountResult = await buildCountQuery()
+        if (allCountResult.error) throw new Error(allCountResult.error.message)
+        const statusCounts: Record<string, number> = { ALL: allCountResult.count ?? 0 }
+        const counts = await Promise.all(
+          ORDER_STATUSES.map(async (s) => {
+            const { count, error } = await buildCountQuery(s)
+            if (error) throw new Error(error.message)
+            return [s, count ?? 0] as const
+          })
+        )
+        for (const [s, c] of counts) statusCounts[s] = c
+        return statusCounts
+      })(),
+      (async () => {
+        // Total issued tickets (not orders) for TICKET_ISSUED orders. An order
+        // can contain multiple tickets (e.g. one buyer purchasing 2 tickets), so
+        // the badge counts tickets, matching the "Terbit" figure on the tickets page.
+        const issuedOrderIds: string[] = []
+        const issuedPageSize = 1000
+        let issuedFrom = 0
+        while (true) {
+          let q = supabase.from('orders').select('id').eq('status', 'TICKET_ISSUED')
+          if (source) q = q.eq('source', source)
+          if (matchingOrderIds) q = q.in('id', matchingOrderIds)
+          const { data, error } = await q.range(issuedFrom, issuedFrom + issuedPageSize - 1)
+          if (error) throw new Error(error.message)
+          issuedOrderIds.push(...(data ?? []).map((row) => row.id))
+          if ((data ?? []).length < issuedPageSize) break
+          issuedFrom += issuedPageSize
+        }
+        let issuedTicketCount = 0
+        if (issuedOrderIds.length) {
+          const { count, error } = await supabase
+            .from('issued_tickets')
+            .select('id', { count: 'exact', head: true })
+            .in('order_id', issuedOrderIds)
+            .neq('status', 'CANCELLED')
+          if (error) throw new Error(error.message)
+          issuedTicketCount = count ?? 0
+        }
+        return { issuedOrderIds, issuedTicketCount }
+      })(),
+    ])
+    const statusCounts = statusCountsResult
+    const issuedOrderIds = issuedSummaryResult.issuedOrderIds
+    const issuedTicketCount = issuedSummaryResult.issuedTicketCount
 
     // View mode: when the "Tiket Diterbitkan" tab is selected, show one row per
     // issued ticket (per pax) instead of one row per order, so multi-pax orders
@@ -166,14 +182,16 @@ async function handleGetOrders(request: Request) {
       let ticketEmailJobCounts: Record<string, number> = {}
       if (pageOrderIds.length) {
         const creatorIds = [...new Set(ticketRows.map((t: any) => t.orders?.created_by).filter(Boolean))] as string[]
-        if (creatorIds.length) {
-          const profilesQuery = await supabase.from('profiles').select('id, full_name, role').in('id', creatorIds)
-          if (profilesQuery.error) throw new Error(profilesQuery.error.message)
-          ticketOperatorNames = (profilesQuery.data ?? []).reduce((acc: any, p: any) => { acc[p.id] = { full_name: p.full_name, role: p.role }; return acc }, {})
-        }
-        const emailQuery = await supabase.from('email_jobs').select('id, order_id').eq('job_type', 'TICKET_ISSUED').in('order_id', pageOrderIds)
-        if (emailQuery.error) throw new Error(emailQuery.error.message)
-        ticketEmailJobCounts = (emailQuery.data ?? []).reduce((acc: Record<string, number>, job: any) => { acc[job.order_id] = (acc[job.order_id] ?? 0) + 1; return acc }, {})
+        const [profilesResult, emailResult] = await Promise.all([
+          creatorIds.length
+            ? supabase.from('profiles').select('id, full_name, role').in('id', creatorIds)
+            : Promise.resolve({ data: [], error: null }),
+          supabase.from('email_jobs').select('id, order_id').eq('job_type', 'TICKET_ISSUED').in('order_id', pageOrderIds),
+        ])
+        if (profilesResult.error) throw new Error(profilesResult.error.message)
+        if (emailResult.error) throw new Error(emailResult.error.message)
+        ticketOperatorNames = (profilesResult.data ?? []).reduce((acc: any, p: any) => { acc[p.id] = { full_name: p.full_name, role: p.role }; return acc }, {})
+        ticketEmailJobCounts = (emailResult.data ?? []).reduce((acc: Record<string, number>, job: any) => { acc[job.order_id] = (acc[job.order_id] ?? 0) + 1; return acc }, {})
       }
 
       const items = ticketRows.map((t: any) => {

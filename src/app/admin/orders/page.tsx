@@ -308,7 +308,7 @@ function OrdersPageContent() {
     const payload = await response.json();
     if (!response.ok) {
       if (seq === requestSeq.current) setIsFilterLoading(false);
-      throw new Error(payload.message || "Gagal mengambil pesanan.");
+      throw new Error(payload.message || payload.error?.message || "Gagal mengambil pesanan.");
     }
     if (seq !== requestSeq.current) return; // a newer request is already in flight
     const nextOrders = (payload.items ?? []) as ApiOrder[];

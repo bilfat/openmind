@@ -140,6 +140,72 @@ async function handleGetOrders(request: Request) {
       issuedTicketCount = count ?? 0
     }
 
+    // View mode: when the "Tiket Diterbitkan" tab is selected, show one row per
+    // issued ticket (per pax) instead of one row per order, so multi-pax orders
+    // are listed individually and never merged into a single row.
+    const isTicketIssuedView = statusList.length === 1 && statusList[0] === 'TICKET_ISSUED'
+    if (isTicketIssuedView) {
+      let ticketRows: any[] = []
+      let ticketTotal = 0
+      if (issuedOrderIds.length) {
+        const result = await supabase
+          .from('issued_tickets')
+          .select('id, ticket_code, order_id, status, issued_at, orders(order_code, source, total_amount, created_by, created_at), participants(full_name, nim, faculty, study_program, email, whatsapp), ticket_types(name, code, ticket_type)', { count: 'exact' })
+          .in('order_id', issuedOrderIds)
+          .neq('status', 'CANCELLED')
+          .order('issued_at', { ascending: false })
+          .order('id', { ascending: false })
+          .range(pagination.offset, pagination.offset + pagination.limit - 1)
+        if (result.error) throw new Error(result.error.message)
+        ticketRows = result.data ?? []
+        ticketTotal = result.count ?? 0
+      }
+
+      const pageOrderIds = [...new Set(ticketRows.map((t: any) => t.order_id))] as string[]
+      let ticketOperatorNames: Record<string, { full_name: string; role: string }> = {}
+      let ticketEmailJobCounts: Record<string, number> = {}
+      if (pageOrderIds.length) {
+        const creatorIds = [...new Set(ticketRows.map((t: any) => t.orders?.created_by).filter(Boolean))] as string[]
+        if (creatorIds.length) {
+          const profilesQuery = await supabase.from('profiles').select('id, full_name, role').in('id', creatorIds)
+          if (profilesQuery.error) throw new Error(profilesQuery.error.message)
+          ticketOperatorNames = (profilesQuery.data ?? []).reduce((acc: any, p: any) => { acc[p.id] = { full_name: p.full_name, role: p.role }; return acc }, {})
+        }
+        const emailQuery = await supabase.from('email_jobs').select('id, order_id').eq('job_type', 'TICKET_ISSUED').in('order_id', pageOrderIds)
+        if (emailQuery.error) throw new Error(emailQuery.error.message)
+        ticketEmailJobCounts = (emailQuery.data ?? []).reduce((acc: Record<string, number>, job: any) => { acc[job.order_id] = (acc[job.order_id] ?? 0) + 1; return acc }, {})
+      }
+
+      const items = ticketRows.map((t: any) => {
+        const operator = ticketOperatorNames[t.orders?.created_by]
+        return {
+          id: t.id,
+          order_id: t.order_id,
+          order_code: t.orders?.order_code ?? '-',
+          ticket_code: t.ticket_code,
+          status: t.status,
+          issued_at: t.issued_at,
+          participant: t.participants ?? {},
+          ticket_type: t.ticket_types ?? {},
+          order: {
+            source: t.orders?.source ?? 'ONLINE',
+            total_amount: t.orders?.total_amount ?? 0,
+            created_at: t.orders?.created_at ?? null,
+            created_by_name: operator ? operator.full_name : null,
+            created_by_role: operator ? operator.role : null,
+            has_ticket_email_job: (ticketEmailJobCounts[t.order_id] ?? 0) > 0,
+          },
+        }
+      })
+      return NextResponse.json({
+        success: true,
+        items,
+        pagination: { page: pagination.page, limit: pagination.limit, total: ticketTotal, totalPages: Math.ceil(ticketTotal / pagination.limit) },
+        statusCounts,
+        issuedTicketCount,
+      })
+    }
+
     let query = supabase
       .from('orders')
       .select('id, order_code, event_id, status, source, subtotal, discount_total, total_amount, currency, created_by, created_at, updated_at, events(id, name)', { count: 'exact' })

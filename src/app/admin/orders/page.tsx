@@ -85,6 +85,47 @@ type OrderParticipantDetail = {
   ticketName: string;
 };
 
+type ApiIssuedTicket = {
+  id: string;
+  order_id: string;
+  order_code: string;
+  ticket_code: string;
+  status: string;
+  issued_at: string;
+  participant: { full_name: string; nim: string; faculty: string; study_program: string; email: string; whatsapp?: string };
+  ticket_type: { name: string; code: string; ticket_type: string };
+  order: {
+    source: string;
+    total_amount: number;
+    created_at: string | null;
+    created_by_name: string | null;
+    created_by_role: string | null;
+    has_ticket_email_job: boolean;
+  };
+};
+
+type IssuedTicketRow = {
+  id: string;
+  orderDatabaseId: string;
+  orderId: string;
+  ticketCode: string;
+  status: string;
+  issuedAt: string;
+  fullName: string;
+  nim: string;
+  faculty: string;
+  studyProgram: string;
+  email: string;
+  whatsapp: string;
+  ticketName: string;
+  totalAmount: number;
+  source: string;
+  createdAt: string;
+  hasTicketEmailJob: boolean;
+  createdByName: string | null;
+  createdByRole: string | null;
+};
+
 function toLegacyOrder(order: ApiOrder): AdminOrder {
   const participant = order.participants[0];
   return {
@@ -119,6 +160,66 @@ function toLegacyOrder(order: ApiOrder): AdminOrder {
   };
 }
 
+function toIssuedTicketRow(ticket: ApiIssuedTicket): IssuedTicketRow {
+  const participant = ticket.participant ?? {};
+  const ticketType = ticket.ticket_type ?? {};
+  const order = ticket.order ?? {};
+  return {
+    id: ticket.id,
+    orderDatabaseId: ticket.order_id,
+    orderId: ticket.order_code ?? "-",
+    ticketCode: ticket.ticket_code,
+    status: ticket.status,
+    issuedAt: ticket.issued_at,
+    fullName: participant.full_name ?? "-",
+    nim: participant.nim ?? "-",
+    faculty: participant.faculty ?? "-",
+    studyProgram: participant.study_program ?? "-",
+    email: participant.email ?? "-",
+    whatsapp: participant.whatsapp ?? "-",
+    ticketName: ticketType.name ?? "-",
+    totalAmount: order.total_amount ?? 0,
+    source: order.source ?? "ONLINE",
+    createdAt: order.created_at ?? "",
+    hasTicketEmailJob: order.has_ticket_email_job ?? false,
+    createdByName: order.created_by_name ?? null,
+    createdByRole: order.created_by_role ?? null,
+  };
+}
+
+// A per-ticket row maps back to an order-like object so the existing
+// review / download / send actions can be reused unchanged.
+function toOrderLikeFromTicket(ticket: IssuedTicketRow): AdminOrder {
+  return {
+    databaseId: ticket.orderDatabaseId,
+    orderId: ticket.orderId,
+    customerName: ticket.fullName,
+    email: ticket.email,
+    whatsapp: ticket.whatsapp,
+    nim: ticket.nim,
+    faculty: ticket.faculty,
+    studyProgram: ticket.studyProgram,
+    ticketId: ticket.ticketName,
+    ticketName: ticket.ticketName,
+    ticketCategory: "paid",
+    quantity: 1,
+    totalPrice: ticket.totalAmount,
+    paymentStatus: "approved",
+    createdAt: ticket.createdAt ? new Date(ticket.createdAt).toLocaleString("id-ID") : "-",
+    checkedIn: false,
+    checkedInAt: "",
+    status: "TICKET_ISSUED",
+    source: ticket.source,
+    issuedTicketCount: 1,
+    hasTicketEmailJob: ticket.hasTicketEmailJob,
+    createdByName: ticket.createdByName,
+    createdByRole: ticket.createdByRole,
+    paymentDeadline: ticket.createdAt
+      ? new Date(ticket.createdAt).getTime() + PAYMENT_WINDOW_HOURS * 60 * 60 * 1000
+      : Date.now(),
+  };
+}
+
 function operatorLabel(source: string, name?: string | null, role?: string | null): string | null {
   if (source !== "MANUAL") return null;
   if (!name) return "Walk-in (Manual)";
@@ -149,13 +250,26 @@ function statusBadge(status: string) {
   }
 }
 
+function ticketStatusBadge(status: string) {
+  switch (status) {
+    case "CHECKED_IN":
+      return { cls: "bg-sky-500/15 text-sky-700", icon: CheckCircle2, label: "SUDAH HADIR" };
+    case "ACTIVE":
+      return { cls: "bg-emerald-500/15 text-emerald-700", icon: Ticket, label: "TIKET TERBIT" };
+    default:
+      return { cls: "bg-secondary/40 text-navy-900", icon: AlertCircle, label: status };
+  }
+}
+
 function OrdersPageContent() {
   const searchParams = useSearchParams();
   const initialStatusParam = searchParams.get("status") || "all";
   const toast = useToast();
 
   const [orders, setOrders] = useState<AdminOrder[]>([]);
+  const [tickets, setTickets] = useState<IssuedTicketRow[]>([]);
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
+  const [issuedTicketCount, setIssuedTicketCount] = useState(0);
   const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 1 });
   const [page, setPage] = useState(1);
   const requestSeq = useRef(0);
@@ -198,8 +312,10 @@ function OrdersPageContent() {
     }
     if (seq !== requestSeq.current) return; // a newer request is already in flight
     const nextOrders = (payload.items ?? []) as ApiOrder[];
-    setOrders(nextOrders.map(toLegacyOrder));
+    setOrders(statusFilter === "TICKET_ISSUED" ? [] : nextOrders.map(toLegacyOrder));
+    setTickets(statusFilter === "TICKET_ISSUED" ? (payload.items ?? []).map(toIssuedTicketRow) : []);
     setStatusCounts(payload.statusCounts ?? {});
+    setIssuedTicketCount(payload.issuedTicketCount ?? 0);
     setPagination(payload.pagination ?? { page: targetPage, total: 0, totalPages: 1 });
     setIsFilterLoading(false);
     setLastRefreshed(Date.now());
@@ -254,6 +370,8 @@ function OrdersPageContent() {
 
   const displayedStart = pagination.total === 0 ? 0 : (pagination.page - 1) * PAGE_SIZE + 1;
   const displayedEnd = Math.min(pagination.page * PAGE_SIZE, pagination.total);
+
+  const isTicketView = statusFilter === "TICKET_ISSUED";
 
   const handleReviewOrder = async (order: AdminOrder) => {
     try {
@@ -470,7 +588,7 @@ function OrdersPageContent() {
             {
               id: "TICKET_ISSUED",
               label: "Tiket Diterbitkan",
-              count: statusCounts.TICKET_ISSUED ?? 0,
+              count: issuedTicketCount ?? statusCounts.TICKET_ISSUED ?? 0,
             },
             {
               id: "REJECTED",
@@ -548,6 +666,149 @@ function OrdersPageContent() {
         <div className="relative rounded-2xl border border-border bg-white shadow-sm overflow-hidden flex-1 min-h-0 flex flex-col">
           <div className="flex-1 min-h-0 overflow-auto">
             <table className="w-full text-xs border-separate border-spacing-0">
+            {isTicketView ? (
+              <>
+                <thead className="bg-navy-900 text-gold-400 uppercase font-bold text-[10px] tracking-wider sticky top-0 z-10">
+                  <tr>
+                    <th className="px-5 py-4 text-center border-b border-navy-700">No</th>
+                    <th className="px-5 py-4 text-center border-b border-navy-700 border-l border-navy-700">Kode Tiket</th>
+                    <th className="px-5 py-4 text-center border-b border-navy-700 border-l border-navy-700">Order ID</th>
+                    <th className="px-5 py-4 text-center border-b border-navy-700 border-l border-navy-700">Peserta</th>
+                    <th className="px-5 py-4 text-center border-b border-navy-700 border-l border-navy-700">NIM</th>
+                    <th className="px-5 py-4 text-center border-b border-navy-700 border-l border-navy-700">Fakultas & Prodi</th>
+                    <th className="px-5 py-4 text-center border-b border-navy-700 border-l border-navy-700">Tiket</th>
+                    <th className="px-5 py-4 text-center border-b border-navy-700 border-l border-navy-700">Status</th>
+                    <th className="px-5 py-4 text-center border-b border-navy-700 border-l border-navy-700">Terbit</th>
+                    <th className="px-5 py-4 text-center border-b border-navy-700 border-l border-navy-700">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tickets.length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="px-5 py-12 text-center text-muted-foreground">
+                        Tidak ada tiket terbit yang sesuai dengan filter pencarian.
+                      </td>
+                    </tr>
+                  ) : (
+                    tickets.map((ticket, index) => {
+                      const orderLike = toOrderLikeFromTicket(ticket);
+                      const badge = ticketStatusBadge(ticket.status);
+                      const BadgeIcon = badge.icon;
+                      return (
+                        <tr
+                          key={ticket.id}
+                          className={cn(
+                            "transition-colors",
+                            index % 2 === 0 ? "bg-white" : "bg-secondary/30",
+                            "hover:bg-secondary/50"
+                          )}
+                        >
+                          <td className="px-5 py-4 font-mono font-bold text-navy-900 whitespace-nowrap text-center border-b border-border/70">
+                            {(page - 1) * PAGE_SIZE + index + 1}
+                          </td>
+                          <td className="px-5 py-4 font-mono font-bold text-navy-900 whitespace-nowrap border-b border-border/70 border-l border-border/70">
+                            {ticket.ticketCode}
+                          </td>
+                          <td className="px-5 py-4 font-mono font-bold text-navy-900 whitespace-nowrap border-b border-border/70 border-l border-border/70">
+                            {ticket.orderId}
+                            {operatorLabel(ticket.source, ticket.createdByName, ticket.createdByRole) && (
+                              <span className="block font-sans text-[9px] font-semibold uppercase tracking-wide text-gold-600 mt-0.5">
+                                {operatorLabel(ticket.source, ticket.createdByName, ticket.createdByRole)}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-5 py-4 border-b border-border/70 border-l border-border/70">
+                            <strong className="block text-navy-900 font-bold">
+                              {ticket.fullName}
+                            </strong>
+                            {ticket.whatsapp && (
+                              <span className="text-[10px] text-muted-foreground">
+                                WA: {ticket.whatsapp}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-5 py-4 whitespace-nowrap border-b border-border/70 border-l border-border/70">
+                            {ticket.nim}
+                          </td>
+                          <td className="px-5 py-4 max-w-[200px] border-b border-border/70 border-l border-border/70">
+                            <span className="text-navy-900 font-medium block truncate">
+                              {ticket.studyProgram}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground truncate block">
+                              {ticket.faculty}
+                            </span>
+                          </td>
+                          <td className="px-5 py-4 whitespace-nowrap border-b border-border/70 border-l border-border/70">
+                            <span className="font-bold text-gold-600">
+                              {ticket.ticketName}
+                            </span>
+                          </td>
+                          <td className="px-5 py-4 whitespace-nowrap border-b border-border/70 border-l border-border/70">
+                            <span
+                              className={cn(
+                                "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase",
+                                badge.cls
+                              )}
+                            >
+                              <BadgeIcon className="h-3 w-3" />
+                              <span>{badge.label}</span>
+                            </span>
+                          </td>
+                          <td className="px-5 py-4 text-[11px] text-muted-foreground whitespace-nowrap border-b border-border/70 border-l border-border/70">
+                            {ticket.issuedAt ? new Date(ticket.issuedAt).toLocaleString("id-ID") : "—"}
+                          </td>
+                          <td className="px-5 py-4 whitespace-nowrap border-b border-border/70 border-l border-border/70">
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleReviewOrder(orderLike)}
+                                className="inline-flex items-center gap-1 rounded-xl bg-navy-900 px-3 py-1.5 text-xs font-semibold text-ivory-100 hover:bg-gold-500 hover:text-navy-950 transition-all shadow-sm"
+                              >
+                                <Eye className="h-3.5 w-3.5" />
+                                <span>Review</span>
+                              </button>
+
+                              {canDeliverTickets(orderLike) && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDownload(orderLike)}
+                                    disabled={downloadingIds.has(orderLike.databaseId)}
+                                    className="inline-flex items-center gap-1 rounded-xl bg-gold-500/15 border border-gold-500/60 px-3 py-1.5 text-xs font-semibold text-gold-700 hover:bg-gold-500 hover:text-navy-950 transition-all shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                                  >
+                                    {downloadingIds.has(orderLike.databaseId) ? (
+                                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                      <Download className="h-3.5 w-3.5" />
+                                    )}
+                                    <span>Download Tiket</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => setSendConfirmOrder(orderLike)}
+                                    disabled={sendingIds.has(orderLike.databaseId)}
+                                    className="inline-flex items-center gap-1 rounded-xl bg-gold-500 px-3 py-1.5 text-xs font-semibold text-navy-950 hover:bg-gold-600 transition-all shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                                  >
+                                    {sendingIds.has(orderLike.databaseId) ? (
+                                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                      <Mail className="h-3.5 w-3.5" />
+                                    )}
+                                    <span>{ticketEmailActionLabel(ticket.hasTicketEmailJob)}</span>
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </>
+            ) : (
+              <>
             <thead className="bg-navy-900 text-gold-400 uppercase font-bold text-[10px] tracking-wider sticky top-0 z-10">
               <tr>
                 <th className="px-5 py-4 text-center border-b border-navy-700">No</th>
@@ -703,6 +964,8 @@ function OrdersPageContent() {
                 ))
               )}
             </tbody>
+              </>
+            )}
           </table>
           </div>
         </div>
@@ -711,7 +974,7 @@ function OrdersPageContent() {
       {/* Pagination */}
       <div className="rounded-2xl border border-border bg-white shadow-sm px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
         <p className="text-xs text-muted-foreground">
-          Menampilkan {displayedStart}–{displayedEnd} dari {pagination.total} pesanan
+          Menampilkan {displayedStart}–{displayedEnd} dari {pagination.total} {isTicketView ? "tiket" : "pesanan"}
         </p>
         <div className="flex items-center gap-1.5">
           <button
@@ -779,7 +1042,7 @@ function OrdersPageContent() {
             <div className="rounded-2xl bg-secondary/30 p-4 text-xs space-y-2">
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <span className="text-muted-foreground font-semibold uppercase text-[10px]">Tiket & Tagihan</span>
-                <span className="text-gold-600 font-bold">{selectedOrder.ticketName} ({selectedOrder.quantity} Pax) — Rp {selectedOrder.totalPrice.toLocaleString("id-ID")}</span>
+                <span className="text-gold-600 font-bold">{selectedOrder.ticketName} ({selectedOrder.orderParticipants?.length ?? selectedOrder.quantity} Pax) — Rp {selectedOrder.totalPrice.toLocaleString("id-ID")}</span>
               </div>
               <div className="flex items-center justify-between gap-2">
                 <span className="text-muted-foreground font-semibold uppercase text-[10px]">Jumlah Pemesan</span>

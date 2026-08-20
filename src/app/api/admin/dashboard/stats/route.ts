@@ -190,14 +190,32 @@ async function handleGetDashboardStats() {
     }
 
     // Order yang membeli lebih dari 1 tiket (multi pax) untuk detail dashboard.
+    // Digabung dari tiket terbit (issued_tickets) dan order yang belum di-approve
+    // (order_items WAITING_VERIFICATION), karena 1 order bisa berisi >1 pax di
+    // kedua status tersebut.
     const { data: issuedRows, error: issuedRowsError } = await supabase
       .from('issued_tickets')
       .select('order_id, ticket_code, participants(full_name, nim, email, whatsapp, faculty), ticket_types(name, code, ticket_type)')
       .neq('status', 'CANCELLED')
     if (issuedRowsError) throw new Error(issuedRowsError.message)
 
+    let pendingPaxRows: any[] = []
+    if (pendingOrderIds.length) {
+      const { data, error } = await supabase
+        .from('order_items')
+        .select('order_id, participants(full_name, nim, email, whatsapp, faculty), ticket_types(name, code, ticket_type)')
+        .in('order_id', pendingOrderIds)
+      if (error) throw new Error(error.message)
+      pendingPaxRows = data ?? []
+    }
+
     const perOrderMap = new Map<string, any[]>()
     for (const row of issuedRows ?? []) {
+      const list = perOrderMap.get(row.order_id) ?? []
+      list.push(row)
+      perOrderMap.set(row.order_id, list)
+    }
+    for (const row of pendingPaxRows) {
       const list = perOrderMap.get(row.order_id) ?? []
       list.push(row)
       perOrderMap.set(row.order_id, list)
@@ -208,7 +226,7 @@ async function handleGetDashboardStats() {
       const multiOrderIds = multiPax.map(([oid]) => oid)
       const { data: multiOrders, error: multiOrdersError } = await supabase
         .from('orders')
-        .select('id, order_code, created_at')
+        .select('id, order_code, created_at, status')
         .in('id', multiOrderIds)
       if (multiOrdersError) throw new Error(multiOrdersError.message)
       const orderMap = new Map((multiOrders ?? []).map((o: any) => [o.id, o]))
@@ -216,12 +234,13 @@ async function handleGetDashboardStats() {
         order_id: oid,
         order_code: orderMap.get(oid)?.order_code ?? '-',
         created_at: orderMap.get(oid)?.created_at ?? null,
+        status: orderMap.get(oid)?.status ?? null,
         ticketCount: rows.length,
         items: rows.map((r: any) => {
           const p = Array.isArray(r.participants) ? r.participants[0] : r.participants
           const t = Array.isArray(r.ticket_types) ? r.ticket_types[0] : r.ticket_types
           return {
-            ticket_code: r.ticket_code,
+            ticket_code: r.ticket_code ?? null,
             full_name: p?.full_name ?? '-',
             nim: p?.nim ?? '-',
             email: p?.email ?? '-',

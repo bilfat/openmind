@@ -39,7 +39,7 @@ interface DashboardOrder {
 }
 
 interface MultiPaxTicketItem {
-  ticket_code: string;
+  ticket_code: string | null;
   full_name: string;
   nim: string;
   email: string;
@@ -53,6 +53,7 @@ interface MultiPaxOrder {
   order_id: string;
   order_code: string;
   created_at: string | null;
+  status: string | null;
   ticketCount: number;
   items: MultiPaxTicketItem[];
 }
@@ -813,26 +814,26 @@ export default function AdminDashboardPage() {
             aria-hidden
             className="pointer-events-none absolute -right-8 -top-10 h-36 w-36 rounded-full bg-gold-500/15 blur-2xl"
           />
-            <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-gold-400 sm:text-xs">
-              <Wallet className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-              Total Revenue
+          <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-gold-400 sm:text-xs">
+            <Wallet className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            Total Revenue
+          </span>
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <p className="font-display text-2xl font-bold text-gold-300 sm:text-[26px]">
+              {loading ? "..." : (revenueVisible ? formatRupiah(stats.totalRevenue) : "Rp —")}
+            </p>
+            <span
+              title={revenueVisible ? "Sembunyikan total revenue" : "Tampilkan total revenue"}
+              className="flex h-8 w-8 items-center justify-center rounded-xl bg-gold-500/15 text-gold-400 sm:h-9 sm:w-9 cursor-pointer"
+              onClick={() => setRevenueVisible((v) => !v)}
+            >
+              {revenueVisible ? (
+                <EyeOff className="h-4 w-4 sm:h-[18px] sm:w-[18px]" />
+              ) : (
+                <Eye className="h-4 w-4 sm:h-[18px] sm:w-[18px]" />
+              )}
             </span>
-            <div className="mt-2 flex items-center justify-between gap-2">
-              <p className="font-display text-2xl font-bold text-gold-300 sm:text-[26px]">
-                {loading ? "..." : (revenueVisible ? formatRupiah(stats.totalRevenue) : "Rp —")}
-              </p>
-              <span
-                title={revenueVisible ? "Sembunyikan total revenue" : "Tampilkan total revenue"}
-                className="flex h-8 w-8 items-center justify-center rounded-xl bg-gold-500/15 text-gold-400 sm:h-9 sm:w-9 cursor-pointer"
-                onClick={() => setRevenueVisible((v) => !v)}
-              >
-                {revenueVisible ? (
-                  <EyeOff className="h-4 w-4 sm:h-[18px] sm:w-[18px]" />
-                ) : (
-                  <Eye className="h-4 w-4 sm:h-[18px] sm:w-[18px]" />
-                )}
-              </span>
-            </div>
+          </div>
           <div className="mt-2 flex items-start gap-1.5 text-[10px] leading-snug text-ivory-200/60">
             <Info className="mt-0.5 h-3 w-3 flex-shrink-0 opacity-70" />
             <span>
@@ -871,12 +872,12 @@ export default function AdminDashboardPage() {
           icon={Ticket}
           iconClass="bg-emerald-500/10 text-emerald-600"
           note={
-            stats.issuedOrders !== stats.issuedTicketOrders
+            stats.multiPaxOrders.length > 0
               ? `${stats.issuedOrders} tiket dari ${stats.issuedTicketOrders} order (${stats.multiPaxOrders.length} order beli >1 pax)`
               : "Dihitung per tiket yang telah terbit"
           }
-          href={stats.issuedOrders !== stats.issuedTicketOrders ? undefined : "/admin/orders?status=TICKET_ISSUED"}
-          onAction={stats.issuedOrders !== stats.issuedTicketOrders ? () => setMultiPaxOpen(true) : undefined}
+          href={stats.multiPaxOrders.length > 0 ? undefined : "/admin/orders?status=TICKET_ISSUED"}
+          onAction={stats.multiPaxOrders.length > 0 ? () => setMultiPaxOpen(true) : undefined}
         />
         <StatCard
           title="Pesanan Baru"
@@ -1379,14 +1380,12 @@ export default function AdminDashboardPage() {
           <div className="w-full max-w-2xl rounded-3xl bg-white shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-border px-5 sm:px-7 py-4">
               <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-gold-600">
-                  ORDER MULTI PAX
-                </span>
+
                 <h3 className="font-display text-lg sm:text-xl font-bold text-navy-900">
-                  Order dengan Tiket Lebih dari 1 Pax
+                  Detail Tiket Telah Terbit
                 </h3>
                 <p className="text-[11px] text-muted-foreground">
-                  {stats.multiPaxOrders.length} order · {stats.multiPaxOrders.reduce((sum, o) => sum + o.ticketCount, 0)} tiket
+                  {stats.issuedOrders} tiket terbit
                 </p>
               </div>
               <button
@@ -1399,60 +1398,79 @@ export default function AdminDashboardPage() {
               </button>
             </div>
 
-            <div className="p-5 sm:p-7 space-y-4">
-              {stats.multiPaxOrders.length === 0 ? (
-                <p className="py-8 text-center text-xs text-muted-foreground">
-                  Tidak ada order multi pax.
-                </p>
-              ) : (
-                stats.multiPaxOrders.map((order) => (
-                  <div key={order.order_id} className="rounded-2xl border border-border bg-secondary/20 p-4 space-y-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="font-mono text-sm font-bold text-navy-900 truncate">{order.order_code}</p>
-                        <p className="text-[10px] text-muted-foreground">
-                          {order.created_at ? formatTime(order.created_at) : "-"}
-                        </p>
-                      </div>
-                      <span className="flex-shrink-0 rounded-full bg-gold-500/15 px-2.5 py-1 text-[10px] font-bold text-gold-700">
-                        {order.ticketCount} pax
-                      </span>
-                    </div>
+            <div className="p-5 sm:p-7 space-y-6">
+              {(() => {
+                const issuedOrders = stats.multiPaxOrders.filter(
+                  (order) => order.status === "TICKET_ISSUED"
+                );
+                return (
+                  <section className="space-y-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-navy-900">
+                      Detail Order Multi Pax ({issuedOrders.length})
+                    </h4>
+                    {issuedOrders.length === 0 ? (
+                      <p className="py-4 text-center text-xs text-muted-foreground">
+                        Tidak ada order multi pax.
+                      </p>
+                    ) : (
+                      <div className="space-y-3">
+                        {issuedOrders.map((order) => (
+                          <div key={order.order_id} className="rounded-2xl border border-border bg-secondary/20 p-4 space-y-3">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="font-mono text-sm font-bold text-navy-900 truncate">{order.order_code}</p>
+                                <p className="text-[10px] text-muted-foreground">
+                                  {order.created_at ? formatTime(order.created_at) : "-"}
+                                </p>
+                              </div>
+                              <div className="flex flex-shrink-0 items-center gap-1.5">
 
-                    <div className="space-y-2">
-                      {order.items.map((item) => (
-                        <div
-                          key={item.ticket_code}
-                          className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-xl border border-border bg-white px-3 py-2"
-                        >
-                          <div className="min-w-0">
-                            <p className="text-xs font-bold text-navy-900">{item.full_name}</p>
-                            <p className="text-[10px] text-muted-foreground truncate">
-                              {item.nim} · {item.faculty}
-                            </p>
+                                <span className="rounded-full bg-gold-500/15 px-2.5 py-1 text-[10px] font-bold text-gold-700">
+                                  {order.items.filter((item) => item.ticket_code).length} pax
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="space-y-2">
+                              {order.items
+                                .filter((item) => item.ticket_code)
+                                .map((item, i) => (
+                                  <div
+                                    key={`${item.ticket_code ?? "ticket"}-${i}`}
+                                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-xl border border-border bg-white px-3 py-2"
+                                  >
+                                    <div className="min-w-0">
+                                      <p className="text-xs font-bold text-navy-900">{item.full_name}</p>
+                                      <p className="text-[10px] text-muted-foreground truncate">
+                                        {item.nim} · {item.faculty}
+                                      </p>
+                                    </div>
+                                    <div className="sm:text-right space-y-1">
+                                      <span
+                                        className={cn(
+                                          "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase",
+                                          item.ticket_type === "FREE"
+                                            ? "bg-emerald-500/15 text-emerald-700"
+                                            : "bg-gold-500/20 text-gold-700"
+                                        )}
+                                      >
+                                        {item.ticket_name}
+                                      </span>
+                                      <p className="font-mono text-[10px] font-bold text-gold-700">{item.ticket_code}</p>
+                                      <p className="text-[10px] text-muted-foreground truncate">
+                                        {item.ticket_name} · {item.email}
+                                      </p>
+                                    </div>
+                                  </div>
+                                ))}
+                            </div>
                           </div>
-                          <div className="sm:text-right space-y-1">
-                            <span
-                              className={cn(
-                                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase",
-                                item.ticket_type === "FREE"
-                                  ? "bg-emerald-500/15 text-emerald-700"
-                                  : "bg-gold-500/20 text-gold-700"
-                              )}
-                            >
-                              {item.ticket_name}
-                            </span>
-                            <p className="font-mono text-[10px] font-bold text-gold-700">{item.ticket_code}</p>
-                            <p className="text-[10px] text-muted-foreground truncate">
-                              {item.ticket_name} · {item.email}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))
-              )}
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                );
+              })()}
             </div>
           </div>
         </div>

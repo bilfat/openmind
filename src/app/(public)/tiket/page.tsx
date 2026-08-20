@@ -7,7 +7,7 @@ import { TicketVoucherCard } from "@/components/ticket/ticket-voucher-card";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { contactWhatsApp } from "@/data/social-links";
 import { useActiveEvent } from "@/hooks/use-active-event";
-import { eventDisplayName } from "@/lib/event-utils";
+import { eventDisplayName, waLink } from "@/lib/event-utils";
 import Link from "next/link";
 import {
   ShieldCheck,
@@ -601,7 +601,7 @@ function TiketPageContent() {
                               </div>
 
                               <a
-                                href={`https://wa.me/${waNumber}?text=Halo%20Admin%20${encodeURIComponent(displayName.replace(/ /g, "%20"))},%20saya%20ingin%20konfirmasi%20pembayaran%20Order%20ID:%20${matchedOrder.orderId}`}
+                                href={`${waLink(waNumber) || `https://wa.me/${waNumber}`}?text=${encodeURIComponent(`Halo Admin ${displayName}, saya ${matchedOrder.customerName || "Peserta"} ingin konfirmasi pembayaran Order ID: ${matchedOrder.orderId}`)}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center justify-center gap-2 rounded-2xl border border-gold-500/40 bg-white/5 px-6 py-3.5 text-sm font-bold text-ivory-100 backdrop-blur-md transition-all hover:bg-gold-500 hover:text-navy-950"

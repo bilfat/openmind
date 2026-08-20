@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { LogoSpinner } from "./logo-spinner";
 
 export function GlobalLoader() {
   const [visible, setVisible] = useState(true);
@@ -19,41 +20,7 @@ export function GlobalLoader() {
 
       {/* Loader */}
       <div className="relative flex h-32 w-32 items-center justify-center">
-        {/* Outer subtle glow */}
-        <div className="absolute inset-0 rounded-full bg-gold-500/10 blur-xl animate-pulse" />
-
-        {/* Outer rotating ring */}
-        <div
-          className="absolute inset-0 rounded-full p-[2px] animate-spin"
-          style={{
-            background:
-              "conic-gradient(from 0deg, transparent 0deg, transparent 35deg, rgba(234,179,8,0.15) 80deg, #eab308 150deg, #facc15 200deg, rgba(234,179,8,0.15) 260deg, transparent 320deg)",
-            animationDuration: "1.8s",
-          }}
-        >
-          <div className="h-full w-full rounded-full bg-navy-950" />
-        </div>
-
-        {/* Inner ring */}
-        <div
-          className="absolute inset-2 rounded-full border border-gold-500/20"
-          style={{
-            boxShadow:
-              "inset 0 0 20px rgba(234,179,8,0.08), 0 0 20px rgba(234,179,8,0.08)",
-          }}
-        />
-
-        {/* Logo container */}
-        <div className="relative z-10 flex h-[84px] w-[84px] items-center justify-center overflow-hidden rounded-full border border-gold-500/40 bg-navy-900 shadow-[0_0_30px_rgba(234,179,8,0.18)]">
-          <img
-            src="/logo-om.jpg"
-            alt="OPEN MIND"
-            className="h-full w-full rounded-full object-cover"
-          />
-
-          {/* Soft logo overlay */}
-          <div className="pointer-events-none absolute inset-0 rounded-full bg-white/5" />
-        </div>
+        <LogoSpinner size={128} />
 
         {/* Small orbiting dot */}
         <div

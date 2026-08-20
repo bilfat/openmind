@@ -25,6 +25,7 @@ import {
 import { cn } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useToast } from "@/components/ui/toast";
+import { LogoSpinner } from "@/components/ui/logo-spinner";
 
 // Must match the payment window used by the cleanup RPC
 // (cleanup_expired_orders_rpc p_stale_hours DEFAULT 3).
@@ -171,6 +172,7 @@ function OrdersPageContent() {
   const actionLocks = useRef<Set<string>>(new Set());
   const [now, setNow] = useState(() => Date.now());
   const [lastRefreshed, setLastRefreshed] = useState<number | null>(null);
+  const [isFilterLoading, setIsFilterLoading] = useState(false);
 
   // Live tick only while any DRAFT (waiting-payment) order is visible,
   // so the "Sisa Waktu" countdown stays current without constant re-renders.
@@ -181,20 +183,25 @@ function OrdersPageContent() {
     return () => clearInterval(interval);
   }, [orders]);
 
-  const refreshOrders = async (targetPage: number) => {
+  const refreshOrders = async (targetPage: number, opts?: { showLoading?: boolean }) => {
     const seq = ++requestSeq.current;
+    if (opts?.showLoading) setIsFilterLoading(true);
     const params = new URLSearchParams({ page: String(targetPage), limit: String(PAGE_SIZE) });
     if (searchQuery.trim()) params.set("search", searchQuery.trim());
     if (statusFilter !== "all") params.set("status", statusFilter);
     if (sourceFilter !== "all") params.set("source", sourceFilter);
     const response = await fetch(`/api/admin/orders?${params.toString()}`, { cache: "no-store" });
     const payload = await response.json();
-    if (!response.ok) throw new Error(payload.message || "Gagal mengambil pesanan.");
+    if (!response.ok) {
+      if (seq === requestSeq.current) setIsFilterLoading(false);
+      throw new Error(payload.message || "Gagal mengambil pesanan.");
+    }
     if (seq !== requestSeq.current) return; // a newer request is already in flight
     const nextOrders = (payload.items ?? []) as ApiOrder[];
     setOrders(nextOrders.map(toLegacyOrder));
     setStatusCounts(payload.statusCounts ?? {});
     setPagination(payload.pagination ?? { page: targetPage, total: 0, totalPages: 1 });
+    setIsFilterLoading(false);
     setLastRefreshed(Date.now());
   };
 
@@ -206,20 +213,30 @@ function OrdersPageContent() {
 
   useEffect(() => {
     // Fetch after the effect commits so the server refresh does not run in the effect body.
-    const refresh = () => { void refreshOrders(page).catch((error) => console.error(error)); };
+    const refresh = () => {
+      void refreshOrders(page, { showLoading: true }).catch((error) => console.error(error));
+    };
     queueMicrotask(refresh);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, searchQuery, statusFilter, sourceFilter]);
+
+  // Ref yang selalu memegang fungsi refresh TERBARU (page & filter terkini).
+  // Dipakai interval polling supaya auto-refresh tidak pernah memakai filter lama.
+  const refreshNowRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    refreshNowRef.current = () => {
+      void refreshOrders(page).catch((error) => console.error(error));
+    };
+  });
 
   // Auto-refresh berkala agar pesanan baru (di tab manapun) muncul tanpa perlu
   // refresh manual — sama seperti dashboard.
   useEffect(() => {
     const interval = setInterval(() => {
-      void refreshOrders(page).catch((error) => console.error(error));
+      refreshNowRef.current();
     }, 15000);
     return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page]);
+  }, []);
 
   const goToPage = (targetPage: number) => {
     if (targetPage < 1 || targetPage > pagination.totalPages) return;
@@ -522,9 +539,15 @@ function OrdersPageContent() {
       </div>
 
       {/* Orders Table */}
-      <div className="rounded-2xl border border-border bg-white shadow-sm overflow-hidden flex-1 min-h-0 flex flex-col">
-        <div className="flex-1 min-h-0 overflow-auto">
-          <table className="w-full text-xs border-separate border-spacing-0">
+      {isFilterLoading ? (
+        <div className="flex h-72 flex-col items-center justify-center gap-2.5 rounded-2xl border border-border bg-white shadow-sm">
+          <LogoSpinner size={56} />
+          <p className="text-xs font-semibold text-navy-900">Memuat data...</p>
+        </div>
+      ) : (
+        <div className="relative rounded-2xl border border-border bg-white shadow-sm overflow-hidden flex-1 min-h-0 flex flex-col">
+          <div className="flex-1 min-h-0 overflow-auto">
+            <table className="w-full text-xs border-separate border-spacing-0">
             <thead className="bg-navy-900 text-gold-400 uppercase font-bold text-[10px] tracking-wider sticky top-0 z-10">
               <tr>
                 <th className="px-5 py-4 text-center border-b border-navy-700">No</th>
@@ -681,8 +704,9 @@ function OrdersPageContent() {
               )}
             </tbody>
           </table>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Pagination */}
       <div className="rounded-2xl border border-border bg-white shadow-sm px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">

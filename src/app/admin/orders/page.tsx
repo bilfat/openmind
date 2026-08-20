@@ -20,6 +20,7 @@ import {
   Mail,
   ChevronLeft,
   ChevronRight,
+  RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -169,6 +170,7 @@ function OrdersPageContent() {
   const [sendConfirmOrder, setSendConfirmOrder] = useState<AdminOrder | null>(null);
   const actionLocks = useRef<Set<string>>(new Set());
   const [now, setNow] = useState(() => Date.now());
+  const [lastRefreshed, setLastRefreshed] = useState<number | null>(null);
 
   // Live tick only while any DRAFT (waiting-payment) order is visible,
   // so the "Sisa Waktu" countdown stays current without constant re-renders.
@@ -193,6 +195,7 @@ function OrdersPageContent() {
     setOrders(nextOrders.map(toLegacyOrder));
     setStatusCounts(payload.statusCounts ?? {});
     setPagination(payload.pagination ?? { page: targetPage, total: 0, totalPages: 1 });
+    setLastRefreshed(Date.now());
   };
 
   // Reset to the first page whenever any filter changes.
@@ -207,6 +210,16 @@ function OrdersPageContent() {
     queueMicrotask(refresh);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, searchQuery, statusFilter, sourceFilter]);
+
+  // Auto-refresh berkala agar pesanan baru (di tab manapun) muncul tanpa perlu
+  // refresh manual — sama seperti dashboard.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      void refreshOrders(page).catch((error) => console.error(error));
+    }, 15000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page]);
 
   const goToPage = (targetPage: number) => {
     if (targetPage < 1 || targetPage > pagination.totalPages) return;
@@ -409,6 +422,15 @@ function OrdersPageContent() {
           <p className="text-[10px] sm:text-xs text-navy-900/70 mt-0.5">
             Kelola & verifikasi pembayaran peserta OPEN MIND 2026.
           </p>
+        </div>
+        <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+          <span className="inline-flex items-center gap-1 rounded-full bg-gold-500/10 border border-gold-500/30 px-2.5 py-1 font-semibold text-gold-700">
+            <RefreshCw className="h-3 w-3 animate-spin [animation-duration:3s]" />
+            Auto-refresh 15 detik
+          </span>
+          <span className="hidden sm:inline">
+            Update terakhir: {lastRefreshed ? new Date(lastRefreshed).toLocaleTimeString("id-ID") : "—"}
+          </span>
         </div>
       </div>
 

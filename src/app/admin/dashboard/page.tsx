@@ -23,6 +23,7 @@ import {
   Copy,
   Check,
   Eye,
+  EyeOff,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
@@ -812,21 +813,26 @@ export default function AdminDashboardPage() {
             aria-hidden
             className="pointer-events-none absolute -right-8 -top-10 h-36 w-36 rounded-full bg-gold-500/15 blur-2xl"
           />
-<div className="flex items-center justify-between gap-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-gold-400 sm:text-xs">
-                Total Revenue
-              </span>
+            <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-gold-400 sm:text-xs">
+              <Wallet className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              Total Revenue
+            </span>
+            <div className="mt-2 flex items-center justify-between gap-2">
+              <p className="font-display text-2xl font-bold text-gold-300 sm:text-[26px]">
+                {loading ? "..." : (revenueVisible ? formatRupiah(stats.totalRevenue) : "Rp —")}
+              </p>
               <span
+                title={revenueVisible ? "Sembunyikan total revenue" : "Tampilkan total revenue"}
                 className="flex h-8 w-8 items-center justify-center rounded-xl bg-gold-500/15 text-gold-400 sm:h-9 sm:w-9 cursor-pointer"
                 onClick={() => setRevenueVisible((v) => !v)}
               >
-                <Wallet className="h-4 w-4 sm:h-[18px] sm:w-[18px]" />
-                <Eye className="h-4 w-4 sm:h-[18px] sm:w-[18px]" />
+                {revenueVisible ? (
+                  <EyeOff className="h-4 w-4 sm:h-[18px] sm:w-[18px]" />
+                ) : (
+                  <Eye className="h-4 w-4 sm:h-[18px] sm:w-[18px]" />
+                )}
               </span>
             </div>
-            <p className="mt-2 font-display text-2xl font-bold text-gold-300 sm:text-[26px]">
-              {loading ? "..." : (revenueVisible ? formatRupiah(stats.totalRevenue) : "Rp —")}
-            </p>
           <div className="mt-2 flex items-start gap-1.5 text-[10px] leading-snug text-ivory-200/60">
             <Info className="mt-0.5 h-3 w-3 flex-shrink-0 opacity-70" />
             <span>

@@ -66,12 +66,10 @@ interface RevenueBreakdownRow {
 }
 
 interface RevenueDiscountRow {
-  code: string
-  description: string | null
-  discountType: string
-  discountValue: number
-  count: number
-  totalDiscount: number
+  code: string;
+  order_code: string;
+  discount: number;
+  tickets: { name: string; unit_price: number; count: number }[];
 }
 
 interface DashboardStats {
@@ -554,39 +552,56 @@ function BreakdownTable({ rows }: { rows: RevenueBreakdownRow[] }) {
   );
 }
 
-function DiscountTable({ rows }: { rows: RevenueDiscountRow[] }) {
+interface DiscountTableProps {
+  rows: RevenueDiscountRow[];
+  referralSummary?: SummaryReferral[];
+}
+
+function DiscountTable({ rows, referralSummary = [] }: DiscountTableProps) {
   if (rows.length === 0) {
     return <p className="py-3 text-center text-xs text-muted-foreground">Tidak ada data.</p>;
   }
-  const total = rows.reduce((sum, row) => sum + row.totalDiscount, 0);
+
+  const grouped = rows.reduce<Record<string, { discountPerUse: number; count: number; subtotal: number }>>((acc, row) => {
+    if (!acc[row.code]) {
+      acc[row.code] = { discountPerUse: row.discount, count: 0, subtotal: 0 };
+    }
+    acc[row.code].count += 1;
+    acc[row.code].subtotal += row.discount;
+    return acc;
+  }, {});
+
+  const referralMap = new Map(referralSummary.map((r) => [r.code, r.usedCount]));
+
+  const totalSubtotal = Object.values(grouped).reduce((sum, g) => sum + g.subtotal, 0);
+
   return (
     <table className="w-full text-xs">
       <thead>
         <tr className="text-left text-[10px] uppercase tracking-wider text-muted-foreground border-b border-border">
           <th className="py-2">Nama Referal</th>
-          <th className="py-2 text-center">Besar Potongan</th>
-          <th className="py-2 text-center">Uda Kepake</th>
+          <th className="py-2 text-center">Besar Potongan Diskon</th>
+          <th className="py-2 text-center">Uda Kepake Berapa</th>
           <th className="py-2 text-right">Sub Total</th>
         </tr>
       </thead>
       <tbody className="divide-y divide-border/70">
-        {rows.map((row) => (
-          <tr key={row.code}>
-            <td className="py-2 font-mono font-bold text-navy-900">
-              {row.description ? `${row.code} (${row.description})` : row.code}
-            </td>
-            <td className="py-2 text-center text-navy-900">
-              {row.discountType === 'PERCENTAGE' ? `${row.discountValue}%` : formatRupiah(row.discountValue)}
-            </td>
-            <td className="py-2 text-center font-bold text-navy-900">{row.count}×</td>
-            <td className="py-2 text-right font-bold text-burgundy-600">−{formatRupiah(row.totalDiscount)}</td>
-          </tr>
-        ))}
+        {Object.entries(grouped).map(([code, data]) => {
+          const usedCount = referralMap.get(code) ?? data.count;
+          return (
+            <tr key={code}>
+              <td className="py-2 font-mono font-bold text-navy-900">{code}</td>
+              <td className="py-2 text-center text-burgundy-600">−{formatRupiah(data.discountPerUse)}</td>
+              <td className="py-2 text-center font-bold text-navy-900">{usedCount}</td>
+              <td className="py-2 text-right font-bold text-burgundy-600">−{formatRupiah(data.subtotal)}</td>
+            </tr>
+          );
+        })}
         <tr className="border-t border-border">
           <td colSpan={3} className="py-2 text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
             Total Potongan
           </td>
-          <td className="py-2 text-right font-bold text-burgundy-600">−{formatRupiah(total)}</td>
+          <td className="py-2 text-right font-bold text-burgundy-600">−{formatRupiah(totalSubtotal)}</td>
         </tr>
       </tbody>
     </table>
@@ -1803,7 +1818,10 @@ export default function AdminDashboardPage() {
                         <h4 className="text-xs font-bold uppercase tracking-wider text-navy-900">
                           Diskon Referal
                         </h4>
-                        <DiscountTable rows={stats.revenueBreakdown.discounts} />
+                        <DiscountTable
+                          rows={stats.revenueBreakdown.discounts}
+                          referralSummary={summary?.activeReferrals?.items ?? []}
+                        />
                       </section>
                     )}
 

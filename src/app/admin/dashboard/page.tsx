@@ -66,10 +66,12 @@ interface RevenueBreakdownRow {
 }
 
 interface RevenueDiscountRow {
-  code: string;
-  order_code: string;
-  discount: number;
-  tickets: { name: string; unit_price: number; count: number }[];
+  code: string
+  description: string | null
+  discountType: string
+  discountValue: number
+  count: number
+  totalDiscount: number
 }
 
 interface DashboardStats {
@@ -556,32 +558,28 @@ function DiscountTable({ rows }: { rows: RevenueDiscountRow[] }) {
   if (rows.length === 0) {
     return <p className="py-3 text-center text-xs text-muted-foreground">Tidak ada data.</p>;
   }
-  const total = rows.reduce((sum, row) => sum + row.discount, 0);
+  const total = rows.reduce((sum, row) => sum + row.totalDiscount, 0);
   return (
     <table className="w-full text-xs">
       <thead>
         <tr className="text-left text-[10px] uppercase tracking-wider text-muted-foreground border-b border-border">
-          <th className="py-2">Kode Referal</th>
-          <th className="py-2">Order</th>
-          <th className="py-2">Tiket</th>
-          <th className="py-2 text-right">Diskon</th>
+          <th className="py-2">Nama Referal</th>
+          <th className="py-2 text-center">Besar Potongan</th>
+          <th className="py-2 text-center">Uda Kepake</th>
+          <th className="py-2 text-right">Sub Total</th>
         </tr>
       </thead>
       <tbody className="divide-y divide-border/70">
         {rows.map((row) => (
-          <tr key={`${row.code}-${row.order_code}`}>
-            <td className="py-2 font-mono font-bold text-navy-900">{row.code}</td>
-            <td className="py-2 font-mono text-muted-foreground">{row.order_code}</td>
-            <td className="py-2 text-navy-900">
-              {row.tickets.map((t) => (
-                <span key={`${t.name}-${t.unit_price}`} className="block">
-                  {t.name} ×{t.count} · {formatRupiah(t.unit_price)}
-                </span>
-              ))}
+          <tr key={row.code}>
+            <td className="py-2 font-mono font-bold text-navy-900">
+              {row.description ? `${row.code} (${row.description})` : row.code}
             </td>
-            <td className="py-2 text-right font-bold text-burgundy-600">
-              −{formatRupiah(row.discount)}
+            <td className="py-2 text-center text-navy-900">
+              {row.discountType === 'PERCENTAGE' ? `${row.discountValue}%` : formatRupiah(row.discountValue)}
             </td>
+            <td className="py-2 text-center font-bold text-navy-900">{row.count}×</td>
+            <td className="py-2 text-right font-bold text-burgundy-600">−{formatRupiah(row.totalDiscount)}</td>
           </tr>
         ))}
         <tr className="border-t border-border">

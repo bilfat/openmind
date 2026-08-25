@@ -116,6 +116,7 @@ async function handleGetDashboardSummary() {
             .from('referral_redemptions')
             .select('referral_code_id')
             .in('referral_code_id', referralIds)
+            .in('status', ['RESERVED', 'CONSUMED'])
           if (redemptionsError) throw new Error(redemptionsError.message)
           for (const row of redemptions ?? []) {
             usedCounts[row.referral_code_id] = (usedCounts[row.referral_code_id] ?? 0) + 1

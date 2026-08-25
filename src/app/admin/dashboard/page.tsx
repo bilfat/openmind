@@ -24,10 +24,15 @@ import {
   Check,
   Eye,
   EyeOff,
+  AlertCircle,
+  PauseCircle,
+  FileText,
+  Archive,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
 import { PAYMENT_WINDOW_HOURS } from "@/lib/payment-window";
+import { getDerivedReferralStatus } from "@/lib/referral-store";
 
 interface DashboardOrder {
   id: string;
@@ -1032,22 +1037,43 @@ export default function AdminDashboardPage() {
               ) : (
                 <div className="space-y-2">
                   {(activeReferrals?.items ?? []).slice(0, 3).map((r) => {
-                    const limit = r.usageLimit;
-                    const pct = limit ? Math.min(100, Math.round((r.usedCount / limit) * 100)) : 0;
-                    return (
-                      <div key={r.id} className="rounded-xl border border-border bg-secondary/20 p-2 sm:p-2.5">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="font-mono text-[11px] font-bold text-gold-600 sm:text-xs">
-                              {r.code}
-                            </p>
-                            <p className="truncate text-[9px] text-muted-foreground">
-                              {r.discountType === "PERCENTAGE"
-                                ? `${r.discountValue}% diskon`
-                                : `${formatRupiah(r.discountValue)} diskon`}
-                            </p>
-                          </div>
-                          <button
+                      const limit = r.usageLimit;
+                      const pct = limit ? Math.min(100, Math.round((r.usedCount / limit) * 100)) : 0;
+                      const derivedStatus = getDerivedReferralStatus(r as any);
+                      const statusConfig = {
+                        ACTIVE: { label: "Aktif", cls: "bg-emerald-500/15 text-emerald-700", icon: CheckCircle2 },
+                        UPCOMING: { label: "Akan Datang", cls: "bg-gold-500/15 text-gold-700", icon: Clock },
+                        EXPIRED: { label: "Kadaluarsa", cls: "bg-gray-200 text-gray-700", icon: XCircle },
+                        EXHAUSTED: { label: "Habis", cls: "bg-destructive/15 text-destructive", icon: AlertCircle },
+                        INACTIVE: { label: "Nonaktif", cls: "bg-amber-500/15 text-amber-800", icon: PauseCircle },
+                        DRAFT: { label: "Draft", cls: "bg-navy-900/10 text-navy-900", icon: FileText },
+                        ARCHIVED: { label: "Arsip", cls: "bg-gray-100 text-gray-500", icon: Archive },
+                      };
+                      const sc = statusConfig[derivedStatus as keyof typeof statusConfig] || statusConfig.ACTIVE;
+                      const StatusIcon = sc.icon;
+                      return (
+                        <div key={r.id} className="rounded-xl border border-border bg-secondary/20 p-2 sm:p-2.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="font-mono text-[11px] font-bold text-gold-600 sm:text-xs">
+                                {r.code}
+                              </p>
+                              <p className="truncate text-[9px] text-muted-foreground">
+                                {r.discountType === "PERCENTAGE"
+                                  ? `${r.discountValue}% diskon`
+                                  : `${formatRupiah(r.discountValue)} diskon`}
+                              </p>
+                            </div>
+                            <span
+                              className={cn(
+                                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider",
+                                sc.cls
+                              )}
+                            >
+                              <StatusIcon className="h-2.5 w-2.5" />
+                              {sc.label}
+                            </span>
+                            <button
                             type="button"
                             onClick={() => copyReferralCode(r.code)}
                             title="Salin kode referal"

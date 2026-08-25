@@ -97,6 +97,7 @@ async function handleGetReferrals(request: Request) {
         .from('referral_redemptions')
         .select('referral_code_id')
         .in('referral_code_id', referralIds)
+        .in('status', ['RESERVED', 'CONSUMED'])
 
       if (countError) throw new Error(countError.message)
 

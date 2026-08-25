@@ -9,6 +9,15 @@ export function generateRandomReferralCode(): string {
   return `OM26${randomPart}`;
 }
 
+function parseDateSafe(dateStr: string): number {
+  if (!dateStr) return NaN;
+  const d = new Date(dateStr);
+  if (!isNaN(d.getTime())) return d.getTime();
+  const iso = dateStr.replace(" ", "T") + (dateStr.includes("Z") ? "" : "Z");
+  const d2 = new Date(iso);
+  return isNaN(d2.getTime()) ? NaN : d2.getTime();
+}
+
 export function getDerivedReferralStatus(
   referral: ReferralCode
 ): ReferralStatus | "UPCOMING" {
@@ -31,14 +40,14 @@ export function getDerivedReferralStatus(
   const now = Date.now();
 
   if (referral.startDate) {
-    const start = new Date(referral.startDate).getTime();
+    const start = parseDateSafe(referral.startDate);
     if (!isNaN(start) && now < start) {
       return "UPCOMING";
     }
   }
 
   if (referral.endDate) {
-    const end = new Date(referral.endDate).getTime();
+    const end = parseDateSafe(referral.endDate);
     if (!isNaN(end) && now > end) {
       return "EXPIRED";
     }

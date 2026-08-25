@@ -25,6 +25,14 @@ interface ReferralFormProps {
 export function ReferralForm({ initialData, isEdit = false }: ReferralFormProps) {
   const router = useRouter();
 
+  function toDatetimeLocal(iso: string | undefined): string {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "";
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
   const [formData, setFormData] = useState({
     code: initialData?.code || "",
     discountType: initialData?.discountType || ("PERCENTAGE" as DiscountType),
@@ -32,8 +40,8 @@ export function ReferralForm({ initialData, isEdit = false }: ReferralFormProps)
     maxDiscount: initialData?.maxDiscount || undefined,
     usageLimit: initialData?.usageLimit || 100,
     usedCount: initialData?.usedCount || 0,
-    startDate: initialData?.startDate || "2026-08-01T00:00",
-    endDate: initialData?.endDate || "2026-09-17T23:59",
+    startDate: toDatetimeLocal(initialData?.startDate),
+    endDate: toDatetimeLocal(initialData?.endDate),
     status: initialData?.status || ("ACTIVE" as ReferralStatus),
     description: initialData?.description || "",
   });

@@ -45,6 +45,7 @@ const CreateReferralSchema = z.object({
   end_at: z.string().min(1, 'Tanggal berakhir wajib diisi.'),
   status: z.enum(['DRAFT', 'ACTIVE', 'INACTIVE']),
   description: z.string().optional(),
+  visibility: z.enum(['PUBLIC', 'PRIVATE']).optional(),
 })
 
 /* ── GET /api/admin/referrals ──────────────────────────────────────────── */
@@ -120,6 +121,7 @@ async function handleGetReferrals(request: Request) {
       description: row.description,
       createdAt: row.created_at,
       eventId: row.event_id,
+      isPublic: row.is_public,
     }))
 
     const total = count ?? 0
@@ -204,6 +206,7 @@ async function handleCreateReferral(request: Request) {
         end_at: data.end_at,
         status: data.status,
         description: data.description ?? null,
+        visibility: data.visibility ?? 'PUBLIC',
         created_by: userId,
       })
       .select('*')
@@ -233,6 +236,7 @@ async function handleCreateReferral(request: Request) {
         description: created.description,
         createdAt: created.created_at,
         eventId: created.event_id,
+        visibility: created.visibility,
       },
     }, { status: 201 })
   } catch (error) {

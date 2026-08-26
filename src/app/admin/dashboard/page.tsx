@@ -28,6 +28,7 @@ import {
   PauseCircle,
   FileText,
   Archive,
+  Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
@@ -114,6 +115,7 @@ interface SummaryReferral {
   maxDiscount: number | null;
   usageLimit: number | null;
   usedCount: number;
+  isPublic: boolean;
 }
 
 interface DashboardSummary {
@@ -1072,6 +1074,21 @@ export default function AdminDashboardPage() {
                             >
                               <StatusIcon className="h-2.5 w-2.5" />
                               {sc.label}
+                            </span>
+                            <span
+                              className={cn(
+                                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider",
+                                r.isPublic
+                                  ? "bg-emerald-500/15 text-emerald-700"
+                                  : "bg-amber-500/15 text-amber-800"
+                              )}
+                            >
+                              {r.isPublic ? (
+                                <CheckCircle2 className="h-2.5 w-2.5" />
+                              ) : (
+                                <Lock className="h-2.5 w-2.5" />
+                              )}
+                              {r.isPublic ? "Publik" : "Privat"}
                             </span>
                             <button
                             type="button"

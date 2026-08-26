@@ -102,7 +102,7 @@ async function handleGetDashboardSummary() {
       if (isSuperAdmin) {
         const { data: referrals, error: referralsError } = await supabaseAdmin
           .from('referral_codes')
-          .select('id, code, discount_type, discount_value, max_discount, usage_limit, status')
+          .select('id, code, discount_type, discount_value, max_discount, usage_limit, status, visibility')
           .eq('event_id', activeEvent.id)
           .eq('status', 'ACTIVE')
           .order('created_at', { ascending: true })
@@ -133,6 +133,7 @@ async function handleGetDashboardSummary() {
             maxDiscount: r.max_discount,
             usageLimit: r.usage_limit,
             usedCount: usedCounts[r.id] ?? 0,
+            visibility: r.visibility,
           })),
         }
       }

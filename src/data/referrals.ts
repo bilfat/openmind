@@ -22,6 +22,7 @@ export interface ReferralCode {
   description?: string;
   createdAt: string;
   eventId?: string;
+  isPublic?: boolean;
 }
 
 export const initialReferralCodes: ReferralCode[] = [];

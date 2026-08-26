@@ -118,6 +118,7 @@ export async function createNewReferral(
     end_at: data.endDate,
     status: data.status,
     description: data.description ?? null,
+    is_public: data.isPublic ?? false,
   };
 
   const res = await fetch("/api/admin/referrals", {
@@ -150,6 +151,7 @@ export async function updateExistingReferral(
   if (data.endDate !== undefined) payload.end_at = data.endDate;
   if (data.status !== undefined) payload.status = data.status;
   if (data.description !== undefined) payload.description = data.description ?? null;
+  if (data.isPublic !== undefined) payload.is_public = data.isPublic;
 
   try {
     const res = await fetch(`/api/admin/referrals/${encodeURIComponent(id)}`, {

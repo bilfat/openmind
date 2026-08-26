@@ -41,6 +41,7 @@ const UpdateReferralSchema = z.object({
   end_at: z.string().min(1).optional(),
   status: z.enum(['DRAFT', 'ACTIVE', 'INACTIVE', 'EXPIRED', 'EXHAUSTED', 'ARCHIVED']).optional(),
   description: z.string().nullable().optional(),
+  is_public: z.boolean().optional(),
 })
 
 /* ── Helper: map DB row to frontend shape ──────────────────────────────── */
@@ -60,6 +61,7 @@ function rowToFrontend(row: Record<string, unknown>, usedCount: number) {
     description: row.description,
     createdAt: row.created_at,
     eventId: row.event_id,
+    isPublic: row.is_public,
   }
 }
 
@@ -179,6 +181,7 @@ async function handleUpdateReferral(request: Request, context: RouteContext) {
     if (data.end_at !== undefined) updates.end_at = data.end_at
     if (data.status !== undefined) updates.status = data.status
     if (data.description !== undefined) updates.description = data.description
+    if (data.is_public !== undefined) updates.is_public = data.is_public
     updates.updated_at = new Date().toISOString()
 
     const { data: updated, error: updateError } = await supabaseAdmin

@@ -22,6 +22,7 @@ import {
   Calendar,
   Sparkles,
   Loader2,
+  Eye,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -125,6 +126,25 @@ export default function ReferralDetailPage() {
     await loadData();
   };
 
+  const handleTogglePublic = async () => {
+    try {
+      const res = await fetch(`/api/admin/referrals/${encodeURIComponent(referral.id)}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_public: !referral.isPublic }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: "Gagal memperbarui visibilitas publik." }));
+        throw new Error(err.message || "Gagal memperbarui visibilitas publik.");
+      }
+      showToast(referral.isPublic ? `Kode "${referral.code}" disembunyikan dari publik.` : `Kode "${referral.code}" ditampilkan ke publik.`);
+      await loadData();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Gagal memperbarui visibilitas publik.");
+    }
+  };
+
   return (
     <div className="space-y-8">
       {toastMessage && (
@@ -215,6 +235,29 @@ export default function ReferralDetailPage() {
               <>
                 <PauseCircle className="h-4 w-4" />
                 <span>Nonaktifkan</span>
+              </>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleTogglePublic}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-2xl px-4 py-2.5 text-xs font-bold transition-all border",
+              referral.isPublic
+                ? "bg-emerald-600 border-emerald-600 text-white hover:bg-emerald-700"
+                : "bg-amber-500/10 border-amber-500/30 text-amber-800 hover:bg-amber-500/20"
+            )}
+          >
+            {referral.isPublic ? (
+              <>
+                <Eye className="h-4 w-4" />
+                <span>Sembunyikan dari Publik</span>
+              </>
+            ) : (
+              <>
+                <Eye className="h-4 w-4" />
+                <span>Tampilkan ke Publik</span>
               </>
             )}
           </button>

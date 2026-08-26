@@ -4,6 +4,7 @@ import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { TicketVoucherCard } from "@/components/ticket/ticket-voucher-card";
+import { PublicReferralVoucher } from "@/components/public/public-referral-voucher";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { contactWhatsApp } from "@/data/social-links";
 import { useActiveEvent } from "@/hooks/use-active-event";
@@ -23,8 +24,10 @@ import {
   AlertTriangle,
   RotateCcw,
   MessageCircle,
+  Gift,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/browser";
 
 const termItems = [
   {
@@ -83,8 +86,8 @@ function TiketPageContent() {
   const displayName = eventDisplayName(event);
   const waNumber = event?.contact_whatsapp || contactWhatsApp.number;
 
-  const [activeTab, setActiveTab] = useState<"catalog" | "check">(() =>
-    tabParam === "check" || orderParam ? "check" : "catalog"
+  const [activeTab, setActiveTab] = useState<"catalog" | "check" | "referral">(() =>
+    tabParam === "check" || orderParam ? "check" : tabParam === "referral" ? "referral" : "catalog"
   );
 
   // Check Ticket Tracker State inside Tiket page
@@ -94,6 +97,10 @@ function TiketPageContent() {
 
   const [tickets, setTickets] = useState<any[]>([]);
   const [loadingTickets, setLoadingTickets] = useState(true);
+
+  // Referral State
+  const [referrals, setReferrals] = useState<any[]>([]);
+  const [loadingReferrals, setLoadingReferrals] = useState(true);
 
   useEffect(() => {
     let isCancelled = false;
@@ -123,6 +130,61 @@ function TiketPageContent() {
     return () => {
       isCancelled = true;
       clearInterval(intervalId);
+    };
+  }, [activeTab]);
+
+  // Fetch Referrals with Real-time Subscription
+  useEffect(() => {
+    let isCancelled = false;
+    let subscription: any = null;
+
+    async function fetchReferrals() {
+      try {
+        const res = await fetch("/api/public/referrals");
+        if (isCancelled) return;
+        const json = await res.json();
+        if (json.success) {
+          setReferrals(json.items);
+        }
+      } catch (err) {
+        console.error("Error fetching referrals:", err);
+      } finally {
+        if (!isCancelled) setLoadingReferrals(false);
+      }
+    }
+
+    fetchReferrals();
+
+    // Real-time subscription for referral updates
+    const supabase = createClient();
+    subscription = supabase
+      .channel("public-referrals")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "referral_codes",
+          filter: "is_public=eq.true",
+        },
+        (payload) => {
+          console.log("[Realtime] Referral change:", payload);
+          fetchReferrals(); // Refetch on any change
+        }
+      )
+      .subscribe();
+
+    // Also poll every 30s as fallback
+    const intervalId = setInterval(() => {
+      if (activeTab === "referral") fetchReferrals();
+    }, 30000);
+
+    return () => {
+      isCancelled = true;
+      clearInterval(intervalId);
+      if (subscription) {
+        supabase.removeChannel(subscription);
+      }
     };
   }, [activeTab]);
 
@@ -277,14 +339,33 @@ function TiketPageContent() {
                 <Search className="relative z-10 h-4 w-4" />
                 <span className="relative z-10 whitespace-nowrap">Cek Status & E-Ticket</span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab("referral")}
+                className={cn(
+                  "relative flex items-center gap-2 rounded-full px-4 py-2.5 text-xs font-bold transition-colors duration-300 sm:px-5 sm:text-sm",
+                  activeTab === "referral" ? "text-navy-950" : "text-ivory-200/80 hover:text-ivory-100"
+                )}
+              >
+                {activeTab === "referral" && (
+                  <motion.span
+                    layoutId="ticket-tab-pill"
+                    className="absolute inset-0 rounded-full bg-gold-500 shadow-lg shadow-gold-500/40"
+                    transition={{ type: "spring", stiffness: 400, damping: 32 }}
+                  />
+                )}
+                <Gift className="relative z-10 h-4 w-4" />
+                <span className="relative z-10 whitespace-nowrap">Kode Referal</span>
+              </button>
             </div>
           </motion.div>
         </div>
       </section>
 
-      {/* ================= TAB 1: TICKET CATALOG ================= */}
+      {/* ================= TAB CONTENT ================= */}
       <AnimatePresence mode="wait">
-        {activeTab === "catalog" ? (
+        {activeTab === "catalog" && (
           <motion.div
             key="catalog"
             initial={{ opacity: 0, y: 16 }}
@@ -412,7 +493,8 @@ function TiketPageContent() {
               </div>
             </section>
           </motion.div>
-        ) : (
+        )}
+        {activeTab === "check" && (
           /* ================= TAB 2: CHECK TICKET TRACKER ================= */
           <motion.section
             key="check"
@@ -664,6 +746,99 @@ function TiketPageContent() {
                   </motion.div>
                 )}
               </AnimatePresence>
+            </div>
+          </motion.section>
+        )}
+        {activeTab === "referral" && (
+          /* ================= TAB 3: KODE REFERAL ================= */
+          <motion.section
+            key="referral"
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -16 }}
+            transition={{ duration: 0.35, ease: "easeOut" }}
+            className="relative overflow-hidden bg-gradient-to-b from-navy-950 via-navy-900 to-navy-950 px-4 py-16 sm:px-6 lg:px-8"
+          >
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(201,162,74,0.08),transparent_55%)]" />
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(#C9A24A_1px,transparent_1px)] [background-size:28px_28px] opacity-[0.05]" />
+            <GlassParticles />
+
+            <div className="relative mx-auto max-w-7xl">
+              <motion.div
+                initial={{ opacity: 0, y: 24 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-60px" }}
+                transition={{ duration: 0.55 }}
+                className="text-center mb-12"
+              >
+                <span className="inline-flex items-center gap-2 rounded-full border border-gold-500/30 bg-gold-500/10 px-3.5 py-1 text-[10px] font-bold uppercase tracking-widest text-gold-400">
+                  <Gift className="h-3 w-3" />
+                  <span>Kode Referal Publik</span>
+                </span>
+                <h2 className="mt-3 font-display text-2xl font-bold text-ivory-100 sm:text-3xl">
+                  Promo & Diskon Eksklusif
+                </h2>
+                <p className="mx-auto mt-2 max-w-md text-xs text-ivory-200/70 sm:text-sm">
+                  Gunakan kode berikut saat checkout untuk mendapatkan diskon. Kuota real-time & terbatas!
+                </p>
+              </motion.div>
+
+              {loadingReferrals ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="animate-pulse">
+                      <div className="rounded-3xl border-2 border-gold-500/20 bg-navy-950/50 p-6 h-64" />
+                    </div>
+                  ))}
+                </div>
+              ) : referrals.length === 0 ? (
+                <div className="text-center py-16">
+                  <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gold-500/10 mb-4">
+                    <Gift className="h-10 w-10 text-gold-500" />
+                  </div>
+                  <h3 className="font-display text-xl font-bold text-ivory-100 mb-2">
+                    Belum Ada Kode Referal Publik
+                  </h3>
+                  <p className="text-ivory-200/70 max-w-md mx-auto">
+                    Saat ini tidak ada kode referal yang ditampilkan untuk publik. Kembali nanti untuk promo terbaru!
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                  {referrals.map((ref, idx) => (
+                    <motion.div
+                      key={ref.id}
+                      initial={{ opacity: 0, y: 24 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true, margin: "-60px" }}
+                      transition={{ duration: 0.55, delay: idx * 0.1, ease: "easeOut" }}
+                    >
+                      <PublicReferralVoucher
+                        code={ref.code}
+                        status={ref.status}
+                        description={ref.description}
+                        index={idx}
+                      />
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-40px" }}
+                transition={{ duration: 0.5, delay: 0.2 }}
+                className="mt-12 text-center"
+              >
+                <Link
+                  href="/tiket"
+                  className="inline-flex items-center gap-2 rounded-full border border-gold-500/40 bg-white px-6 py-3.5 text-sm font-bold text-gold-600 shadow-sm transition-all duration-300 hover:border-gold-500 hover:shadow-lg hover:shadow-gold-500/10"
+                >
+                  <span>Pesan Tiket & Gunakan Kode Referal</span>
+                  <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+                </Link>
+              </motion.div>
             </div>
           </motion.section>
         )}

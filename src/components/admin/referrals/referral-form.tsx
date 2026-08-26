@@ -27,10 +27,9 @@ export function ReferralForm({ initialData, isEdit = false }: ReferralFormProps)
 
   function toDatetimeLocal(iso: string | undefined): string {
     if (!iso) return "";
-    const d = new Date(iso);
-    if (isNaN(d.getTime())) return "";
-    const pad = (n: number) => String(n).padStart(2, "0");
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
+    if (!m) return "";
+    return `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}`;
   }
 
   const [formData, setFormData] = useState({
@@ -44,6 +43,7 @@ export function ReferralForm({ initialData, isEdit = false }: ReferralFormProps)
     endDate: toDatetimeLocal(initialData?.endDate),
     status: initialData?.status || ("ACTIVE" as ReferralStatus),
     description: initialData?.description || "",
+    isPublic: initialData?.isPublic || false,
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -62,6 +62,7 @@ export function ReferralForm({ initialData, isEdit = false }: ReferralFormProps)
     endDate: string;
     status: ReferralStatus;
     description: string;
+    isPublic: boolean;
   };
 
   const handleChange = <K extends keyof FormData>(field: K, value: FormData[K]) => {
@@ -457,6 +458,42 @@ export function ReferralForm({ initialData, isEdit = false }: ReferralFormProps)
                   ○ Inactive (Nonaktifkan)
                 </button>
               </div>
+            </div>
+
+            {/* Public Visibility Toggle */}
+            <div className="pt-2 border-t border-border">
+              <label className="block text-xs font-bold uppercase tracking-wider text-navy-900 mb-2">
+                Tampilkan di Halaman Publik
+              </label>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => handleChange("isPublic", true)}
+                  className={cn(
+                    "rounded-xl px-4 py-2 text-xs font-bold transition-all border",
+                    formData.isPublic
+                      ? "bg-emerald-600 border-emerald-600 text-white shadow-sm"
+                      : "bg-secondary/30 border-border text-navy-900 hover:bg-secondary"
+                  )}
+                >
+                  ✓ Publik (Tampilkan ke Tamu)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleChange("isPublic", false)}
+                  className={cn(
+                    "rounded-xl px-4 py-2 text-xs font-bold transition-all border",
+                    !formData.isPublic
+                      ? "bg-amber-600 border-amber-600 text-white shadow-sm"
+                      : "bg-secondary/30 border-border text-navy-900 hover:bg-secondary"
+                  )}
+                >
+                  🔒 Privat (Hanya Panitia)
+                </button>
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1.5">
+                Jika Publik: Kode akan terlihat di halaman tamu. Jika Privat: Hanya panitia yang tau kodenya.
+              </p>
             </div>
           </div>
         </div>

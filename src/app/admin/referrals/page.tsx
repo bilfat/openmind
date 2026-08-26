@@ -25,6 +25,7 @@ import {
   Copy,
   Check,
   Loader2,
+  Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -34,6 +35,7 @@ export default function AdminReferralsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [typeFilter, setTypeFilter] = useState<string>("ALL");
+  const [publicFilter, setPublicFilter] = useState<"ALL" | "PUBLIC" | "PRIVATE">("ALL");
   const [actionMenuOpen, setActionMenuOpen] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
@@ -101,11 +103,16 @@ export default function AdminReferralsPage() {
 
     const matchesType = typeFilter === "ALL" || r.discountType === typeFilter;
 
+    const matchesPublic =
+      publicFilter === "ALL" ||
+      (publicFilter === "PUBLIC" && r.isPublic) ||
+      (publicFilter === "PRIVATE" && !r.isPublic);
+
     if (statusFilter !== "ARCHIVED" && derivedStatus === "ARCHIVED") {
       return false;
     }
 
-    return matchesSearch && matchesStatus && matchesType;
+    return matchesSearch && matchesStatus && matchesType && matchesPublic;
   });
 
   return (
@@ -166,6 +173,28 @@ export default function AdminReferralsPage() {
           ))}
         </div>
 
+        <div className="flex flex-wrap items-center gap-2 border-b border-border pb-4">
+          {[
+            { id: "ALL", label: "Semua Visibilitas" },
+            { id: "PUBLIC", label: "Publik" },
+            { id: "PRIVATE", label: "Privat" },
+          ].map((pill) => (
+            <button
+              key={pill.id}
+              type="button"
+              onClick={() => setPublicFilter(pill.id as "ALL" | "PUBLIC" | "PRIVATE")}
+              className={cn(
+                "rounded-xl px-3.5 py-1.5 text-xs font-bold transition-all",
+                publicFilter === pill.id
+                  ? "bg-navy-900 text-gold-400 shadow-sm"
+                  : "bg-secondary/40 text-navy-900/70 hover:bg-secondary hover:text-navy-900"
+              )}
+            >
+              {pill.label}
+            </button>
+          ))}
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
           <div className="sm:col-span-8 relative">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -208,6 +237,7 @@ export default function AdminReferralsPage() {
                   <th className="px-5 py-4">Usage (Used / Quota)</th>
                   <th className="px-5 py-4">Remaining</th>
                   <th className="px-5 py-4">Validity Period</th>
+                  <th className="px-5 py-4">Visibility</th>
                   <th className="px-5 py-4">Status</th>
                   <th className="px-5 py-4 text-right">Action</th>
                 </tr>
@@ -215,7 +245,7 @@ export default function AdminReferralsPage() {
               <tbody className="divide-y divide-border">
                 {filteredReferrals.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-5 py-12 text-center text-muted-foreground">
+                    <td colSpan={8} className="px-5 py-12 text-center text-muted-foreground">
                       Belum ada kode referal yang sesuai dengan filter atau pencarian Anda.
                     </td>
                   </tr>
@@ -293,6 +323,24 @@ export default function AdminReferralsPage() {
 
                         <td className="px-5 py-4 text-[11px] text-muted-foreground font-mono">
                           {ref.startDate.slice(0, 10)} ➔ {ref.endDate.slice(0, 10)}
+                        </td>
+
+                        <td className="px-5 py-4">
+                          <span
+                            className={cn(
+                              "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider",
+                              ref.isPublic
+                                ? "bg-emerald-500/15 text-emerald-700"
+                                : "bg-amber-500/15 text-amber-800"
+                            )}
+                          >
+                            {ref.isPublic ? (
+                              <CheckCircle2 className="h-3 w-3" />
+                            ) : (
+                              <Lock className="h-3 w-3" />
+                            )}
+                            {ref.isPublic ? "Publik" : "Privat"}
+                          </span>
                         </td>
 
                         <td className="px-5 py-4">

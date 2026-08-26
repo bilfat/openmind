@@ -13,6 +13,7 @@ import { TalentCard } from "@/components/landing/talent-card";
 import { TalentModal } from "@/components/landing/talent-modal";
 import { useActiveEvent } from "@/hooks/use-active-event";
 import { formatEventDate, formatEventTimeRange, eventDisplayName, speakerToTalent } from "@/lib/event-utils";
+import { PublicReferralSection } from "@/components/public/public-referral-section";
 import {
   Calendar,
   MapPin,
@@ -560,6 +561,8 @@ export default function BerandaPage() {
           </motion.div>
         </div>
       </section>
+
+      <PublicReferralSection />
 
       {selectedTalent && (
         <TalentModal

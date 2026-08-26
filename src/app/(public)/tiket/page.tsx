@@ -299,14 +299,14 @@ function TiketPageContent() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.3 }}
-            className="mt-8 flex items-center justify-center"
+            className="mt-8 flex items-center justify-center px-1"
           >
-            <div className="inline-flex flex-wrap justify-center gap-1 rounded-full border border-white/15 bg-white/10 p-1.5 shadow-2xl backdrop-blur-2xl">
+            <div className="grid grid-cols-3 w-full max-w-xl rounded-full border border-white/15 bg-white/10 p-1 sm:p-1.5 shadow-2xl backdrop-blur-2xl">
               <button
                 type="button"
                 onClick={() => setActiveTab("catalog")}
                 className={cn(
-                  "relative flex items-center gap-2 rounded-full px-4 py-2.5 text-xs font-bold transition-colors duration-300 sm:px-5 sm:text-sm",
+                  "relative flex items-center justify-center gap-1 sm:gap-2 rounded-full px-1 py-2 text-[10px] min-[400px]:text-[11px] sm:px-5 sm:py-2.5 sm:text-sm font-bold transition-colors duration-300 min-w-0",
                   activeTab === "catalog" ? "text-navy-950" : "text-ivory-200/80 hover:text-ivory-100"
                 )}
               >
@@ -317,15 +317,17 @@ function TiketPageContent() {
                     transition={{ type: "spring", stiffness: 400, damping: 32 }}
                   />
                 )}
-                <Ticket className="relative z-10 h-4 w-4" />
-                <span className="relative z-10 whitespace-nowrap">Pesan Tiket Baru</span>
+                <Ticket className="relative z-10 h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+                <span className="relative z-10 truncate">
+                  Pesan Tiket<span className="hidden min-[380px]:inline"> Baru</span>
+                </span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setActiveTab("check")}
                 className={cn(
-                  "relative flex items-center gap-2 rounded-full px-4 py-2.5 text-xs font-bold transition-colors duration-300 sm:px-5 sm:text-sm",
+                  "relative flex items-center justify-center gap-1 sm:gap-2 rounded-full px-1 py-2 text-[10px] min-[400px]:text-[11px] sm:px-5 sm:py-2.5 sm:text-sm font-bold transition-colors duration-300 min-w-0",
                   activeTab === "check" ? "text-navy-950" : "text-ivory-200/80 hover:text-ivory-100"
                 )}
               >
@@ -336,15 +338,17 @@ function TiketPageContent() {
                     transition={{ type: "spring", stiffness: 400, damping: 32 }}
                   />
                 )}
-                <Search className="relative z-10 h-4 w-4" />
-                <span className="relative z-10 whitespace-nowrap">Cek Status & E-Ticket</span>
+                <Search className="relative z-10 h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+                <span className="relative z-10 truncate">
+                  Cek Status<span className="hidden min-[400px]:inline"> & E-Ticket</span>
+                </span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setActiveTab("referral")}
                 className={cn(
-                  "relative flex items-center gap-2 rounded-full px-4 py-2.5 text-xs font-bold transition-colors duration-300 sm:px-5 sm:text-sm",
+                  "relative flex items-center justify-center gap-1 sm:gap-2 rounded-full px-1 py-2 text-[10px] min-[400px]:text-[11px] sm:px-5 sm:py-2.5 sm:text-sm font-bold transition-colors duration-300 min-w-0",
                   activeTab === "referral" ? "text-navy-950" : "text-ivory-200/80 hover:text-ivory-100"
                 )}
               >
@@ -355,8 +359,8 @@ function TiketPageContent() {
                     transition={{ type: "spring", stiffness: 400, damping: 32 }}
                   />
                 )}
-                <Gift className="relative z-10 h-4 w-4" />
-                <span className="relative z-10 whitespace-nowrap">Kode Referal</span>
+                <Gift className="relative z-10 h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+                <span className="relative z-10 truncate">Kode Referal</span>
               </button>
             </div>
           </motion.div>
@@ -784,10 +788,10 @@ function TiketPageContent() {
               </motion.div>
 
               {loadingReferrals ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6 lg:gap-8">
                   {[1, 2, 3].map((i) => (
                     <div key={i} className="animate-pulse">
-                      <div className="rounded-3xl border-2 border-gold-500/20 bg-navy-950/50 p-6 h-64" />
+                      <div className="rounded-2xl sm:rounded-3xl border-2 border-gold-500/20 bg-navy-950/50 p-4 sm:p-6 h-48 sm:h-64" />
                     </div>
                   ))}
                 </div>
@@ -804,7 +808,7 @@ function TiketPageContent() {
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6 lg:gap-8">
                   {referrals.map((ref, idx) => (
                     <motion.div
                       key={ref.id}

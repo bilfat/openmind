@@ -78,10 +78,10 @@ export function PublicReferralSection() {
       </motion.div>
 
       {loading ? (
-        <div className="mt-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="mt-8 sm:mt-12 grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6 lg:gap-8">
           {[1, 2, 3].map((i) => (
             <div key={i} className="animate-pulse">
-              <div className="rounded-3xl border-2 border-gold-500/20 bg-navy-950/50 p-6 h-64" />
+              <div className="rounded-2xl sm:rounded-3xl border-2 border-gold-500/20 bg-navy-950/50 p-4 sm:p-6 h-48 sm:h-64" />
             </div>
           ))}
         </div>
@@ -103,7 +103,7 @@ export function PublicReferralSection() {
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, margin: "-60px" }}
-          className="mt-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
+          className="mt-8 sm:mt-12 grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6 lg:gap-8"
         >
           {referrals.map((ref, idx) => (
             <motion.div key={ref.id} variants={fadeUp}>

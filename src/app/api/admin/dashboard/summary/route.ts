@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireActiveAdmin, jsonError } from '@/lib/admin-read-auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { withTimeoutGuard } from '@/lib/timeout'
+import { getDerivedReferralStatus } from '@/lib/referral-store'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -41,22 +42,16 @@ async function handleGetDashboardSummary() {
         .order('created_at', { ascending: true })
 
       if (ticketsError) throw new Error(ticketsError.message)
-
       const ticketIds = (tickets ?? []).map((t: any) => t.id)
       const issuedCounts: Record<string, number> = {}
       const pendingCounts: Record<string, number> = {}
-      if (ticketIds.length) {
+      if (ticketIds && ticketIds.length > 0) {
         const [issuedRes, newOrdersRes] = await Promise.all([
           supabaseAdmin
             .from('issued_tickets')
             .select('ticket_type_id')
             .in('ticket_type_id', ticketIds)
             .neq('status', 'CANCELLED'),
-          // "Pending" = tiket (item pesanan) dari pesanan yang belum di-approve
-          // (WAITING_VERIFICATION) + pesanan baru yang belum upload bukti
-          // pembayaran (DRAFT pada alur baru, PENDING_PAYMENT pada alur lama).
-          // Definisi ini konsisten dengan "Kuota terpakai" di dashboard (terbit
-          // + pending) dan kolom Sisa di fitur tiket.
           supabaseAdmin
             .from('orders')
             .select('id')
@@ -68,7 +63,7 @@ async function handleGetDashboardSummary() {
           issuedCounts[row.ticket_type_id] = (issuedCounts[row.ticket_type_id] ?? 0) + 1
         }
         const newOrderIds = (newOrdersRes.data ?? []).map((o: any) => o.id)
-        if (newOrderIds.length) {
+        if (newOrderIds.length > 0) {
           const { data: pendingItems, error: pendingError } = await supabaseAdmin
             .from('order_items')
             .select('ticket_type_id')
@@ -81,6 +76,16 @@ async function handleGetDashboardSummary() {
           }
         }
       }
+
+      // console.log("DEBUG: activeTickets construction:", {
+      //   total: (tickets ?? []).length,
+      //   items: (tickets ?? []).map((t: any) => ({
+      //     id: t.id,
+      //     name: t.name,
+      //     issued: issuedCounts[t.id] ?? 0,
+      //     pending: pendingCounts[t.id] ?? 0,
+      //   })),
+      // });
 
       activeTickets = {
         total: (tickets ?? []).length,
@@ -102,7 +107,7 @@ async function handleGetDashboardSummary() {
       if (isSuperAdmin) {
         const { data: referrals, error: referralsError } = await supabaseAdmin
           .from('referral_codes')
-          .select('id, code, discount_type, discount_value, max_discount, usage_limit, status, visibility')
+          .select('id, code, discount_type, discount_value, max_discount, usage_limit, status, is_public, start_at, end_at')
           .eq('event_id', activeEvent.id)
           .eq('status', 'ACTIVE')
           .order('created_at', { ascending: true })
@@ -123,9 +128,8 @@ async function handleGetDashboardSummary() {
           }
         }
 
-        activeReferrals = {
-          total: (referrals ?? []).length,
-          items: (referrals ?? []).map((r: any) => ({
+        const filteredReferrals = (referrals ?? [])
+          .map((r: any) => ({
             id: r.id,
             code: r.code,
             discountType: r.discount_type,
@@ -133,8 +137,20 @@ async function handleGetDashboardSummary() {
             maxDiscount: r.max_discount,
             usageLimit: r.usage_limit,
             usedCount: usedCounts[r.id] ?? 0,
-            visibility: r.visibility,
-          })),
+            isPublic: r.is_public ?? false,
+            // Perlu ditambahkan untuk filter upcoming
+            startDate: r.start_at,
+            endDate: r.end_at,
+            status: r.status,
+          }))
+          .filter((r) => {
+            const status = getDerivedReferralStatus(r as any);
+            return status === "ACTIVE";
+          });
+
+        activeReferrals = {
+          total: filteredReferrals.length,
+          items: filteredReferrals,
         }
       }
     }

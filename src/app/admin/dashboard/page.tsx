@@ -107,6 +107,7 @@ interface SummaryTicket {
   remaining: number;
 }
 
+// ganti di dalam interface SummaryReferral
 interface SummaryReferral {
   id: string;
   code: string;
@@ -117,6 +118,9 @@ interface SummaryReferral {
   usedCount: number;
   isPublic: boolean;
 }
+
+// ... lalu perbaiki bagian render card referal ...
+// (saya akan mengedit bagian render card di bawah)
 
 interface DashboardSummary {
   role: "SUPER_ADMIN" | "ADMIN";
@@ -1053,11 +1057,11 @@ export default function AdminDashboardPage() {
                       };
                       const sc = statusConfig[derivedStatus as keyof typeof statusConfig] || statusConfig.ACTIVE;
                       const StatusIcon = sc.icon;
-                      return (
+                       return (
                         <div key={r.id} className="rounded-xl border border-border bg-secondary/20 p-2 sm:p-2.5">
                           <div className="flex items-center justify-between gap-2">
                             <div className="min-w-0">
-                              <p className="font-mono text-[11px] font-bold text-gold-600 sm:text-xs">
+                              <p className="font-mono text-[11px] font-bold text-navy-900 sm:text-xs">
                                 {r.code}
                               </p>
                               <p className="truncate text-[9px] text-muted-foreground">
@@ -1066,70 +1070,75 @@ export default function AdminDashboardPage() {
                                   : `${formatRupiah(r.discountValue)} diskon`}
                               </p>
                             </div>
-                            <span
-                              className={cn(
-                                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider",
-                                sc.cls
-                              )}
-                            >
-                              <StatusIcon className="h-2.5 w-2.5" />
-                              {sc.label}
-                            </span>
-                            <span
-                              className={cn(
-                                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider",
-                                r.isPublic
-                                  ? "bg-emerald-500/15 text-emerald-700"
-                                  : "bg-amber-500/15 text-amber-800"
-                              )}
-                            >
-                              {r.isPublic ? (
-                                <CheckCircle2 className="h-2.5 w-2.5" />
-                              ) : (
-                                <Lock className="h-2.5 w-2.5" />
-                              )}
-                              {r.isPublic ? "Publik" : "Privat"}
-                            </span>
+                            
+                            <div className="flex items-center gap-1">
+                              <span
+                                className={cn(
+                                  "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider",
+                                  sc.cls
+                                )}
+                              >
+                                <StatusIcon className="h-2.5 w-2.5" />
+                                {sc.label}
+                              </span>
+                              <span
+                                className={cn(
+                                  "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider",
+                                  r.isPublic
+                                    ? "bg-emerald-500/15 text-emerald-700"
+                                    : "bg-amber-500/15 text-amber-800"
+                                )}
+                              >
+                                {r.isPublic ? (
+                                  <CheckCircle2 className="h-2.5 w-2.5" />
+                                ) : (
+                                  <Lock className="h-2.5 w-2.5" />
+                                )}
+                                {r.isPublic ? "Publik" : "Privat"}
+                              </span>
+                            </div>
+
                             <button
-                            type="button"
-                            onClick={() => copyReferralCode(r.code)}
-                            title="Salin kode referal"
-                            aria-label={`Salin kode ${r.code}`}
-                            className={cn(
-                              "flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg transition-colors",
-                              copiedCode === r.code
-                                ? "bg-emerald-500/15 text-emerald-600"
-                                : "bg-navy-900/10 text-navy-900 hover:bg-gold-500 hover:text-navy-950"
-                            )}
-                          >
-                            {copiedCode === r.code ? (
-                              <Check className="h-3.5 w-3.5" />
-                            ) : (
-                              <Copy className="h-3.5 w-3.5" />
-                            )}
-                          </button>
-                        </div>
-                        <div className="mt-1.5 flex items-center gap-1.5">
-                          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-border">
-                            <div
-                              className="h-full rounded-full bg-gradient-to-r from-navy-800 to-gold-500 transition-all"
-                              style={{ width: `${pct}%` }}
-                            />
+                              type="button"
+                              onClick={() => copyReferralCode(r.code)}
+                              title="Salin kode referal"
+                              aria-label={`Salin kode ${r.code}`}
+                              className={cn(
+                                "flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg transition-colors",
+                                copiedCode === r.code
+                                  ? "bg-emerald-500/15 text-emerald-600"
+                                  : "bg-navy-900/10 text-navy-900 hover:bg-gold-500 hover:text-navy-950"
+                              )}
+                            >
+                              {copiedCode === r.code ? (
+                                <Check className="h-3.5 w-3.5" />
+                              ) : (
+                                <Copy className="h-3.5 w-3.5" />
+                              )}
+                            </button>
                           </div>
-                          <span
-                            className={cn(
-                              "flex-shrink-0 text-[9px] font-bold tabular-nums",
-                              limit && r.usedCount >= limit
-                                ? "text-burgundy-600"
-                                : "text-emerald-700"
-                            )}
-                          >
-                            {r.usedCount}
-                            {limit ? `/${limit}` : ""} pakai
-                          </span>
+                          
+                          <div className="mt-2 flex items-center gap-1.5">
+                            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-border">
+                              <div
+                                className="h-full rounded-full bg-gradient-to-r from-navy-800 to-gold-500 transition-all"
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                            <span
+                              className={cn(
+                                "flex-shrink-0 text-[9px] font-bold tabular-nums",
+                                limit && r.usedCount >= limit
+                                  ? "text-burgundy-600"
+                                  : "text-emerald-700"
+                              )}
+                            >
+                              {r.usedCount}
+                              {limit ? `/${limit}` : ""} pakai
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    );
+                      );
                   })}
                 </div>
               )}

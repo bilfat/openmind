@@ -72,7 +72,8 @@ function ParticipantsPageContent() {
     return () => controller.abort();
   }, []);
 
-  const faculties = allFaculties.length > 0 ? allFaculties : useMemo(() => [...new Set(participants.map((participant) => participant.faculty).filter(Boolean))], [participants]);
+  const derivedFaculties = useMemo(() => [...new Set(participants.map((participant) => participant.faculty).filter(Boolean))], [participants]);
+  const faculties = allFaculties.length > 0 ? allFaculties : derivedFaculties;
 
   const buildExportParams = (pageNumber: number) => {
     const params = new URLSearchParams({ page: String(pageNumber), limit: String(PAGE_SIZE) });

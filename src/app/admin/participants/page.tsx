@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Users, Search, Download, ChevronLeft, ChevronRight, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Users, Search, Download, ChevronLeft, ChevronRight, CheckCircle2, AlertTriangle, Filter, Loader2 } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
+import { LogoSpinner } from "@/components/ui/logo-spinner";
+import { Suspense } from "react";
 
 type ParticipantRow = {
   id: string;
@@ -20,15 +22,18 @@ type ParticipantRow = {
 
 const PAGE_SIZE = 50;
 
-export default function ParticipantsPage() {
+function ParticipantsPageContent() {
   const [participants, setParticipants] = useState<ParticipantRow[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [faculty, setFaculty] = useState("all");
   const [ticketType, setTicketType] = useState("all");
+  const [attendance, setAttendance] = useState("all");
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ page: 1, limit: PAGE_SIZE, total: 0, totalPages: 0 });
   const [loading, setLoading] = useState(true);
+  const [isFilterLoading, setIsFilterLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [allFaculties, setAllFaculties] = useState<string[]>([]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -36,6 +41,11 @@ export default function ParticipantsPage() {
     if (searchTerm.trim()) params.set("search", searchTerm.trim());
     if (faculty !== "all") params.set("faculty", faculty);
     if (ticketType !== "all") params.set("ticket_type", ticketType);
+    if (attendance !== "all") params.set("attendance", attendance);
+    
+    const isInitialLoad = page === 1 && !searchTerm.trim() && faculty === "all" && ticketType === "all" && attendance === "all";
+    if (!isInitialLoad) setIsFilterLoading(true);
+    
     fetch(`/api/admin/participants?${params.toString()}`, { cache: "no-store", signal: controller.signal })
       .then(async (response) => {
         const payload = await response.json();
@@ -44,17 +54,32 @@ export default function ParticipantsPage() {
         setPagination(payload.pagination ?? { page, limit: PAGE_SIZE, total: 0, totalPages: 0 });
       })
       .catch((error) => { if (error.name !== "AbortError") console.error(error); })
-      .finally(() => setLoading(false));
+      .finally(() => { setLoading(false); setIsFilterLoading(false); });
     return () => controller.abort();
-  }, [searchTerm, faculty, ticketType, page]);
+  }, [searchTerm, faculty, ticketType, attendance, page]);
 
-  const faculties = useMemo(() => [...new Set(participants.map((participant) => participant.faculty).filter(Boolean))], [participants]);
+  // Fetch all faculties for the filter dropdown (independent of current filters)
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/admin/participants?all_faculties=true", { cache: "no-store", signal: controller.signal })
+      .then(async (response) => {
+        const payload = await response.json();
+        if (response.ok && payload.faculties) {
+          setAllFaculties(payload.faculties);
+        }
+      })
+      .catch((error) => { if (error.name !== "AbortError") console.error(error); });
+    return () => controller.abort();
+  }, []);
+
+  const faculties = allFaculties.length > 0 ? allFaculties : useMemo(() => [...new Set(participants.map((participant) => participant.faculty).filter(Boolean))], [participants]);
 
   const buildExportParams = (pageNumber: number) => {
     const params = new URLSearchParams({ page: String(pageNumber), limit: String(PAGE_SIZE) });
     if (searchTerm.trim()) params.set("search", searchTerm.trim());
     if (faculty !== "all") params.set("faculty", faculty);
     if (ticketType !== "all") params.set("ticket_type", ticketType);
+    if (attendance !== "all") params.set("attendance", attendance);
     return params;
   };
 
@@ -170,6 +195,19 @@ export default function ParticipantsPage() {
               <option value="PAID">PAID</option>
             </select>
           </div>
+
+          {/* Attendance Filter */}
+          <div className="sm:col-span-3">
+            <select
+              value={attendance}
+              onChange={(event) => { setAttendance(event.target.value); setPage(1); }}
+              className="w-full rounded-xl border border-border bg-secondary/20 py-2.5 px-3 text-xs text-navy-900 focus:border-gold-500 focus:bg-white focus:outline-none"
+            >
+              <option value="all">Semua Status</option>
+              <option value="present">Sudah Hadir</option>
+              <option value="absent">Belum Hadir</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -177,8 +215,14 @@ export default function ParticipantsPage() {
       <div className="rounded-2xl border border-border bg-white shadow-sm overflow-hidden flex-1 min-h-0 flex flex-col">
         <div className="flex-1 min-h-0 overflow-auto">
           {loading ? (
-            <div className="py-12 text-center text-sm font-semibold text-gold-600 animate-pulse">
-              Memuat peserta...
+            <div className="flex h-72 flex-col items-center justify-center gap-2.5 rounded-2xl border border-border bg-white shadow-sm">
+              <LogoSpinner size={56} />
+              <p className="text-xs font-semibold text-navy-900">Memuat data...</p>
+            </div>
+          ) : isFilterLoading ? (
+            <div className="flex h-72 flex-col items-center justify-center gap-2.5 rounded-2xl border border-border bg-white shadow-sm">
+              <LogoSpinner size={56} />
+              <p className="text-xs font-semibold text-navy-900">Memuat data...</p>
             </div>
           ) : participants.length === 0 ? (
             <EmptyState icon={Users} title="Peserta tidak ditemukan" description="Tidak ada peserta yang sesuai dengan filter saat ini." />
@@ -299,5 +343,19 @@ export default function ParticipantsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function ParticipantsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-12 text-center text-sm font-semibold text-gold-600 animate-pulse">
+          Memuat Data Peserta...
+        </div>
+      }
+    >
+      <ParticipantsPageContent />
+    </Suspense>
   );
 }

@@ -14,11 +14,33 @@ async function handleGetParticipants(request: Request) {
   if ('error' in parsedSearch) return jsonError(parsedSearch.error ?? 'Parameter search tidak valid.', 400)
   const faculty = url.searchParams.get('faculty')?.trim() || ''
   const ticketType = url.searchParams.get('ticket_type')?.trim().toUpperCase() || ''
+  const attendance = url.searchParams.get('attendance')?.trim().toLowerCase() || ''
+  const allFaculties = url.searchParams.get('all_faculties') === 'true'
   if (faculty.length > 100) return jsonError('Faculty filter maksimal 100 karakter.', 400)
   if (ticketType && !['FREE', 'PAID'].includes(ticketType)) return jsonError('Ticket type filter tidak valid.', 400)
+  if (attendance && !['present', 'absent'].includes(attendance)) return jsonError('Attendance filter tidak valid.', 400)
 
   try {
     const { supabase } = auth
+
+    if (allFaculties) {
+      // Return all unique faculties for filter dropdown
+      let issuedQuery = supabase.from('issued_tickets').select('participant_id').neq('status', 'CANCELLED')
+      const issuedResult = await issuedQuery
+      if (issuedResult.error) throw new Error(issuedResult.error.message)
+      const participantIds = [...new Set((issuedResult.data ?? []).map((row) => row.participant_id).filter((pid): pid is string => Boolean(pid)))]
+      
+      if (!participantIds.length) {
+        return NextResponse.json({ success: true, faculties: [] })
+      }
+
+      const { data, error } = await supabase.from('participants').select('faculty').in('id', participantIds)
+      if (error) throw new Error(error.message)
+      
+      const faculties = [...new Set((data ?? []).map((p) => p.faculty).filter(Boolean))].sort()
+      return NextResponse.json({ success: true, faculties })
+    }
+
     let ticketTypeIds: string[] | null = null
     const emptyResult = () =>
       NextResponse.json({ success: true, items: [], pagination: { page: pagination.page, limit: pagination.limit, total: 0, totalPages: 0 } })
@@ -42,6 +64,48 @@ async function handleGetParticipants(request: Request) {
     if (parsedSearch.search) query = query.or(`full_name.ilike.%${parsedSearch.search}%,nim.ilike.%${parsedSearch.search}%,email.ilike.%${parsedSearch.search}%`)
     if (faculty) query = query.ilike('faculty', `%${faculty}%`)
     if (filteredParticipantIds) query = query.in('id', filteredParticipantIds)
+    
+    // If attendance filter is applied, we need to fetch all data first to compute is_present
+    if (attendance) {
+      const { data, count, error } = await query.order('created_at', { ascending: false }).order('id', { ascending: false })
+      if (error) throw new Error(error.message)
+      
+      const participants = data ?? []
+      const participantIds = participants.map((participant) => participant.id)
+      let itemRows: any[] = []
+      if (participantIds.length) {
+        const itemsQuery = await supabase.from('order_items').select('id, order_id, participant_id, ticket_type_id, orders(id, order_code, status), ticket_types(id, name, code, ticket_type), issued_tickets(id, ticket_code, status, issued_at, check_ins(id, checked_in_at, method))').in('participant_id', participantIds).order('created_at', { ascending: false })
+        if (itemsQuery.error) throw new Error(itemsQuery.error.message)
+        itemRows = (itemsQuery.data ?? []).filter((item: any) => {
+          const ticket = item.issued_tickets
+          return Boolean(ticket) && ticket.status !== 'CANCELLED'
+        })
+      }
+      const rowsByParticipant = itemRows.reduce((acc: Record<string, any[]>, item: any) => { (acc[item.participant_id] ??= []).push(item); return acc }, {})
+      let items = participants.map((participant: any) => {
+        const allocations = (rowsByParticipant[participant.id] ?? []).filter((item: any) => !ticketType || item.ticket_types?.ticket_type === ticketType)
+        const isPresent = allocations.some((item: any) => {
+          const ticket = item.issued_tickets
+          const checkIns = Array.isArray(ticket?.check_ins) ? ticket.check_ins : []
+          return ticket?.status === 'CHECKED_IN' || checkIns.length > 0
+        })
+        const checkedInAt = allocations
+          .flatMap((item: any) => (Array.isArray(item.issued_tickets?.check_ins) ? item.issued_tickets.check_ins : []))
+          .sort((a: any, b: any) => new Date(a.checked_in_at).getTime() - new Date(b.checked_in_at).getTime())[0]?.checked_in_at ?? null
+        return { ...participant, is_present: isPresent, checked_in_at: checkedInAt, orders: allocations.map((item: any) => ({ order_item_id: item.id, order: item.orders, ticket_type: item.ticket_types, issued_ticket: item.issued_tickets })) }
+      })
+
+      if (attendance === 'present') {
+        items = items.filter((item) => item.is_present)
+      } else if (attendance === 'absent') {
+        items = items.filter((item) => !item.is_present)
+      }
+
+      const total = items.length
+      const paginatedItems = items.slice(pagination.offset, pagination.offset + pagination.limit)
+      return NextResponse.json({ success: true, items: paginatedItems, pagination: { page: pagination.page, limit: pagination.limit, total, totalPages: Math.ceil(total / pagination.limit) } })
+    }
+
     const { data, count, error } = await query.order('created_at', { ascending: false }).order('id', { ascending: false }).range(pagination.offset, pagination.offset + pagination.limit - 1)
     if (error) throw new Error(error.message)
 

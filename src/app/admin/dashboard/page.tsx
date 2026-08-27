@@ -1014,9 +1014,9 @@ export default function AdminDashboardPage() {
                           {used}/{quota} ({pct}%)
                         </span>
                       </div>
-                    </div>
-                  );
-                })}
+</div>
+                       );
+                   })}
                 <p className="flex items-start gap-1 pt-0.5 text-[9px] leading-snug text-muted-foreground sm:text-[10px]">
                   <Info className="mt-0.5 h-3 w-3 flex-shrink-0 opacity-70" />
                   <span>Kuota terpakai = tiket terbit + tiket belum di-approve (pending).</span>
@@ -1139,8 +1139,9 @@ export default function AdminDashboardPage() {
                             </span>
                           </div>
                         </div>
-                      );
-                  })}
+                        </div>
+                       );
+                   })}
                 </div>
               )}
             </SummaryCard>

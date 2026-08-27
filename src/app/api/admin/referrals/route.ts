@@ -45,7 +45,7 @@ const CreateReferralSchema = z.object({
   end_at: z.string().min(1, 'Tanggal berakhir wajib diisi.'),
   status: z.enum(['DRAFT', 'ACTIVE', 'INACTIVE']),
   description: z.string().optional(),
-  visibility: z.enum(['PUBLIC', 'PRIVATE']).optional(),
+  is_public: z.boolean().optional(),
 })
 
 /* ── GET /api/admin/referrals ──────────────────────────────────────────── */
@@ -206,7 +206,7 @@ async function handleCreateReferral(request: Request) {
         end_at: data.end_at,
         status: data.status,
         description: data.description ?? null,
-        visibility: data.visibility ?? 'PUBLIC',
+        is_public: data.is_public ?? false,
         created_by: userId,
       })
       .select('*')
@@ -236,7 +236,7 @@ async function handleCreateReferral(request: Request) {
         description: created.description,
         createdAt: created.created_at,
         eventId: created.event_id,
-        visibility: created.visibility,
+        isPublic: created.is_public,
       },
     }, { status: 201 })
   } catch (error) {

@@ -1059,6 +1059,7 @@ export default function AdminDashboardPage() {
                       const StatusIcon = sc.icon;
                        return (
                         <div key={r.id} className="rounded-xl border border-border bg-secondary/20 p-2 sm:p-2.5">
+                          <div className="space-y-2">
                           <div className="flex items-center justify-between gap-2">
                             <div className="min-w-0">
                               <p className="font-mono text-[11px] font-bold text-navy-900 sm:text-xs">
@@ -1071,33 +1072,6 @@ export default function AdminDashboardPage() {
                               </p>
                             </div>
                             
-                            <div className="flex items-center gap-1">
-                              <span
-                                className={cn(
-                                  "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider",
-                                  sc.cls
-                                )}
-                              >
-                                <StatusIcon className="h-2.5 w-2.5" />
-                                {sc.label}
-                              </span>
-                              <span
-                                className={cn(
-                                  "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider",
-                                  r.isPublic
-                                    ? "bg-emerald-500/15 text-emerald-700"
-                                    : "bg-amber-500/15 text-amber-800"
-                                )}
-                              >
-                                {r.isPublic ? (
-                                  <CheckCircle2 className="h-2.5 w-2.5" />
-                                ) : (
-                                  <Lock className="h-2.5 w-2.5" />
-                                )}
-                                {r.isPublic ? "Publik" : "Privat"}
-                              </span>
-                            </div>
-
                             <button
                               type="button"
                               onClick={() => copyReferralCode(r.code)}
@@ -1116,6 +1090,33 @@ export default function AdminDashboardPage() {
                                 <Copy className="h-3.5 w-3.5" />
                               )}
                             </button>
+                          </div>
+                          
+                          <div className="flex items-center flex-wrap gap-1">
+                            <span
+                              className={cn(
+                                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider",
+                                sc.cls
+                              )}
+                            >
+                              <StatusIcon className="h-2.5 w-2.5" />
+                              {sc.label}
+                            </span>
+                            <span
+                              className={cn(
+                                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider",
+                                r.isPublic
+                                  ? "bg-emerald-500/15 text-emerald-700"
+                                  : "bg-amber-500/15 text-amber-800"
+                              )}
+                            >
+                              {r.isPublic ? (
+                                <CheckCircle2 className="h-2.5 w-2.5" />
+                              ) : (
+                                <Lock className="h-2.5 w-2.5" />
+                              )}
+                              {r.isPublic ? "Publik" : "Privat"}
+                            </span>
                           </div>
                           
                           <div className="mt-2 flex items-center gap-1.5">

@@ -207,7 +207,7 @@ export default function ReferralDetailPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 self-start sm:self-auto">
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
           <Link
             href={`/admin/referrals/${referral.id}/edit`}
             className="inline-flex items-center gap-1.5 rounded-2xl bg-gold-500 px-5 py-2.5 text-xs font-bold text-navy-950 hover:bg-gold-400 transition-all shadow-md active:scale-95"

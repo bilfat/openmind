@@ -16,7 +16,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { useActiveEvent } from "@/hooks/use-active-event";
-import { PAYMENT_WINDOW_HOURS } from "@/lib/payment-window";
+import { PAYMENT_WINDOW_MINUTES } from "@/lib/payment-window";
 
 interface PublicOrderData {
   id: string;
@@ -254,14 +254,14 @@ function PaymentContent() {
                   <p className="text-xs text-muted-foreground">
                     {order?.status === "CANCELLED"
                       ? "Pesanan ini telah dibatalkan."
-                      : `Waktu pembayaran (${PAYMENT_WINDOW_HOURS} jam) untuk pesanan ini telah berakhir.`}
+                      : `Waktu pembayaran (${PAYMENT_WINDOW_MINUTES} menit) untuk pesanan ini telah berakhir.`}
                   </p>
                 </div>
               </div>
               <div className="text-center space-y-4 py-4">
                 <p className="text-sm text-navy-900/70 max-w-md mx-auto">
                   Bukti pembayaran tidak dapat lagi diunggah untuk pesanan ini.
-                  Silakan buat pesanan baru dan selesaikan pembayaran dalam waktu {PAYMENT_WINDOW_HOURS} jam.
+                  Silakan buat pesanan baru dan selesaikan pembayaran dalam waktu {PAYMENT_WINDOW_MINUTES} menit.
                 </p>
                 <Link
                   href="/tiket"

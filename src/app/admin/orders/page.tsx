@@ -28,8 +28,8 @@ import { useToast } from "@/components/ui/toast";
 import { LogoSpinner } from "@/components/ui/logo-spinner";
 
 // Must match the payment window used by the cleanup RPC
-// (cleanup_expired_orders_rpc p_stale_hours DEFAULT 3).
-import { PAYMENT_WINDOW_HOURS } from "@/lib/payment-window";
+// (cleanup_expired_orders_rpc p_stale_minutes DEFAULT 30).
+import { PAYMENT_WINDOW_HOURS, PAYMENT_WINDOW_MINUTES } from "@/lib/payment-window";
 
 // Merged tab: old-system PENDING_PAYMENT orders (no longer created in the new
 // checkout flow) are shown together with DRAFT under "Pesanan Baru Masuk".
@@ -1153,7 +1153,7 @@ function OrdersPageContent() {
               {selectedOrder.status === "EXPIRED" && (
                 <div className="flex items-center gap-2 text-xs font-bold text-slate-600 bg-slate-500/10 px-4 py-2 rounded-xl">
                   <Clock className="h-4 w-4" />
-                  <span>Kadaluarsa: {PAYMENT_WINDOW_HOURS} jam tanpa bukti pembayaran. Kuota telah dilepas — pembeli perlu checkout ulang.</span>
+                  <span>Kadaluarsa: {PAYMENT_WINDOW_MINUTES} menit tanpa bukti pembayaran. Kuota telah dilepas — pembeli perlu checkout ulang.</span>
                 </div>
               )}
 

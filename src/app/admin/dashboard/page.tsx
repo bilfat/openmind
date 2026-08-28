@@ -32,7 +32,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
-import { PAYMENT_WINDOW_HOURS } from "@/lib/payment-window";
+import { PAYMENT_WINDOW_HOURS, PAYMENT_WINDOW_MINUTES } from "@/lib/payment-window";
 import { getDerivedReferralStatus } from "@/lib/referral-store";
 
 interface DashboardOrder {
@@ -1177,7 +1177,7 @@ export default function AdminDashboardPage() {
                   <Info className="mt-0.5 h-3 w-3 flex-shrink-0 opacity-70" />
                   <span>
                     Belum ada bukti pembayaran yang diunggah. Hitung mundur = batas upload
-                    bukti, otomatis kadaluarsa setelah {PAYMENT_WINDOW_HOURS} jam.
+                    bukti, otomatis kadaluarsa setelah {PAYMENT_WINDOW_MINUTES} menit.
                   </span>
                 </p>
               </div>

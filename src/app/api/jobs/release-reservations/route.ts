@@ -32,9 +32,9 @@ export async function GET(request: Request) {
 
     // Primary: panggil cleanup_expired_orders_rpc (canonical) yang mengexpire
     // reservasi kedaluwarsa DAN order DRAFT/PENDING_PAYMENT yang melewati
-    // jendela pembayaran (3 jam), sehingga tiket pending tidak lagi menahan
+    // jendela pembayaran (30 menit), sehingga tiket pending tidak lagi menahan
     // kuota. Referal yang ditahan ikut dilepas.
-    const { data, error } = await supabase.rpc('cleanup_expired_orders_rpc', { p_stale_hours: 3 })
+    const { data, error } = await supabase.rpc('cleanup_expired_orders_rpc', { p_stale_minutes: 30 })
 
     if (!error) {
       const summary = (data ?? {}) as Record<string, unknown>

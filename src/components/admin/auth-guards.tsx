@@ -82,7 +82,7 @@ const SUPER_ADMIN_ROUTES = [
   "/admin/settings",
 ];
 
-const STAFF_ROUTES = ["/admin/walk-in", "/admin/check-in"];
+const STAFF_ROUTES = ["/admin/walk-in", "/admin/check-in", "/admin/zoom"];
 
 export function RoleGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

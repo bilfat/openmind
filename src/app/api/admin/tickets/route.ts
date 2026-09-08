@@ -182,7 +182,8 @@ export async function POST(request: Request) {
       sales_end_at,
       benefits = [],
       status = 'DRAFT',
-      badge = 'EXTEND'
+      badge = 'EXTEND',
+      zoom_enabled
     } = body
 
     // 1. Validasi Input Dasar
@@ -222,6 +223,9 @@ export async function POST(request: Request) {
     // Calculate final price server-side
     const finalPrice = parsedBasePrice * (1 - parsedDiscount / 100)
 
+    // Handle zoom_enabled (badge ONLINE enforces true)
+    const finalZoomEnabled = badge === 'ONLINE' ? true : Boolean(zoom_enabled);
+
     // Fetch active event
     const { data: activeEvent, error: eventError } = await supabase
       .from('events')
@@ -248,6 +252,7 @@ export async function POST(request: Request) {
         final_price: finalPrice,
         quota: parsedQuota,
         min_purchase: parsedMin,
+        zoom_enabled: finalZoomEnabled,
         max_purchase: parsedMax,
         sales_start_at,
         sales_end_at,

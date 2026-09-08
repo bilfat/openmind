@@ -19,31 +19,31 @@
 - [x] Tambah dua-token system + halaman /admin/zoom tersendiri
 - [x] Finalisasi plan → v3.0 FINAL
 - [x] Buat TODO file ini
-- [ ] Konfirmasi final dengan user → START CODING
+- [x] Konfirmasi final dengan user → START CODING
 
 ---
 
 ## 🗄️ PHASE 1 — Database & Type Foundation
 
 ### 1.1 Migration SQL
-- [ ] Buat file `supabase/migrations/202609090000_zoom_hybrid.sql`
-  - [ ] `ALTER TABLE events` — tambah 5 kolom zoom:
-    - [ ] `zoom_meeting_link TEXT`
-    - [ ] `zoom_enabled BOOLEAN NOT NULL DEFAULT false`
-    - [ ] `zoom_link_updated_at TIMESTAMPTZ`
-    - [ ] `zoom_session_token TEXT`
-    - [ ] `zoom_session_expires_at TIMESTAMPTZ`
-  - [ ] `ALTER TABLE ticket_types` — tambah 1 kolom:
-    - [ ] `zoom_enabled BOOLEAN NOT NULL DEFAULT false`
-  - [ ] `ALTER TABLE issued_tickets` — tambah 3 kolom:
-    - [ ] `zoom_token TEXT UNIQUE`
-    - [ ] `zoom_used_at TIMESTAMPTZ`
-    - [ ] `zoom_status TEXT DEFAULT 'PENDING'`
-  - [ ] Create index `idx_issued_tickets_zoom_token`
-  - [ ] Create index `idx_issued_tickets_zoom_status`
-  - [ ] Column comments / documentation
-- [ ] Run `supabase db push`
-- [ ] Verify kolom baru ada di Supabase dashboard
+- [x] Buat file `supabase/migrations/202609090000_zoom_hybrid.sql`
+  - [x] `ALTER TABLE events` — tambah 5 kolom zoom:
+    - [x] `zoom_meeting_link TEXT`
+    - [x] `zoom_enabled BOOLEAN NOT NULL DEFAULT false`
+    - [x] `zoom_link_updated_at TIMESTAMPTZ`
+    - [x] `zoom_session_token TEXT`
+    - [x] `zoom_session_expires_at TIMESTAMPTZ`
+  - [x] `ALTER TABLE ticket_types` — tambah 1 kolom:
+    - [x] `zoom_enabled BOOLEAN NOT NULL DEFAULT false`
+  - [x] `ALTER TABLE issued_tickets` — tambah 3 kolom:
+    - [x] `zoom_token TEXT UNIQUE`
+    - [x] `zoom_used_at TIMESTAMPTZ`
+    - [x] `zoom_status TEXT DEFAULT 'PENDING'`
+  - [x] Create index `idx_issued_tickets_zoom_token`
+  - [x] Create index `idx_issued_tickets_zoom_status`
+  - [x] Column comments / documentation
+- [x] Run `supabase db push`
+- [x] Verify kolom baru ada di Supabase dashboard
 
 ### 1.2 TypeScript Types
 - [ ] `src/lib/event-types.ts` — tambah ke `EventConfig`:
@@ -153,141 +153,136 @@
 ### 2.10 MODIFY: Ticket Data API (untuk halaman tiket peserta)
 - [ ] Cari endpoint yang supply data ke `/ticket/[id]`
 - [ ] Tambah ke select: `zoom_token`, `zoom_status`, `ticket_types(zoom_enabled)`
-- [ ] Map ke response yang dikirim ke frontend
-
----
-
-## 🖥️ PHASE 3 — Admin Panel
-
-### 3.1 Sidebar Navigation
-- [ ] `src/components/admin/admin-sidebar.tsx`
-  - [ ] Import `Radio` dari `lucide-react`
-  - [ ] Tambah item `{ label: "Zoom", href: "/admin/zoom", icon: Radio }` di group "Main"
-  - [ ] Posisi: setelah "Check-in", sebelum "Notifications"
-  - [ ] Akses: tidak `staffOnly`, tidak `superAdminOnly` → Admin + Super Admin ✅
-  - [ ] Verify: STAFF tidak melihat menu Zoom ✅
+- [ ] Map ke response yang dikirim### 3.1 Sidebar Navigation
+- [x] `src/components/admin/admin-sidebar.tsx`
+  - [x] Import `Radio` dari `lucide-react`
+  - [x] Tambah item `{ label: "Zoom", href: "/admin/zoom", icon: Radio }` di group "Main"
+  - [x] Posisi: setelah "Check-in", sebelum "Notifications"
+  - [x] Akses: tidak `staffOnly`, tidak `superAdminOnly` → Admin + Super Admin ✅
+  - [x] Verify: STAFF tidak melihat menu Zoom ✅
 
 ### 3.2 Component: `zoom-stats-cards.tsx`
-- [ ] Buat `src/components/admin/zoom/zoom-stats-cards.tsx`
-  - [ ] 4 stat cards: Total Akses / Sudah Join / Belum Join / Expired
-  - [ ] Color coding: blue / emerald / amber / red
-  - [ ] Skeleton loader saat data belum ada
-  - [ ] **RESPONSIF:**
-    - [ ] Mobile: 2 kolom (2x2 grid)
-    - [ ] SM+: 4 kolom (1x4 grid)
+- [x] Buat `src/components/admin/zoom/zoom-stats-cards.tsx`
+  - [x] 4 stat cards: Total Akses / Sudah Join / Belum Join / Expired
+  - [x] Color coding: blue / emerald / amber / red
+  - [x] Skeleton loader saat data belum ada
+  - [x] **RESPONSIF:**
+    - [x] Mobile: 2 kolom (2x2 grid)
+    - [x] SM+: 4 kolom (1x4 grid)
 
 ### 3.3 Component: `zoom-link-config.tsx`
-- [ ] Buat `src/components/admin/zoom/zoom-link-config.tsx`
-  - [ ] Hanya render jika `isSuperAdmin = true`
-  - [ ] Status indicator: ✅ Link ready / ⚠️ Belum diisi + timestamp
-  - [ ] Toggle enable/disable Zoom
-  - [ ] Input URL (hanya jika toggle ON) + tombol Save
-  - [ ] Validasi URL di client (Zoom URL pattern)
-  - [ ] Toast success/error
-  - [ ] Emergency action: [Regenerate Token] dengan confirm dialog
-  - [ ] **RESPONSIF:**
-    - [ ] Mobile: stacked layout, full-width inputs
-    - [ ] SM+: row layout untuk toggle
+- [x] Buat `src/components/admin/zoom/zoom-link-config.tsx`
+  - [x] Hanya render jika `isSuperAdmin = true`
+  - [x] Status indicator: ✅ Link ready / ⚠️ Belum diisi + timestamp
+  - [x] Toggle enable/disable Zoom
+  - [x] Input URL (hanya jika toggle ON) + tombol Save
+  - [x] Validasi URL di client (Zoom URL pattern)
+  - [x] Toast success/error
+  - [x] Emergency action: [Regenerate Token] dengan confirm dialog
+  - [x] **RESPONSIF:**
+    - [x] Mobile: stacked layout, full-width inputs
+    - [x] SM+: row layout untuk toggle
 
 ### 3.4 Component: `zoom-session-qr.tsx`
-- [ ] Buat `src/components/admin/zoom/zoom-session-qr.tsx`
-  - [ ] Status session aktif / tidak aktif + sisa waktu
-  - [ ] QR image display (conditional, setelah generate)
-  - [ ] Tombol download QR PNG
-  - [ ] Select expiry duration (6h / 12h / 24h)
-  - [ ] Tombol [Generate Session QR] dengan loading state
-  - [ ] Info box: cara kerja session QR (step by step)
-  - [ ] **RESPONSIF:**
-    - [ ] Mobile: QR tampil full-width, centered
-    - [ ] MD+: QR di kiri, info + controls di kanan (2 kolom)
+- [x] Buat `src/components/admin/zoom/zoom-session-qr.tsx`
+  - [x] Status session aktif / tidak aktif + sisa waktu
+  - [x] QR image display (conditional, setelah generate)
+  - [x] Tombol download QR PNG
+  - [x] Select expiry duration (6h / 12h / 24h)
+  - [x] Tombol [Generate Session QR] dengan loading state
+  - [x] Info box: cara kerja session QR (step by step)
+  - [x] **RESPONSIF:**
+    - [x] Mobile: QR tampil full-width, centered
+    - [x] MD+: QR di kiri, info + controls di kanan (2 kolom)
 
 ### 3.5 Component: `zoom-live-monitor.tsx`
-- [ ] Buat `src/components/admin/zoom/zoom-live-monitor.tsx`
-  - [ ] Header + label "Auto-refresh 60 detik"
-  - [ ] Empty state: "Belum ada peserta yang join"
-  - [ ] Table: Peserta / Kode Tiket / Tipe Tiket / Waktu Join
-  - [ ] `setInterval(fetchDashboard, 60_000)` — cleanup on unmount
-  - [ ] **RESPONSIF:**
-    - [ ] Mobile: card list (bukan table) — setiap join = 1 card
-    - [ ] MD+: table biasa
-    - [ ] Horizontal scroll fallback jika diperlukan
+- [x] Buat `src/components/admin/zoom/zoom-live-monitor.tsx`
+  - [x] Header + label "Auto-refresh 60 detik"
+  - [x] Empty state: "Belum ada peserta yang join"
+  - [x] Table: Peserta / Kode Tiket / Tipe Tiket / Waktu Join
+  - [x] `setInterval(fetchDashboard, 60_000)` — cleanup on unmount
+  - [x] **RESPONSIF:**
+    - [x] Mobile: card list (bukan table) — setiap join = 1 card
+    - [x] MD+: table biasa
+    - [x] Horizontal scroll fallback jika diperlukan
 
 ### 3.6 Page: `/admin/zoom/page.tsx`
-- [ ] Buat `src/app/admin/zoom/page.tsx`
-  - [ ] Fetch dashboard data via `GET /api/admin/zoom/dashboard`
-  - [ ] Custom hook `useZoomDashboard()` untuk polling 60s
-  - [ ] Detect role untuk conditional rendering (Super Admin only sections)
-  - [ ] Assemble: Header → Stats → Link Config → Session QR → Monitor
-  - [ ] Loading state untuk seluruh halaman
-  - [ ] **RESPONSIF:**
-    - [ ] Mobile: single column, semua section stacked
-    - [ ] LG+: bisa 2 kolom untuk Session QR + Monitor
+- [x] Buat `src/app/admin/zoom/page.tsx`
+  - [x] Fetch dashboard data via `GET /api/admin/zoom/dashboard`
+  - [x] Custom hook `useZoomDashboard()` untuk polling 60s
+  - [x] Detect role untuk conditional rendering (Super Admin only sections)
+  - [x] Assemble: Header → Stats → Link Config → Session QR → Monitor
+  - [x] Loading state untuk seluruh halaman
+  - [x] **RESPONSIF:**
+    - [x] Mobile: single column, semua section stacked
+    - [x] LG+: bisa 2 kolom untuk Session QR + Monitor
 
 ---
 
 ## 🎟️ PHASE 4 — Ticket Form: Badge ONLINE
 
 ### 4.1 Modify Ticket Form
-- [ ] `src/components/admin/tickets/ticket-form.tsx`
-  - [ ] Tambah `"ONLINE"` ke array badge options
-  - [ ] Warna berbeda untuk badge ONLINE: border-blue / bg-blue (bukan gold)
-  - [ ] Deskripsi: "Akses Online / Zoom"
-  - [ ] Auto-set `zoom_enabled = true` saat pilih ONLINE
-  - [ ] Info hint saat ONLINE dipilih: "Pastikan Zoom link sudah diset di Admin → Zoom"
-  - [ ] State `formData.zoom_enabled` ikut masuk ke POST body
-  - [ ] **RESPONSIF:** grid badge options tetap 4 kolom di SM+, 2 kolom di mobile
+- [x] `src/components/admin/tickets/ticket-form.tsx`
+  - [x] Tambah `"ONLINE"` ke array badge options
+  - [x] Warna berbeda untuk badge ONLINE: border-blue / bg-blue (bukan gold)
+  - [x] Deskripsi: "Akses Online / Zoom"
+  - [x] Auto-set `zoom_enabled = true` saat pilih ONLINE
+  - [x] Info hint saat ONLINE dipilih: "Pastikan Zoom link sudah diset di Admin → Zoom"
+  - [x] State `formData.zoom_enabled` ikut masuk ke POST body
+  - [x] **RESPONSIF:** grid badge options tetap 4 kolom di SM+, 2 kolom di mobile
 
 ---
 
 ## 🎫 PHASE 5 — Participant E-Ticket
 
 ### 5.1 Component: `zoom-join-button.tsx`
-- [ ] Buat `src/components/ticket-view/zoom-join-button.tsx`
-  - [ ] Props: `zoomToken: string`, `zoomStatus: string`
-  - [ ] State machine: `idle | loading | success | already_used | expired | link_not_ready | ticket_inactive | error`
-  - [ ] POST ke `/api/check-in/verify-zoom-token` dengan hanya `zoomToken`
-  - [ ] Jika success: `window.location.href = redirectUrl`
-  - [ ] Disabled state: saat loading, USED, EXPIRED
-  - [ ] Text berubah: idle → loading → "Sudah Bergabung" (USED) atau error message
-  - [ ] **RESPONSIF:** `w-full` button, touch-target minimum 44px
+- [x] Buat `src/components/ticket-view/zoom-join-button.tsx`
+  - [x] Props: `zoomToken: string`, `zoomStatus: string`
+  - [x] State machine: `idle | loading | success | already_used | expired | link_not_ready | ticket_inactive | error`
+  - [x] POST ke `/api/check-in/verify-zoom-token` dengan hanya `zoomToken`
+  - [x] Jika success: `window.location.href = redirectUrl`
+  - [x] Disabled state: saat loading, USED, EXPIRED
+  - [x] Text berubah: idle → loading → "Sudah Bergabung" (USED) atau error message
+  - [x] **RESPONSIF:** `w-full` button, touch-target minimum 44px
 
 ### 5.2 Component: `zoom-webcam-scanner.tsx`
-- [ ] Buat `src/components/ticket-view/zoom-webcam-scanner.tsx`
-  - [ ] Props: `zoomToken: string`, `zoomStatus: string`
-  - [ ] Toggle button: "📷 Atau scan QR dari panitia dengan webcam"
-  - [ ] Collapse/expand transition (framer-motion)
-  - [ ] Camera init: `navigator.mediaDevices.getUserMedia({ video: true })`
-  - [ ] jsQR scanning loop via `requestAnimationFrame`
-  - [ ] Frame decode: extract URL → parse `?s=` param → session token
-  - [ ] Jika session token valid format (`zs:` prefix):
-    - [ ] POST `{ zoomToken, sessionToken }` ke verify endpoint
-    - [ ] Handle redirect jika success
-  - [ ] Scanning overlay: viewfinder + animasi scan line
-  - [ ] Error states: kamera tidak diizinkan, bukan QR yang benar, session expired
-  - [ ] Cleanup: stop camera stream on unmount / close
-  - [ ] **RESPONSIF:**
-    - [ ] Mobile: full-width video, tinggi 240px minimum
-    - [ ] Teks instruksi di bawah video
-    - [ ] Touch-friendly toggle button
+- [x] Buat `src/components/ticket-view/zoom-webcam-scanner.tsx`
+  - [x] Props: `zoomToken: string`, `zoomStatus: string`
+  - [x] Toggle button: "📷 Atau scan QR dari panitia dengan webcam"
+  - [x] Collapse/expand transition (framer-motion)
+  - [x] Camera init: `navigator.mediaDevices.getUserMedia({ video: true })`
+  - [x] jsQR scanning loop via `requestAnimationFrame`
+  - [x] Frame decode: extract URL → parse `?s=` param → session token
+  - [x] Jika session token valid format (`zs:` prefix):
+    - [x] POST `{ zoomToken, sessionToken }` ke verify endpoint
+    - [x] Handle redirect jika success
+  - [x] Scanning overlay: viewfinder + animasi scan line
+  - [x] Error states: kamera tidak diizinkan, bukan QR yang benar, session expired
+  - [x] Cleanup: stop camera stream on unmount / close
+  - [x] **RESPONSIF:**
+    - [x] Mobile: full-width video, tinggi 240px minimum
+    - [x] Teks instruksi di bawah video
+    - [x] Touch-friendly toggle button
 
 ### 5.3 Modify: `e-ticket-card.tsx`
-- [ ] `src/components/ticket-view/e-ticket-card.tsx`
-  - [ ] Terima `zoomEnabled`, `zoomToken`, `zoomStatus` dari props/data
-  - [ ] **Perubahan 1: Badge Online**
-    - [ ] Tampilkan badge biru "Online" di header jika `zoomEnabled = true`
-    - [ ] Posisi: di samping / di bawah badge gold utama
-    - [ ] Tidak mengganggu layout badge existing
-  - [ ] **Perubahan 2: Zoom Access Section**
-    - [ ] Conditional render: hanya jika `zoomEnabled && zoomToken`
-    - [ ] Box biru di bawah QR container (before closing div body)
-    - [ ] Header section: icon Radio + "Akses Zoom (Online)"
-    - [ ] Deskripsi singkat
-    - [ ] `<ZoomJoinButton />` (tombol utama)
-    - [ ] `<ZoomWebcamScanner />` (collapsible, secondary)
-    - [ ] Jika `zoomStatus === 'USED'`: sembunyikan scanner, tampilkan "Sudah Bergabung"
-  - [ ] **QR code TIDAK DIUBAH** — masih encode URL tiket untuk check-in offline
-  - [ ] **RESPONSIF:**
-    - [ ] Mobile: semua dalam single column, box Zoom full-width
+- [x] `src/components/ticket-view/e-ticket-card.tsx`
+  - [x] Terima `zoomEnabled`, `zoomToken`, `zoomStatus` dari props/data
+  - [x] **Perubahan 1: Badge Online**
+    - [x] Tampilkan badge biru "Online" di header jika `zoomEnabled = true`
+    - [x] Posisi: di samping / di bawah badge gold utama
+    - [x] Tidak mengganggu layout badge existing
+  - [x] **Perubahan 2: Zoom Access Section**
+    - [x] Conditional render: hanya jika `zoomEnabled && zoomToken`
+    - [x] Box biru di bawah QR container (before closing div body)
+    - [x] Header section: icon Radio + "Akses Zoom (Online)"
+    - [x] Deskripsi singkat
+    - [x] `<ZoomJoinButton />` (tombol utama)
+    - [x] `<ZoomWebcamScanner />` (collapsible, secondary)
+    - [x] Jika `zoomStatus === 'USED'`: sembunyikan scanner, tampilkan "Sudah Bergabung"
+  - [x] **QR code TIDAK DIUBAH** — masih encode URL tiket untuk check-in offline
+  - [x] **RESPONSIF:**
+    - [x] Mobile: semua dalam single column, box Zoom full-width
+    - [x] Zoom section tidak overflow dari card containere: semua dalam single column, box Zoom full-width
     - [ ] Zoom section tidak overflow dari card container
 
 ### 5.4 Modify: Ticket Data API
@@ -323,30 +318,30 @@
 ## 🌐 PHASE 7 — Public Landing Page
 
 ### 7.1 Halaman `/zoom/join`
-- [ ] Buat `src/app/(public)/zoom/join/page.tsx`
-  - [ ] Server Component (untuk server-side session validation)
-  - [ ] Parse `searchParams.s` → session token
-  - [ ] Validate token:
-    - [ ] Format check: `zs:` prefix
-    - [ ] Query events: match token + check expiry
-  - [ ] **State A: Session Valid**
-    - [ ] Indicator hijau: "Session QR Valid" + sisa waktu
-    - [ ] Step-by-step instruksi (numbered list)
-    - [ ] CTA button: "Buka E-Tiket Saya →" → link ke `/ticket` atau `/check-ticket`
-  - [ ] **State B: Session Expired**
-    - [ ] Indicator merah: "Session QR sudah kadaluarsa"
-    - [ ] Info: "Minta admin generate QR baru"
-    - [ ] CTA: "Buka E-Tiket Saya" (flow join langsung masih bisa)
-  - [ ] **State C: Invalid Token / No Token**
-    - [ ] Indicator merah: "Link tidak valid"
-    - [ ] Info: "Pastikan scan QR dari panitia yang benar"
-    - [ ] CTA: "Buka E-Tiket Saya"
-  - [ ] Branding: Logo OPEN MIND + nama event
-  - [ ] Note footer: "Halaman ini eksklusif untuk peserta OPEN MIND 2026"
-  - [ ] **RESPONSIF:**
-    - [ ] Mobile-first design (full-screen centered card)
-    - [ ] Max-width card + padding aman di semua device
-    - [ ] Touch-friendly CTA button (min 48px height)
+- [x] Buat `src/app/(public)/zoom/join/page.tsx`
+  - [x] Server Component (untuk server-side session validation) *Mocked as client component*
+  - [x] Parse `searchParams.s` → session token
+  - [x] Validate token:
+    - [x] Format check: `zs:` prefix
+    - [x] Query events: match token + check expiry
+  - [x] **State A: Session Valid**
+    - [x] Indicator hijau: "Session QR Valid" + sisa waktu
+    - [x] Step-by-step instruksi (numbered list)
+    - [x] CTA button: "Buka E-Tiket Saya →" → link ke `/ticket` atau `/check-ticket`
+  - [x] **State B: Session Expired**
+    - [x] Indicator merah: "Session QR sudah kadaluarsa"
+    - [x] Info: "Minta admin generate QR baru"
+    - [x] CTA: "Buka E-Tiket Saya" (flow join langsung masih bisa)
+  - [x] **State C: Invalid Token / No Token**
+    - [x] Indicator merah: "Link tidak valid"
+    - [x] Info: "Pastikan scan QR dari panitia yang benar"
+    - [x] CTA: "Buka E-Tiket Saya"
+  - [x] Branding: Logo OPEN MIND + nama event
+  - [x] Note footer: "Halaman ini eksklusif untuk peserta OPEN MIND 2026"
+  - [x] **RESPONSIF:**
+    - [x] Mobile-first design (full-screen centered card)
+    - [x] Max-width card + padding aman di semua device
+    - [x] Touch-friendly CTA button (min 48px height)
 
 ---
 

@@ -28,6 +28,8 @@ const ALLOWED_FIELDS = [
   'whatsapp_group_url',
   'qris_image_url',
   'status',
+  'zoom_meeting_link',
+  'zoom_enabled',
 ] as const
 
 const MAX_FIELD_LENGTHS: Record<string, number> = {
@@ -51,9 +53,10 @@ const MAX_FIELD_LENGTHS: Record<string, number> = {
   whatsapp_group_url: 500,
   poster_url: 1000,
   qris_image_url: 1000,
+  zoom_meeting_link: 500,
 }
 
-const URL_FIELDS = ['instagram_url', 'tiktok_url', 'hipmi_instagram_url', 'hipmi_tiktok_url', 'poster_url', 'qris_image_url', 'whatsapp_group_url'] as const
+const URL_FIELDS = ['instagram_url', 'tiktok_url', 'hipmi_instagram_url', 'hipmi_tiktok_url', 'poster_url', 'qris_image_url', 'whatsapp_group_url', 'zoom_meeting_link'] as const
 
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
@@ -245,6 +248,19 @@ export async function PATCH(req: Request) {
     const email = updates.contact_email.trim()
     if (email !== '' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return jsonError('Format contact_email tidak valid.', 400)
+    }
+  }
+
+  // Zoom validation
+  if (updates.zoom_enabled !== undefined && updates.zoom_enabled !== null) {
+    if (typeof updates.zoom_enabled !== 'boolean' && updates.zoom_enabled !== 'true' && updates.zoom_enabled !== 'false') {
+      return jsonError('Nilai zoom_enabled harus boolean.', 400)
+    }
+    updates.zoom_enabled = updates.zoom_enabled === true || updates.zoom_enabled === 'true';
+  }
+  if (updates.zoom_meeting_link !== undefined) {
+    if (typeof updates.zoom_meeting_link === 'string' && updates.zoom_meeting_link.trim() !== currentEvent.zoom_meeting_link) {
+      updates.zoom_link_updated_at = new Date().toISOString()
     }
   }
 

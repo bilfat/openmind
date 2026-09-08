@@ -16,6 +16,7 @@ import {
   ChevronLeft,
   X,
   Bell,
+  Radio,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -45,6 +46,7 @@ const navGroups: NavGroup[] = [
       { label: "Participants", href: "/admin/participants", icon: Users },
       { label: "Walk-In Sales", href: "/admin/walk-in", icon: ShoppingCart, staffOnly: true },
       { label: "Check-in", href: "/admin/check-in", icon: ScanLine, staffOnly: true },
+      { label: "Zoom", href: "/admin/zoom", icon: Radio, staffOnly: true },
       { label: "Notifications", href: "/admin/notifications", icon: Bell },
     ],
   },

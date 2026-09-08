@@ -17,7 +17,11 @@ import {
   CheckCircle2,
   MessageSquare,
   Loader2,
+  Radio,
 } from "lucide-react";
+import { ZoomJoinButton } from "./zoom-join-button";
+import { ZoomWebcamScanner } from "./zoom-webcam-scanner";
+
 interface ETicketCardProps {
   order: OrderItem;
 }
@@ -27,6 +31,9 @@ export function ETicketCard({ order }: ETicketCardProps) {
   const issuedTicket = order as OrderItem & {
     ticketCode?: string;
     qrToken?: string;
+    zoomEnabled?: boolean;
+    zoomToken?: string;
+    zoomStatus?: string;
   };
   const qrValue = issuedTicket.qrToken
     ? ticketUrl(issuedTicket.qrToken)
@@ -62,10 +69,17 @@ export function ETicketCard({ order }: ETicketCardProps) {
             </p>
           </div>
 
-          <div className="text-right">
-            <span className="inline-block rounded-full bg-gold-500/20 px-3 py-1 text-[11px] font-bold text-gold-400 border border-gold-500/30 uppercase tracking-wider">
-              {order.ticketName}
-            </span>
+          <div className="text-right flex flex-col items-end">
+            <div className="flex gap-1">
+              <span className="inline-block rounded-full bg-gold-500/20 px-3 py-1 text-[11px] font-bold text-gold-400 border border-gold-500/30 uppercase tracking-wider">
+                {order.ticketName}
+              </span>
+              {issuedTicket.zoomEnabled && (
+                <span className="inline-block rounded-full bg-blue-500/20 px-2 py-1 text-[10px] font-bold text-blue-400 border border-blue-500/30 uppercase tracking-wider">
+                  ONLINE
+                </span>
+              )}
+            </div>
             <p className="font-mono text-xs text-ivory-200/50 mt-1">
               {order.orderId}
             </p>
@@ -181,6 +195,42 @@ export function ETicketCard({ order }: ETicketCardProps) {
             </p>
           </div>
         </div>
+
+        {/* Zoom Access Section */}
+        {issuedTicket.zoomEnabled && issuedTicket.zoomToken && (
+          <div className="mt-6 rounded-2xl border border-blue-500/30 bg-blue-950/40 p-4 sm:p-5 relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-4 opacity-10">
+              <Radio className="h-24 w-24 text-blue-400" />
+            </div>
+            
+            <div className="relative z-10">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="bg-blue-500/20 p-1.5 rounded-lg">
+                  <Radio className="h-4 w-4 text-blue-400" />
+                </div>
+                <h3 className="font-bold text-ivory-100 uppercase tracking-wider text-sm">
+                  Akses Zoom (Online)
+                </h3>
+              </div>
+              <p className="text-[11px] text-ivory-200/70 mb-4 sm:max-w-[80%]">
+                Gunakan tombol di bawah untuk bergabung ke sesi Zoom pada hari acara, 
+                atau scan QR yang dibagikan panitia menggunakan webcam.
+              </p>
+              
+              <ZoomJoinButton 
+                zoomToken={issuedTicket.zoomToken} 
+                zoomStatus={issuedTicket.zoomStatus || "PENDING"} 
+              />
+              
+              {issuedTicket.zoomStatus !== "USED" && (
+                <ZoomWebcamScanner 
+                  zoomToken={issuedTicket.zoomToken} 
+                  zoomStatus={issuedTicket.zoomStatus || "PENDING"} 
+                />
+              )}
+            </div>
+          </div>
+        )}
       </div>
       {/* Bottom Footer Stub */}
       <div className="border-t border-navy-800/80 bg-navy-900/60 px-6 py-4 flex items-center justify-between text-[11px] text-ivory-200/60">

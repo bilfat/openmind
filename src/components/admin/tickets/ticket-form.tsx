@@ -371,16 +371,23 @@ export function TicketForm({ initialData, isEdit = false }: TicketFormProps) {
               <label className="block text-xs font-bold uppercase tracking-wider text-navy-900 mb-1.5">
                 Badge / Label Tiket
               </label>
-              <div className="grid grid-cols-3 gap-3">
-                {(["EARLY", "LIMITED", "EXTEND"] as const).map((badgeOption) => (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {(["EARLY", "LIMITED", "EXTEND", "ONLINE"] as const).map((badgeOption) => (
                   <button
                     key={badgeOption}
                     type="button"
-                    onClick={() => handleChange("badge", badgeOption)}
+                    onClick={() => {
+                      handleChange("badge", badgeOption);
+                      if (badgeOption === "ONLINE") {
+                        handleChange("zoom_enabled", true);
+                      }
+                    }}
                     className={cn(
                       "rounded-xl border-2 px-3 py-3 text-center transition-all space-y-1",
                       formData.badge === badgeOption
-                        ? "border-gold-500 bg-gold-500/10 shadow-sm ring-2 ring-gold-500/20"
+                        ? badgeOption === "ONLINE"
+                          ? "border-blue-500 bg-blue-500/10 shadow-sm ring-2 ring-blue-500/20"
+                          : "border-gold-500 bg-gold-500/10 shadow-sm ring-2 ring-gold-500/20"
                         : "border-border bg-secondary/20 hover:border-gold-500/40"
                     )}
                   >
@@ -392,14 +399,27 @@ export function TicketForm({ initialData, isEdit = false }: TicketFormProps) {
                         ? "Early Bird / Best Seller"
                         : badgeOption === "LIMITED"
                         ? "Kuota Terbatas"
-                        : "Tiket Reguler"}
+                        : badgeOption === "EXTEND"
+                        ? "Tiket Reguler"
+                        : "Akses Online / Zoom"}
                     </span>
+                    {badgeOption === "ONLINE" && (
+                      <span className="block text-[9px] text-blue-500 font-bold">
+                        ✦ Termasuk Akses Zoom
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>
               <p className="mt-1.5 text-[10px] text-muted-foreground">
                 Badge akan tampil di pojok atas kartu tiket di halaman publik.
               </p>
+              {formData.badge === "ONLINE" && (
+                <p className="mt-1.5 text-[10px] text-blue-600 bg-blue-50 rounded-lg p-2 border border-blue-200">
+                  ✅ Tiket ini akan otomatis mendapat akses Zoom saat order diapprove.
+                  Pastikan Zoom link sudah diset di halaman <strong>Admin → Zoom</strong>.
+                </p>
+              )}
             </div>
 
             {/* Paid Fields */}

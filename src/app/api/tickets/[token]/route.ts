@@ -1,4 +1,4 @@
-﻿import { NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 function mapPaymentStatus(orderStatus: string): string {
@@ -20,11 +20,14 @@ type IssuedRow = {
   qr_token: string
   status: string
   issued_at: string
+  zoom_token?: string
+  zoom_status?: string
 }
 
 type TicketTypeRow = {
   name: string
   ticket_type: string
+  zoom_enabled?: boolean
 }
 
 type ParticipantRow = {
@@ -67,6 +70,9 @@ type TicketPayload = {
   ticketCode: string
   qrToken: string
   issuedTicketStatus: string
+  zoomEnabled?: boolean
+  zoomToken?: string
+  zoomStatus?: string
 }
 
 function one<T>(value: T | T[] | null | undefined): T | null {
@@ -110,8 +116,8 @@ export async function GET(
       .from('order_items')
       .select(`
         id, ticket_type_id, participant_id,
-        issued_tickets(id, ticket_code, qr_token, status, issued_at),
-        ticket_types!inner(name, ticket_type),
+        issued_tickets(id, ticket_code, qr_token, status, issued_at, zoom_token, zoom_status),
+        ticket_types!inner(name, ticket_type, zoom_enabled),
         participants!inner(full_name, email, whatsapp, nim, faculty, study_program, instagram_username)
       `)
       .eq('order_id', order.id)
@@ -151,6 +157,9 @@ export async function GET(
         ticketCode: issued.ticket_code,
         qrToken: issued.qr_token,
         issuedTicketStatus: issued.status,
+        zoomEnabled: ticketType.zoom_enabled,
+        zoomToken: issued.zoom_token,
+        zoomStatus: issued.zoom_status,
       })
     }
 

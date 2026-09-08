@@ -39,6 +39,7 @@ export default function TicketDetailPage() {
   useEffect(() => {
     let active = true;
     if (!token) return;
+
     fetch(`/api/tickets/${encodeURIComponent(token)}`)
       .then(async (response) => {
         const payload = await response.json();

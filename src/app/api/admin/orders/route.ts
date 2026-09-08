@@ -99,27 +99,28 @@ async function handleGetOrders(request: Request) {
     // Counts and the issued-ticket query are independent, so they run in
     // parallel to keep the route fast (avoids serial round-trips that could
     // trip the read timeout guard).
-    const buildCountQuery = (status?: string) => {
-      let q = supabase.from('orders').select('id', { count: 'exact', head: true })
-      if (status) q = q.eq('status', status)
-      else q = q.not('status', 'in', `(${HIDDEN_STATUSES.join(',')})`)
-      if (source) q = q.eq('source', source)
-      if (matchingOrderIds) q = q.in('id', matchingOrderIds)
-      return q
-    }
+    // Server-side totals so tab badges stay accurate even when the order count
+    // exceeds the page limit. Single status grouping query replaces 9 separate count queries.
     const [statusCountsResult, issuedTicketCountResult] = await Promise.all([
       (async () => {
-        const allCountResult = await buildCountQuery()
-        if (allCountResult.error) throw new Error(allCountResult.error.message)
-        const statusCounts: Record<string, number> = { ALL: allCountResult.count ?? 0 }
-        const counts = await Promise.all(
-          ORDER_STATUSES.map(async (s) => {
-            const { count, error } = await buildCountQuery(s)
-            if (error) throw new Error(error.message)
-            return [s, count ?? 0] as const
-          })
-        )
-        for (const [s, c] of counts) statusCounts[s] = c
+        let q = supabase.from('orders').select('status')
+        if (source) q = q.eq('source', source)
+        if (matchingOrderIds) q = q.in('id', matchingOrderIds)
+        const { data: rows, error } = await q
+        if (error) throw new Error(error.message)
+
+        const statusCounts: Record<string, number> = { ALL: 0 }
+        for (const s of ORDER_STATUSES) statusCounts[s] = 0
+
+        for (const r of rows ?? []) {
+          const s = (r as any).status
+          if (statusCounts[s] !== undefined) {
+            statusCounts[s]++
+          }
+          if (!HIDDEN_STATUSES.includes(s)) {
+            statusCounts.ALL++
+          }
+        }
         return statusCounts
       })(),
       (async () => {
@@ -230,13 +231,27 @@ async function handleGetOrders(request: Request) {
     let ticketEmailJobCounts: Record<string, number> = {}
     let operatorNames: Record<string, { full_name: string; role: string }> = {}
     if (orderIds.length) {
-      const itemsQuery = await supabase
-        .from('order_items')
-        .select('order_id, participants(id, full_name, email, nim, faculty, study_program), ticket_types(id, name, code, ticket_type)')
-        .in('order_id', orderIds)
-        .order('created_at', { ascending: true })
-        .order('id', { ascending: true })
+      const creatorIds = [...new Set((data ?? []).map((o: any) => o.created_by).filter(Boolean))] as string[]
+
+      const [itemsQuery, profilesQuery, issuedQuery, emailQuery] = await Promise.all([
+        supabase
+          .from('order_items')
+          .select('order_id, participants(id, full_name, email, nim, faculty, study_program), ticket_types(id, name, code, ticket_type)')
+          .in('order_id', orderIds)
+          .order('created_at', { ascending: true })
+          .order('id', { ascending: true }),
+        creatorIds.length
+          ? supabase.from('profiles').select('id, full_name, role').in('id', creatorIds)
+          : Promise.resolve({ data: [], error: null }),
+        supabase.from('issued_tickets').select('id, order_id').in('order_id', orderIds),
+        supabase.from('email_jobs').select('id, order_id').eq('job_type', 'TICKET_ISSUED').in('order_id', orderIds),
+      ])
+
       if (itemsQuery.error) throw new Error(itemsQuery.error.message)
+      if (profilesQuery.error) throw new Error(profilesQuery.error.message)
+      if (issuedQuery.error) throw new Error(issuedQuery.error.message)
+      if (emailQuery.error) throw new Error(emailQuery.error.message)
+
       summaries = (itemsQuery.data ?? []).reduce((acc, item: any) => {
         const current = acc[item.order_id] ?? { participants: [], ticketTypes: [] }
         if (item.participants) current.participants.push(item.participants)
@@ -245,26 +260,11 @@ async function handleGetOrders(request: Request) {
         return acc
       }, {} as Record<string, { participants: any[]; ticketTypes: string[] }>)
 
-      // Resolve operator (admin/staff) names for walk-in / manual orders
-      const creatorIds = [...new Set((data ?? []).map((o: any) => o.created_by).filter(Boolean))] as string[]
-      if (creatorIds.length) {
-        const profilesQuery = await supabase
-          .from('profiles')
-          .select('id, full_name, role')
-          .in('id', creatorIds)
-        if (profilesQuery.error) throw new Error(profilesQuery.error.message)
-        operatorNames = (profilesQuery.data ?? []).reduce((acc, p: any) => {
-          acc[p.id] = { full_name: p.full_name, role: p.role }
-          return acc
-        }, {} as Record<string, { full_name: string; role: string }>)
-      }
+      operatorNames = (profilesQuery.data ?? []).reduce((acc, p: any) => {
+        acc[p.id] = { full_name: p.full_name, role: p.role }
+        return acc
+      }, {} as Record<string, { full_name: string; role: string }>)
 
-      const [issuedQuery, emailQuery] = await Promise.all([
-        supabase.from('issued_tickets').select('id, order_id').in('order_id', orderIds),
-        supabase.from('email_jobs').select('id, order_id').eq('job_type', 'TICKET_ISSUED').in('order_id', orderIds),
-      ])
-      if (issuedQuery.error) throw new Error(issuedQuery.error.message)
-      if (emailQuery.error) throw new Error(emailQuery.error.message)
       issuedCounts = (issuedQuery.data ?? []).reduce((acc: Record<string, number>, ticket: any) => {
         acc[ticket.order_id] = (acc[ticket.order_id] ?? 0) + 1
         return acc

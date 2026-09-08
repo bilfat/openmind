@@ -706,7 +706,7 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     const interval = setInterval(() => {
       void fetchDashboardData().catch((error) => console.error(error));
-    }, 15000);
+    }, 45000);
     return () => clearInterval(interval);
   }, []);
 

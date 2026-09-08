@@ -28,24 +28,24 @@ async function handleGetNotifications(request: Request) {
       query = query.eq('is_read', false)
     }
 
-    const { data, count, error } = await query
-      .order('created_at', { ascending: false })
-      .order('id', { ascending: false })
-      .range(pagination.offset, pagination.offset + pagination.limit - 1)
+    const [itemsResult, unreadResult] = await Promise.all([
+      query
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .range(pagination.offset, pagination.offset + pagination.limit - 1),
+      supabase
+        .from('notifications')
+        .select('id', { count: 'exact', head: true })
+        .eq('profile_id', userId)
+        .eq('is_read', false),
+    ])
 
-    if (error) {
-      throw new Error(error.message)
-    }
+    if (itemsResult.error) throw new Error(itemsResult.error.message)
+    if (unreadResult.error) throw new Error(unreadResult.error.message)
 
-    const { count: unreadCount, error: unreadError } = await supabase
-      .from('notifications')
-      .select('id', { count: 'exact', head: true })
-      .eq('profile_id', userId)
-      .eq('is_read', false)
-
-    if (unreadError) {
-      throw new Error(unreadError.message)
-    }
+    const data = itemsResult.data
+    const count = itemsResult.count
+    const unreadCount = unreadResult.count
 
     const total = count ?? 0
     return NextResponse.json({

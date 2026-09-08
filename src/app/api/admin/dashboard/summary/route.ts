@@ -15,19 +15,12 @@ async function handleGetDashboardSummary() {
   const supabaseAdmin = createAdminClient()
 
   try {
-    const { data: profile } = await supabaseAdmin
-      .from('profiles')
-      .select('role')
-      .eq('id', auth.userId)
-      .maybeSingle()
+    const [{ data: profile }, { data: activeEvent }] = await Promise.all([
+      supabaseAdmin.from('profiles').select('role').eq('id', auth.userId).maybeSingle(),
+      supabaseAdmin.from('events').select('id').eq('status', 'ACTIVE').maybeSingle(),
+    ])
 
     const isSuperAdmin = profile?.role === 'SUPER_ADMIN'
-
-    const { data: activeEvent } = await supabaseAdmin
-      .from('events')
-      .select('id')
-      .eq('status', 'ACTIVE')
-      .maybeSingle()
 
     let activeTickets = { total: 0, items: [] as any[] }
     let activeReferrals = null as null | { total: number; items: any[] }

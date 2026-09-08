@@ -24,28 +24,28 @@ async function handleGetDashboardStats() {
   const { supabase } = auth
 
   try {
-    const [totalOrdersQuery, pendingQuery, issuedTicketQuery, issuedOrderQuery, newOrdersQuery, revenueQuery] = await Promise.all([
-      supabase
-        .from('orders')
-        .select('id', { count: 'exact', head: true })
-        .in('status', TOTAL_ORDER_STATUSES),
-      supabase
-        .from('orders')
-        .select('id', { count: 'exact', head: true })
-        .eq('status', 'WAITING_VERIFICATION'),
-      supabase
-        .from('issued_tickets')
-        .select('id', { count: 'exact', head: true })
-        .neq('status', 'CANCELLED'),
-      supabase
-        .from('orders')
-        .select('id', { count: 'exact', head: true })
-        .in('status', ISSUED_STATUSES),
-      supabase
-        .from('orders')
-        .select('id', { count: 'exact', head: true })
-        .in('status', NEW_ORDER_STATUSES),
+    const [
+      totalOrdersQuery,
+      pendingQuery,
+      issuedTicketQuery,
+      issuedOrderQuery,
+      newOrdersQuery,
+      revenueQuery,
+      pendingOrderRowsQuery,
+      revIssuedRowsQuery,
+      discountRowsQuery,
+      issuedRowsQuery,
+    ] = await Promise.all([
+      supabase.from('orders').select('id', { count: 'exact', head: true }).in('status', TOTAL_ORDER_STATUSES),
+      supabase.from('orders').select('id', { count: 'exact', head: true }).eq('status', 'WAITING_VERIFICATION'),
+      supabase.from('issued_tickets').select('id', { count: 'exact', head: true }).neq('status', 'CANCELLED'),
+      supabase.from('orders').select('id', { count: 'exact', head: true }).in('status', ISSUED_STATUSES),
+      supabase.from('orders').select('id', { count: 'exact', head: true }).in('status', NEW_ORDER_STATUSES),
       supabase.from('orders').select('total_amount').in('status', REVENUE_STATUSES),
+      supabase.from('orders').select('id').eq('status', 'WAITING_VERIFICATION'),
+      supabase.from('issued_tickets').select('order_items(line_total), ticket_types(name)').neq('status', 'CANCELLED'),
+      supabase.from('referral_redemptions').select('discount_amount, referral_codes(code), orders(id, order_code, status)').in('status', ['RESERVED', 'CONSUMED']),
+      supabase.from('issued_tickets').select('order_id, ticket_code, participants(full_name, nim, email, whatsapp, faculty), ticket_types(name, code, ticket_type)').neq('status', 'CANCELLED'),
     ])
 
     if (totalOrdersQuery.error) throw new Error(totalOrdersQuery.error.message)
@@ -54,83 +54,21 @@ async function handleGetDashboardStats() {
     if (issuedOrderQuery.error) throw new Error(issuedOrderQuery.error.message)
     if (newOrdersQuery.error) throw new Error(newOrdersQuery.error.message)
     if (revenueQuery.error) throw new Error(revenueQuery.error.message)
+    if (pendingOrderRowsQuery.error) throw new Error(pendingOrderRowsQuery.error.message)
+    if (revIssuedRowsQuery.error) throw new Error(revIssuedRowsQuery.error.message)
+    if (discountRowsQuery.error) throw new Error(discountRowsQuery.error.message)
+    if (issuedRowsQuery.error) throw new Error(issuedRowsQuery.error.message)
 
     const totalRevenue = (revenueQuery.data ?? []).reduce(
       (sum: number, row: any) => sum + Number(row.total_amount || 0),
       0
     )
 
-    // Jumlah tiket (item pesanan) dari order yang belum di-approve, bukan jumlah
-    // order. Filter embed `orders.status` pada order_items tidak andal, jadi
-    // ambil ID order WAITING_VERIFICATION dulu lalu hitung item-nya.
-    const { data: pendingOrderRows, error: pendingOrderErr } = await supabase
-      .from('orders')
-      .select('id')
-      .eq('status', 'WAITING_VERIFICATION')
-    if (pendingOrderErr) throw new Error(pendingOrderErr.message)
-    const pendingOrderIds = (pendingOrderRows ?? []).map((o: any) => o.id)
-    let pendingTickets = 0
-    if (pendingOrderIds.length) {
-      const { count, error } = await supabase
-        .from('order_items')
-        .select('id', { count: 'exact', head: true })
-        .in('order_id', pendingOrderIds)
-      if (error) throw new Error(error.message)
-      pendingTickets = count ?? 0
-    }
-
-    // Rincian revenue per jenis tiket & harga (tiket terbit + tiket pending).
-    // Dikelompokkan berdasarkan nama tiket + harga aktual dari order_items,
-    // karena harga walk-in bisa berbeda (mis. Rp 38.000) tanpa label sumber.
-    const { data: revIssuedRows, error: revIssuedErr } = await supabase
-      .from('issued_tickets')
-      .select('order_items(line_total), ticket_types(name)')
-      .neq('status', 'CANCELLED')
-    if (revIssuedErr) throw new Error(revIssuedErr.message)
-
-    let revPendingRows: any[] = []
-    if (pendingOrderIds.length) {
-      const { data, error } = await supabase
-        .from('order_items')
-        .select('line_total, ticket_types(name)')
-        .in('order_id', pendingOrderIds)
-      if (error) throw new Error(error.message)
-      revPendingRows = data ?? []
-    }
-
-    const buildBreakdown = (rows: any[], getPrice: (row: any) => number) => {
-      const map = new Map<string, { ticket_name: string; price: number; count: number }>()
-      for (const row of rows) {
-        const t = Array.isArray(row.ticket_types) ? row.ticket_types[0] : row.ticket_types
-        const price = getPrice(row)
-        const key = `${t?.name ?? '-'}|${price}`
-        const cur = map.get(key) ?? { ticket_name: t?.name ?? '-', price, count: 0 }
-        cur.count += 1
-        map.set(key, cur)
-      }
-      return [...map.values()]
-        .map((r) => ({ ...r, total: r.count * r.price }))
-        .sort((a, b) => b.price - a.price)
-    }
-
-    const revenueBreakdown = {
-      issued: buildBreakdown(revIssuedRows ?? [], (row: any) =>
-        Number((Array.isArray(row.order_items) ? row.order_items[0] : row.order_items)?.line_total ?? 0)
-      ),
-      pending: buildBreakdown(revPendingRows, (row: any) => Number(row.line_total ?? 0)),
-    }
-
-    // Potongan referal yang benar-benar mengurangi revenue. Diskon referral
-    // hanya dipotong di level order (orders.total_amount), sedangkan
-    // order_items.line_total selalu harga penuh. Ambil redemption dari order
-    // berstatus revenue (APPROVED / TICKET_ISSUED / WAITING_VERIFICATION) agar
-    // jumlahnya cocok dengan selisih subtotal breakdown vs totalRevenue.
-    // Ditampilkan per order + jenis tiket yang ada di order tersebut.
-    const { data: discountRows, error: discountErr } = await supabase
-      .from('referral_redemptions')
-      .select('discount_amount, referral_codes(code), orders(id, order_code, status)')
-      .in('status', ['RESERVED', 'CONSUMED'])
-    if (discountErr) throw new Error(discountErr.message)
+    const pendingOrderRows = pendingOrderRowsQuery.data ?? []
+    const pendingOrderIds = pendingOrderRows.map((o: any) => o.id)
+    const revIssuedRows = revIssuedRowsQuery.data ?? []
+    const discountRows = discountRowsQuery.data ?? []
+    const issuedRows = issuedRowsQuery.data ?? []
 
     const revenueStatusSet = new Set(REVENUE_STATUSES)
     const discountedOrders: Array<{
@@ -150,18 +88,59 @@ async function handleGetDashboardStats() {
       })
     }
     const totalDiscount = discountedOrders.reduce((sum, r) => sum + r.discount, 0)
+    const discountedOrderIds = [...new Set(discountedOrders.map((r) => r.order_id))]
+
+    // Calculate multiPax candidate order IDs from issuedRows
+    const perOrderMap = new Map<string, any[]>()
+    for (const row of issuedRows) {
+      const list = perOrderMap.get(row.order_id) ?? []
+      list.push(row)
+      perOrderMap.set(row.order_id, list)
+    }
+
+    // Execute dependent secondary queries in parallel
+    const [pendingItemsRes, discountItemsRes, multiOrdersRes] = await Promise.all([
+      pendingOrderIds.length
+        ? supabase.from('order_items').select('order_id, line_total, participants(full_name, nim, email, whatsapp, faculty), ticket_types(name, code, ticket_type)').in('order_id', pendingOrderIds)
+        : Promise.resolve({ data: [], error: null }),
+      discountedOrderIds.length
+        ? supabase.from('order_items').select('order_id, unit_price, ticket_types(name)').in('order_id', discountedOrderIds)
+        : Promise.resolve({ data: [], error: null }),
+      Promise.resolve(null), // Will be handled after merging pending pax
+    ])
+
+    if (pendingItemsRes.error) throw new Error(pendingItemsRes.error.message)
+    if (discountItemsRes.error) throw new Error(discountItemsRes.error.message)
+
+    const pendingPaxRows = pendingItemsRes.data ?? []
+    const pendingTickets = pendingPaxRows.length
+
+    const buildBreakdown = (rows: any[], getPrice: (row: any) => number) => {
+      const map = new Map<string, { ticket_name: string; price: number; count: number }>()
+      for (const row of rows) {
+        const t = Array.isArray(row.ticket_types) ? row.ticket_types[0] : row.ticket_types
+        const price = getPrice(row)
+        const key = `${t?.name ?? '-'}|${price}`
+        const cur = map.get(key) ?? { ticket_name: t?.name ?? '-', price, count: 0 }
+        cur.count += 1
+        map.set(key, cur)
+      }
+      return [...map.values()]
+        .map((r) => ({ ...r, total: r.count * r.price }))
+        .sort((a, b) => b.price - a.price)
+    }
+
+    const revenueBreakdown = {
+      issued: buildBreakdown(revIssuedRows, (row: any) =>
+        Number((Array.isArray(row.order_items) ? row.order_items[0] : row.order_items)?.line_total ?? 0)
+      ),
+      pending: buildBreakdown(pendingPaxRows, (row: any) => Number(row.line_total ?? 0)),
+    }
 
     let discountBreakdown: any[] = []
-    if (discountedOrders.length) {
-      const discountedOrderIds = [...new Set(discountedOrders.map((r) => r.order_id))]
-      const { data: discountItems, error: discountItemsErr } = await supabase
-        .from('order_items')
-        .select('order_id, unit_price, ticket_types(name)')
-        .in('order_id', discountedOrderIds)
-      if (discountItemsErr) throw new Error(discountItemsErr.message)
-
+    if (discountedOrders.length && discountItemsRes.data) {
       const itemsByOrder = new Map<string, any[]>()
-      for (const item of discountItems ?? []) {
+      for (const item of discountItemsRes.data) {
         const list = itemsByOrder.get(item.order_id) ?? []
         list.push(item)
         itemsByOrder.set(item.order_id, list)
@@ -189,32 +168,6 @@ async function handleGetDashboardStats() {
         .sort((a, b) => b.discount - a.discount)
     }
 
-    // Order yang membeli lebih dari 1 tiket (multi pax) untuk detail dashboard.
-    // Digabung dari tiket terbit (issued_tickets) dan order yang belum di-approve
-    // (order_items WAITING_VERIFICATION), karena 1 order bisa berisi >1 pax di
-    // kedua status tersebut.
-    const { data: issuedRows, error: issuedRowsError } = await supabase
-      .from('issued_tickets')
-      .select('order_id, ticket_code, participants(full_name, nim, email, whatsapp, faculty), ticket_types(name, code, ticket_type)')
-      .neq('status', 'CANCELLED')
-    if (issuedRowsError) throw new Error(issuedRowsError.message)
-
-    let pendingPaxRows: any[] = []
-    if (pendingOrderIds.length) {
-      const { data, error } = await supabase
-        .from('order_items')
-        .select('order_id, participants(full_name, nim, email, whatsapp, faculty), ticket_types(name, code, ticket_type)')
-        .in('order_id', pendingOrderIds)
-      if (error) throw new Error(error.message)
-      pendingPaxRows = data ?? []
-    }
-
-    const perOrderMap = new Map<string, any[]>()
-    for (const row of issuedRows ?? []) {
-      const list = perOrderMap.get(row.order_id) ?? []
-      list.push(row)
-      perOrderMap.set(row.order_id, list)
-    }
     for (const row of pendingPaxRows) {
       const list = perOrderMap.get(row.order_id) ?? []
       list.push(row)

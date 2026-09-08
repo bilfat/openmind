@@ -25,16 +25,10 @@ async function handleGetParticipants(request: Request) {
 
     if (allFaculties) {
       // Return all unique faculties for filter dropdown
-      let issuedQuery = supabase.from('issued_tickets').select('participant_id').neq('status', 'CANCELLED')
-      const issuedResult = await issuedQuery
-      if (issuedResult.error) throw new Error(issuedResult.error.message)
-      const participantIds = [...new Set((issuedResult.data ?? []).map((row) => row.participant_id).filter((pid): pid is string => Boolean(pid)))]
-      
-      if (!participantIds.length) {
-        return NextResponse.json({ success: true, faculties: [] })
-      }
-
-      const { data, error } = await supabase.from('participants').select('faculty').in('id', participantIds)
+      const { data, error } = await supabase
+        .from('participants')
+        .select('faculty, issued_tickets!inner(status)')
+        .neq('issued_tickets.status', 'CANCELLED')
       if (error) throw new Error(error.message)
       
       const faculties = [...new Set((data ?? []).map((p) => p.faculty).filter(Boolean))].sort()
@@ -47,27 +41,23 @@ async function handleGetParticipants(request: Request) {
 
     // Peserta yang tampil hanya yang tiketnya telah terbit (issued_tickets),
     // dihitung per tiket/pax, bukan per order (karena 1 order bisa berisi >1 pax).
-    let issuedQuery = supabase.from('issued_tickets').select('participant_id').neq('status', 'CANCELLED')
     if (ticketType) {
       const ticketQuery = await supabase.from('ticket_types').select('id').eq('ticket_type', ticketType)
       if (ticketQuery.error) throw new Error(ticketQuery.error.message)
       ticketTypeIds = (ticketQuery.data ?? []).map((ticket) => ticket.id)
       if (!ticketTypeIds.length) return emptyResult()
-      issuedQuery = issuedQuery.in('ticket_type_id', ticketTypeIds)
     }
-    const issuedResult = await issuedQuery
-    if (issuedResult.error) throw new Error(issuedResult.error.message)
-    const filteredParticipantIds = [...new Set((issuedResult.data ?? []).map((row) => row.participant_id).filter((pid): pid is string => Boolean(pid)))]
-    if (!filteredParticipantIds.length) return emptyResult()
 
-    let query = supabase.from('participants').select('id, event_id, full_name, email, whatsapp, nim, faculty, study_program, instagram_username, created_at, updated_at', { count: 'exact' })
+    const selectFields = 'id, event_id, full_name, email, whatsapp, nim, faculty, study_program, instagram_username, created_at, updated_at, issued_tickets!inner(id, status, ticket_type_id)'
+    let query = supabase.from('participants').select(selectFields, { count: 'exact' })
+    query = query.neq('issued_tickets.status', 'CANCELLED')
+    if (ticketTypeIds) query = query.in('issued_tickets.ticket_type_id', ticketTypeIds)
     if (parsedSearch.search) query = query.or(`full_name.ilike.%${parsedSearch.search}%,nim.ilike.%${parsedSearch.search}%,email.ilike.%${parsedSearch.search}%`)
     if (faculty) query = query.ilike('faculty', `%${faculty}%`)
-    if (filteredParticipantIds) query = query.in('id', filteredParticipantIds)
     
     // If attendance filter is applied, we need to fetch all data first to compute is_present
     if (attendance) {
-      const { data, count, error } = await query.order('created_at', { ascending: false }).order('id', { ascending: false })
+      const { data, error } = await query.order('created_at', { ascending: false }).order('id', { ascending: false })
       if (error) throw new Error(error.message)
       
       const participants = data ?? []

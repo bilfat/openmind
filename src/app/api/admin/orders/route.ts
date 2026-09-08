@@ -107,7 +107,7 @@ async function handleGetOrders(request: Request) {
       if (matchingOrderIds) q = q.in('id', matchingOrderIds)
       return q
     }
-    const [statusCountsResult, issuedSummaryResult] = await Promise.all([
+    const [statusCountsResult, issuedTicketCountResult] = await Promise.all([
       (async () => {
         const allCountResult = await buildCountQuery()
         if (allCountResult.error) throw new Error(allCountResult.error.message)
@@ -126,56 +126,42 @@ async function handleGetOrders(request: Request) {
         // Total issued tickets (not orders) for TICKET_ISSUED orders. An order
         // can contain multiple tickets (e.g. one buyer purchasing 2 tickets), so
         // the badge counts tickets, matching the "Terbit" figure on the tickets page.
-        const issuedOrderIds: string[] = []
-        const issuedPageSize = 1000
-        let issuedFrom = 0
-        while (true) {
-          let q = supabase.from('orders').select('id').eq('status', 'TICKET_ISSUED')
-          if (source) q = q.eq('source', source)
-          if (matchingOrderIds) q = q.in('id', matchingOrderIds)
-          const { data, error } = await q.range(issuedFrom, issuedFrom + issuedPageSize - 1)
-          if (error) throw new Error(error.message)
-          issuedOrderIds.push(...(data ?? []).map((row) => row.id))
-          if ((data ?? []).length < issuedPageSize) break
-          issuedFrom += issuedPageSize
-        }
-        let issuedTicketCount = 0
-        if (issuedOrderIds.length) {
-          const { count, error } = await supabase
-            .from('issued_tickets')
-            .select('id', { count: 'exact', head: true })
-            .in('order_id', issuedOrderIds)
-            .neq('status', 'CANCELLED')
-          if (error) throw new Error(error.message)
-          issuedTicketCount = count ?? 0
-        }
-        return { issuedOrderIds, issuedTicketCount }
+        let q = supabase
+          .from('issued_tickets')
+          .select('id, orders!inner(source, status)', { count: 'exact', head: true })
+          .neq('status', 'CANCELLED')
+          .eq('orders.status', 'TICKET_ISSUED')
+        if (source) q = q.eq('orders.source', source)
+        if (matchingOrderIds) q = q.in('order_id', matchingOrderIds)
+        const { count, error } = await q
+        if (error) throw new Error(error.message)
+        return count ?? 0
       })(),
     ])
     const statusCounts = statusCountsResult
-    const issuedOrderIds = issuedSummaryResult.issuedOrderIds
-    const issuedTicketCount = issuedSummaryResult.issuedTicketCount
+    const issuedTicketCount = issuedTicketCountResult
 
     // View mode: when the "Tiket Diterbitkan" tab is selected, show one row per
     // issued ticket (per pax) instead of one row per order, so multi-pax orders
     // are listed individually and never merged into a single row.
     const isTicketIssuedView = statusList.length === 1 && statusList[0] === 'TICKET_ISSUED'
     if (isTicketIssuedView) {
-      let ticketRows: any[] = []
-      let ticketTotal = 0
-      if (issuedOrderIds.length) {
-        const result = await supabase
-          .from('issued_tickets')
-          .select('id, ticket_code, order_id, status, issued_at, orders(order_code, source, total_amount, created_by, created_at), participants(full_name, nim, faculty, study_program, email, whatsapp), ticket_types(name, code, ticket_type)', { count: 'exact' })
-          .in('order_id', issuedOrderIds)
-          .neq('status', 'CANCELLED')
-          .order('issued_at', { ascending: false })
-          .order('id', { ascending: false })
-          .range(pagination.offset, pagination.offset + pagination.limit - 1)
-        if (result.error) throw new Error(result.error.message)
-        ticketRows = result.data ?? []
-        ticketTotal = result.count ?? 0
-      }
+      let q = supabase
+        .from('issued_tickets')
+        .select('id, ticket_code, order_id, status, issued_at, orders!inner(order_code, source, total_amount, created_by, created_at, status), participants(full_name, nim, faculty, study_program, email, whatsapp), ticket_types(name, code, ticket_type)', { count: 'exact' })
+        .neq('status', 'CANCELLED')
+        .eq('orders.status', 'TICKET_ISSUED')
+      if (source) q = q.eq('orders.source', source)
+      if (matchingOrderIds) q = q.in('order_id', matchingOrderIds)
+
+      const result = await q
+        .order('issued_at', { ascending: false })
+        .order('id', { ascending: false })
+        .range(pagination.offset, pagination.offset + pagination.limit - 1)
+
+      if (result.error) throw new Error(result.error.message)
+      const ticketRows = result.data ?? []
+      const ticketTotal = result.count ?? 0
 
       const pageOrderIds = [...new Set(ticketRows.map((t: any) => t.order_id))] as string[]
       let ticketOperatorNames: Record<string, { full_name: string; role: string }> = {}

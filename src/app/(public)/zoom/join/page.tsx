@@ -53,7 +53,10 @@ export default function ZoomJoinPage() {
         {/* Header */}
         <div className="text-center space-y-4 relative z-10">
           <div className="flex justify-center">
-            <Logo />
+            <div className="flex items-center gap-2">
+              <img src="/logo-om.jpg" alt="OPEN MIND" className="h-8 w-8 rounded-md object-cover" />
+              <span className="font-display text-lg font-bold tracking-wider text-ivory-100">OPEN MIND</span>
+            </div>
           </div>
           <div>
             <h1 className="font-display text-xl font-bold text-ivory-100">

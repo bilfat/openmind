@@ -527,96 +527,178 @@ export async function renderTicketPage(pdf: PDFDocument, ticket: TicketPdfData) 
   }
 
   // =========================================================
-  // RIGHT STUB — QR VERIFICATION
+  // RIGHT STUB — QR / ONLINE VERIFICATION
   // =========================================================
   const qrCenterX = dividerX + stubW / 2
-
-  page.drawText('TICKET VERIFICATION', {
-    x: qrCenterX - bold.widthOfTextAtSize('TICKET VERIFICATION', 6.5) / 2,
-    y: headerBottom - 28,
-    size: 8,
-    font: bold,
-    color: softGold,
-  })
-
-  const scanTitle = 'SCAN TO VERIFY TICKET'
-  const scanTitleWidth = bold.widthOfTextAtSize(scanTitle, 8.5)
-
-  page.drawText(scanTitle, {
-    x: qrCenterX - scanTitleWidth / 2,
-    y: headerBottom - 48,
-    size: 10,
-    font: bold,
-    color: gold,
-  })
-
-  // Generate QR at high source resolution.
-  const qrDataUrl = await createTicketQrDataUrl(ticket.qrToken)
-  const qrBytes = Buffer.from(qrDataUrl.split(',')[1], 'base64')
-  const qrImage = await pdf.embedPng(qrBytes)
-
   const qrSize = 145
   const qrPadding = 12
   const qrBoxSize = qrSize + qrPadding * 2
   const qrBoxX = qrCenterX - qrBoxSize / 2
   const qrBoxY = headerBottom - 48 - qrBoxSize - 17
 
-  page.drawRectangle({
-    x: qrBoxX,
-    y: qrBoxY,
-    width: qrBoxSize,
-    height: qrBoxSize,
-    color: rgb(0.99, 0.99, 0.98),
-    borderColor: border,
-    borderWidth: 1,
-  })
+  if (!ticket.zoomEnabled) {
+    page.drawText('TICKET VERIFICATION', {
+      x: qrCenterX - bold.widthOfTextAtSize('TICKET VERIFICATION', 6.5) / 2,
+      y: headerBottom - 28,
+      size: 8,
+      font: bold,
+      color: softGold,
+    })
 
-  page.drawImage(qrImage, {
-    x: qrCenterX - qrSize / 2,
-    y: qrBoxY + qrPadding,
-    width: qrSize,
-    height: qrSize,
-  })
+    const scanTitle = 'SCAN TO VERIFY TICKET'
+    const scanTitleWidth = bold.widthOfTextAtSize(scanTitle, 8.5)
 
-  const instruction = 'Present this ticket at the venue entrance.'
-  const instructionLines = wrapTextInBox(
-    instruction,
-    stubW - 36,
-    regular,
-    9,
-  )
+    page.drawText(scanTitle, {
+      x: qrCenterX - scanTitleWidth / 2,
+      y: headerBottom - 48,
+      size: 10,
+      font: bold,
+      color: gold,
+    })
 
-  let instructionY = qrBoxY - 19
+    // Generate QR at high source resolution.
+    const qrDataUrl = await createTicketQrDataUrl(ticket.qrToken)
+    const qrBytes = Buffer.from(qrDataUrl.split(',')[1], 'base64')
+    const qrImage = await pdf.embedPng(qrBytes)
 
-  for (const line of instructionLines) {
-    const lineWidth = regular.widthOfTextAtSize(line, 9)
+    page.drawRectangle({
+      x: qrBoxX,
+      y: qrBoxY,
+      width: qrBoxSize,
+      height: qrBoxSize,
+      color: rgb(0.99, 0.99, 0.98),
+      borderColor: border,
+      borderWidth: 1,
+    })
 
-    page.drawText(line, {
-      x: qrCenterX - lineWidth / 2,
-      y: instructionY,
-      size: 9,
+    page.drawImage(qrImage, {
+      x: qrCenterX - qrSize / 2,
+      y: qrBoxY + qrPadding,
+      width: qrSize,
+      height: qrSize,
+    })
+
+    const instruction = 'Present this ticket at the venue entrance.'
+    const instructionLines = wrapTextInBox(
+      instruction,
+      stubW - 36,
+      regular,
+      9,
+    )
+
+    let instructionY = qrBoxY - 19
+
+    for (const line of instructionLines) {
+      const lineWidth = regular.widthOfTextAtSize(line, 9)
+
+      page.drawText(line, {
+        x: qrCenterX - lineWidth / 2,
+        y: instructionY,
+        size: 9,
+        font: regular,
+        color: textMedium,
+      })
+
+      instructionY -= 13
+    }
+
+    page.drawText('Keep the QR code visible', {
+      x: qrCenterX - bold.widthOfTextAtSize('Keep the QR code visible', 6.5) / 2,
+      y: ticketY + 111,
+      size: 8,
+      font: bold,
+      color: textMedium,
+    })
+
+    page.drawText('when checking in.', {
+      x: qrCenterX - regular.widthOfTextAtSize('when checking in.', 6.5) / 2,
+      y: ticketY + 100,
+      size: 8,
+      font: regular,
+      color: textMedium,
+    })
+  } else {
+    // Online Access Ticket Stub (No venue QR code)
+    page.drawText('ONLINE ACCESS TICKET', {
+      x: qrCenterX - bold.widthOfTextAtSize('ONLINE ACCESS TICKET', 6.5) / 2,
+      y: headerBottom - 28,
+      size: 8,
+      font: bold,
+      color: softGold,
+    })
+
+    const infoTitle = 'ZOOM HYBRID EVENT'
+    page.drawText(infoTitle, {
+      x: qrCenterX - bold.widthOfTextAtSize(infoTitle, 8.5) / 2,
+      y: headerBottom - 48,
+      size: 10,
+      font: bold,
+      color: gold,
+    })
+
+    page.drawRectangle({
+      x: qrBoxX,
+      y: qrBoxY,
+      width: qrBoxSize,
+      height: qrBoxSize,
+      color: rgb(0.95, 0.97, 1.0),
+      borderColor: rgb(0.7, 0.8, 0.95),
+      borderWidth: 1,
+    })
+
+    const boxTitle = 'ONLINE TICKET'
+    page.drawText(boxTitle, {
+      x: qrCenterX - bold.widthOfTextAtSize(boxTitle, 11) / 2,
+      y: qrBoxY + qrBoxSize - 35,
+      size: 11,
+      font: bold,
+      color: rgb(0.1, 0.3, 0.6),
+    })
+
+    const boxSub = 'NO VENUE CHECK-IN REQUIRED'
+    page.drawText(boxSub, {
+      x: qrCenterX - bold.widthOfTextAtSize(boxSub, 6.5) / 2,
+      y: qrBoxY + qrBoxSize - 50,
+      size: 6.5,
+      font: bold,
+      color: softGold,
+    })
+
+    const onlineNoteLines = [
+      'Gunakan tombol',
+      'Join Zoom pada',
+      'E-Ticket digital',
+      'untuk bergabung ke',
+      'sesi Zoom event.'
+    ]
+    let noteY = qrBoxY + qrBoxSize - 75
+    for (const noteLine of onlineNoteLines) {
+      page.drawText(noteLine, {
+        x: qrCenterX - regular.widthOfTextAtSize(noteLine, 8.5) / 2,
+        y: noteY,
+        size: 8.5,
+        font: regular,
+        color: textDark,
+      })
+      noteY -= 14
+    }
+
+    page.drawText('Access valid for', {
+      x: qrCenterX - regular.widthOfTextAtSize('Access valid for', 6.5) / 2,
+      y: ticketY + 111,
+      size: 8,
       font: regular,
       color: textMedium,
     })
 
-    instructionY -= 13
+    page.drawText('registered participant.', {
+      x: qrCenterX - regular.widthOfTextAtSize('registered participant.', 6.5) / 2,
+      y: ticketY + 100,
+      size: 8,
+      font: regular,
+      color: textMedium,
+    })
   }
-
-  page.drawText('Keep the QR code visible', {
-    x: qrCenterX - bold.widthOfTextAtSize('Keep the QR code visible', 6.5) / 2,
-    y: ticketY + 111,
-    size: 8,
-    font: bold,
-    color: textMedium,
-  })
-
-  page.drawText('when checking in.', {
-    x: qrCenterX - regular.widthOfTextAtSize('when checking in.', 6.5) / 2,
-    y: ticketY + 100,
-    size: 8,
-    font: regular,
-    color: textMedium,
-  })
 
   // =========================================================
   // TICKET CODE ON DETACHABLE STUB

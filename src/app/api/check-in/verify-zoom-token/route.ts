@@ -91,9 +91,14 @@ export async function POST(request: Request) {
     }
 
     // 6. Optimistic Lock UPDATE (Hanya update jika status masih PENDING)
+    const nowStr = new Date().toISOString();
     const { data: updatedTicket, error: updateError } = await supabase
       .from('issued_tickets')
-      .update({ zoom_status: 'USED', zoom_used_at: new Date().toISOString() })
+      .update({ 
+        zoom_status: 'USED', 
+        zoom_used_at: nowStr,
+        status: 'CHECKED_IN'
+      })
       .eq('id', ticket.id)
       .eq('zoom_status', 'PENDING') // Optimistic lock
       .select('id')
@@ -101,6 +106,20 @@ export async function POST(request: Request) {
 
     if (updateError || !updatedTicket) {
       return NextResponse.json({ success: false, reason: 'already_used', message: 'Token sudah dipakai' }, { status: 403 });
+    }
+
+    // Record check-in di tabel check_ins
+    try {
+      await supabase
+        .from('check_ins')
+        .insert({
+          issued_ticket_id: ticket.id,
+          checked_in_at: nowStr,
+          method: 'ZOOM_JOIN',
+          notes: 'Otomatis Check-In via Zoom Join',
+        });
+    } catch {
+      // Ignore if check_in record already exists (e.g. re-entry or unique constraint)
     }
 
     // 7. Bangun deep link zoommtg:// agar tidak terlihat URL Zoom aslinya

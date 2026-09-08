@@ -117,7 +117,7 @@ export function ETicketCard({ order }: ETicketCardProps) {
       <div className="p-6 sm:p-8 space-y-6">
         <div className="grid grid-cols-1 sm:grid-cols-12 gap-6 items-center">
           {/* Participant Details */}
-          <div className="sm:col-span-7 space-y-3.5">
+          <div className={issuedTicket.zoomEnabled ? "sm:col-span-12 space-y-3.5" : "sm:col-span-7 space-y-3.5"}>
             <div>
               <span className="text-[10px] uppercase font-bold tracking-wider text-gold-400">
                 NAMA PESERTA
@@ -184,16 +184,18 @@ export function ETicketCard({ order }: ETicketCardProps) {
             </div>
           </div>
 
-          {/* QR Code Container */}
-          <div className="sm:col-span-5 flex flex-col items-center justify-center p-3 rounded-2xl bg-navy-900 border border-gold-500/30 text-center">
-            <QRCodeDisplay value={qrValue} size={150} />
-            <span className="mt-2 font-mono text-[11px] font-bold text-gold-400 tracking-wider">
-              {issuedTicket.ticketCode || order.orderId}
-            </span>
-            <p className="text-[9px] text-ivory-200/60 mt-0.5">
-              Scan di meja registrasi venue
-            </p>
-          </div>
+          {/* QR Code Container (Only for offline tickets) */}
+          {!issuedTicket.zoomEnabled && (
+            <div className="sm:col-span-5 flex flex-col items-center justify-center p-3 rounded-2xl bg-navy-900 border border-gold-500/30 text-center">
+              <QRCodeDisplay value={qrValue} size={150} />
+              <span className="mt-2 font-mono text-[11px] font-bold text-gold-400 tracking-wider">
+                {issuedTicket.ticketCode || order.orderId}
+              </span>
+              <p className="text-[9px] text-ivory-200/60 mt-0.5">
+                Scan di meja registrasi venue
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Zoom Access Section */}

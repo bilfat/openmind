@@ -15,7 +15,9 @@ function buildZoomDeepLink(zoomUrl: string): string {
 
     if (!meetingId) return zoomUrl; // fallback to https if can't parse
 
-    let deepLink = `zoommtg://zoom.us/join?confno=${meetingId}`;
+    // Use zoomus:// scheme which is supported by Zoom App on iOS, Android, and Desktop
+    // (zoommtg:// is desktop-only and causes "Safari tidak dapat membuka halaman karena alamatnya tidak sah" on iOS)
+    let deepLink = `zoomus://zoom.us/join?confno=${meetingId}`;
     if (pwd) deepLink += `&pwd=${encodeURIComponent(pwd)}`;
 
     return deepLink;
@@ -89,15 +91,9 @@ export async function POST(request: Request) {
     }
 
     // 6. Optimistic Lock UPDATE (Hanya update jika status masih PENDING)
-    const updateData: any = { zoom_status: 'USED', zoom_used_at: new Date().toISOString() };
-    if (ticket.status === 'ACTIVE') {
-      updateData.status = 'CHECKED_IN';
-      updateData.checked_in_at = new Date().toISOString();
-    }
-
     const { data: updatedTicket, error: updateError } = await supabase
       .from('issued_tickets')
-      .update(updateData)
+      .update({ zoom_status: 'USED', zoom_used_at: new Date().toISOString() })
       .eq('id', ticket.id)
       .eq('zoom_status', 'PENDING') // Optimistic lock
       .select('id')

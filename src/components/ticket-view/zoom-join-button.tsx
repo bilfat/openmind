@@ -31,6 +31,7 @@ function launchZoomApp(deepLink: string) {
 export function ZoomJoinButton({ zoomToken, zoomStatus }: ZoomJoinButtonProps) {
   const [state, setState] = useState<JoinState>("idle");
   const [errorMsg, setErrorMsg] = useState("");
+  const [fallbackUrl, setFallbackUrl] = useState<string | null>(null);
 
   const handleJoinZoom = async () => {
     setState("loading");
@@ -45,6 +46,9 @@ export function ZoomJoinButton({ zoomToken, zoomStatus }: ZoomJoinButtonProps) {
       const payload = await res.json();
 
       if (res.ok && payload.success && payload.data?.deepLink) {
+        if (payload.data.fallbackUrl) {
+          setFallbackUrl(payload.data.fallbackUrl);
+        }
         setState("launching");
         // Launch deep link — must happen in same call stack as user gesture
         launchZoomApp(payload.data.deepLink);
@@ -97,6 +101,20 @@ export function ZoomJoinButton({ zoomToken, zoomStatus }: ZoomJoinButtonProps) {
           </>
         )}
       </button>
+
+      {/* Fallback button jika aplikasi Zoom tidak otomatis terbuka */}
+      {(state === "launching" || state === "success") && fallbackUrl && (
+        <div className="text-center pt-1">
+          <a
+            href={fallbackUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-blue-300 hover:text-blue-200 underline underline-offset-2 font-medium"
+          >
+            Aplikasi Zoom tidak terbuka? Klik di sini untuk buka via Browser
+          </a>
+        </div>
+      )}
 
       {/* Error: already_used — beri info hubungi panitia */}
       {(state === "already_used" || (zoomStatus === "USED" && state === "idle")) && (

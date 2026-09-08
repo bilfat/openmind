@@ -379,7 +379,7 @@ export function TicketForm({ initialData, isEdit = false }: TicketFormProps) {
                     onClick={() => {
                       handleChange("badge", badgeOption);
                       if (badgeOption === "ONLINE") {
-                        handleChange("zoom_enabled", true);
+                        handleChange("zoom_enabled", "true");
                       }
                     }}
                     className={cn(

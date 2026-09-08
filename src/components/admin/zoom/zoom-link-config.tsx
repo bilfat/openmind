@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import { CheckCircle2, AlertTriangle, Edit2, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface ZoomLinkConfigProps {
   zoomEnabled?: boolean;
@@ -101,6 +100,7 @@ export function ZoomLinkConfig({
   };
 
   const handleRegenerateTokens = async () => {
+    if (!confirm("Aksi ini akan membuat semua token pending sebelumnya menjadi tidak valid. Peserta harus refresh halaman tiket mereka untuk mendapatkan token baru. Lanjutkan?")) return;
     setIsRegenerating(true);
     try {
       const res = await fetch("/api/admin/zoom/regenerate-tokens", {
@@ -221,14 +221,8 @@ export function ZoomLinkConfig({
       {/* Emergency: Regenerate Tokens */}
       <div className="border-t border-navy-700 pt-5 mt-5">
         <p className="text-xs text-amber-400 font-bold mb-2">⚠️ Emergency Action</p>
-        <ConfirmDialog
-          title="Regenerate Zoom Tokens"
-          description="Aksi ini akan membuat semua token pending sebelumnya menjadi tidak valid. Peserta harus refresh halaman tiket mereka untuk mendapatkan token baru. Lanjutkan?"
-          confirmText="Regenerate"
-          cancelText="Batal"
-          onConfirm={handleRegenerateTokens}
-        >
-          <button
+        <button
+            onClick={handleRegenerateTokens}
             className="w-full sm:w-auto rounded-xl bg-amber-500/10 border border-amber-500/20 px-4 py-2.5 text-xs font-bold text-amber-400 hover:bg-amber-500/20 transition-colors flex items-center justify-center gap-2"
             disabled={isRegenerating}
           >
@@ -238,11 +232,10 @@ export function ZoomLinkConfig({
               <span>🔄 Regenerate Semua Token Individu</span>
             )}
           </button>
-        </ConfirmDialog>
-        <p className="mt-2 text-[10px] text-ivory-200/40">
-          Gunakan jika Zoom link diganti atau ada masalah akses masal.
-        </p>
-      </div>
+          <p className="mt-2 text-[10px] text-ivory-200/40">
+            Gunakan jika Zoom link diganti atau ada masalah akses masal.
+          </p>
+        </div>
     </div>
   );
 }

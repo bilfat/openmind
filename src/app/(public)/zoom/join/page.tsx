@@ -24,7 +24,7 @@ export default function ZoomJoinPage() {
       try {
         const res = await fetch('/api/check-in/zoom-status');
         const payload = await res.json();
-        
+
         if (active) {
           if (payload.success && payload.data.sessionActive) {
             setState("valid");
@@ -45,7 +45,7 @@ export default function ZoomJoinPage() {
   return (
     <div className="min-h-screen bg-navy-950 flex flex-col items-center justify-center p-4">
       <div className="max-w-md w-full rounded-3xl border border-navy-800 bg-navy-900 shadow-2xl p-6 sm:p-8 space-y-8 relative overflow-hidden">
-        
+
         {/* Decorative glows */}
         <div className="absolute -top-24 -right-24 w-48 h-48 bg-blue-500/10 rounded-full blur-3xl" />
         <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-blue-500/10 rounded-full blur-3xl" />
@@ -83,7 +83,7 @@ export default function ZoomJoinPage() {
                 <CheckCircle2 className="h-5 w-5" />
                 <span className="font-bold">Session QR Valid</span>
               </div>
-              
+
               <div className="space-y-3">
                 <p className="text-sm font-semibold text-ivory-100 mb-2">Cara Bergabung:</p>
                 <div className="flex items-start gap-3 text-sm text-ivory-200/80">
@@ -136,7 +136,7 @@ export default function ZoomJoinPage() {
             Buka E-Tiket Saya <ArrowRight className="h-4 w-4" />
           </Link>
           <p className="text-[10px] text-center text-ivory-200/40 mt-4 px-4">
-            Halaman ini eksklusif untuk peserta acara dengan tiket akses online.
+            Halaman ini Khusus untuk peserta acara dengan tiket akses online.
           </p>
         </div>
 

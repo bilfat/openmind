@@ -20,19 +20,12 @@ type JoinState =
   | "error";
 
 /**
- * Launches the zoommtg:// deep link to open Zoom app directly.
- * No HTTPS URL is ever shown in the browser address bar.
+ * Launches the zoommtg:// deep link.
+ * Uses window.location.href which is required for mobile browsers —
+ * iframe-based deep links are blocked on Android/iOS as non-gesture navigation.
  */
 function launchZoomApp(deepLink: string) {
-  // Create hidden iframe to trigger deep link (prevents page navigation)
-  const iframe = document.createElement("iframe");
-  iframe.style.display = "none";
-  document.body.appendChild(iframe);
-  iframe.src = deepLink;
-  // Clean up iframe after a short delay
-  setTimeout(() => {
-    document.body.removeChild(iframe);
-  }, 3000);
+  window.location.href = deepLink;
 }
 
 export function ZoomJoinButton({ zoomToken, zoomStatus }: ZoomJoinButtonProps) {
@@ -53,9 +46,9 @@ export function ZoomJoinButton({ zoomToken, zoomStatus }: ZoomJoinButtonProps) {
 
       if (res.ok && payload.success && payload.data?.deepLink) {
         setState("launching");
-        // Launch via deep link — Zoom URL never visible in browser address bar
+        // Launch deep link — must happen in same call stack as user gesture
         launchZoomApp(payload.data.deepLink);
-        // After 3s, mark as success
+        // After 3s, mark as success (page might have navigated to Zoom)
         setTimeout(() => setState("success"), 3000);
       } else {
         const reason = payload.reason || "error";

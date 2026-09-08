@@ -70,12 +70,12 @@ export function ETicketCard({ order }: ETicketCardProps) {
           </div>
 
           <div className="text-right flex flex-col items-end">
-            <div className="flex gap-1">
-              <span className="inline-block rounded-full bg-gold-500/20 px-3 py-1 text-[11px] font-bold text-gold-400 border border-gold-500/30 uppercase tracking-wider">
+            <div className="flex gap-1 flex-wrap justify-end">
+              <span className="inline-block rounded-full bg-gold-500/20 px-2 py-0.5 text-[10px] font-bold text-gold-400 border border-gold-500/30 uppercase tracking-wider whitespace-nowrap">
                 {order.ticketName}
               </span>
               {issuedTicket.zoomEnabled && (
-                <span className="inline-block rounded-full bg-blue-500/20 px-2 py-1 text-[10px] font-bold text-blue-400 border border-blue-500/30 uppercase tracking-wider">
+                <span className="inline-block rounded-full bg-blue-500/20 px-2 py-0.5 text-[10px] font-bold text-blue-400 border border-blue-500/30 uppercase tracking-wider whitespace-nowrap">
                   ONLINE
                 </span>
               )}

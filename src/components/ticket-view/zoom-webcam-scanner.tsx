@@ -103,8 +103,10 @@ export function ZoomWebcamScanner({ zoomToken, zoomStatus }: ZoomWebcamScannerPr
       });
       const payload = await res.json();
       
-      if (res.ok && payload.success && payload.data?.redirectUrl) {
-        window.location.href = payload.data.redirectUrl;
+      if (res.ok && payload.success && (payload.data?.deepLink || payload.data?.fallbackUrl)) {
+        // Use deepLink (zoommtg://) if available, otherwise fallback to https
+        const target = payload.data.deepLink || payload.data.fallbackUrl;
+        window.location.href = target;
       } else {
         setScanState("error");
         setErrorMessage(payload.message || "Gagal memverifikasi QR.");
@@ -137,7 +139,7 @@ export function ZoomWebcamScanner({ zoomToken, zoomStatus }: ZoomWebcamScannerPr
             </button>
           </div>
 
-          <div className="relative rounded-xl overflow-hidden bg-black aspect-video flex items-center justify-center min-h-[200px]">
+          <div className="relative rounded-xl overflow-hidden bg-black aspect-square flex items-center justify-center">
             {scanState === "processing" ? (
               <div className="flex flex-col items-center gap-3 text-blue-400">
                 <Loader2 className="animate-spin h-8 w-8" />

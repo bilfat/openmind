@@ -4,7 +4,6 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { CheckCircle2, AlertTriangle, ArrowRight, ScanLine } from "lucide-react";
-import { Logo } from "@/components/layout/logo";
 
 type ValidationState = "loading" | "valid" | "expired" | "invalid";
 

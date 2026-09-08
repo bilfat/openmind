@@ -85,16 +85,22 @@ function CheckoutContent() {
       
       try {
         const res = await fetch(apiUrl);
-        const json = await res.json();
-        if (!json.success) {
-          throw new Error(json.message || "Gagal memuat data tiket.");
+        let json: any = null;
+        try {
+          json = await res.json();
+        } catch {
+          throw new Error(`Gagal memuat data tiket (${res.status} ${res.statusText || "Server Error"}).`);
+        }
+
+        if (!res.ok || !json?.success) {
+          throw new Error(json?.message || json?.error?.message || "Gagal memuat data tiket.");
         }
         
         let foundTicket: Ticket | undefined;
         if(inviteToken) {
             foundTicket = json.data;
         } else {
-            foundTicket = json.data.find((t: Ticket) => t.id === ticketId);
+            foundTicket = Array.isArray(json.data) ? json.data.find((t: Ticket) => t.id === ticketId) : undefined;
         }
 
         if (!foundTicket) {

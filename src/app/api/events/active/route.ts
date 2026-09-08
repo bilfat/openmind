@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server'
-import { createClient as createServerClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { withTimeoutGuard } from '@/lib/timeout'
 
-export async function GET() {
+async function handleGetActiveEvent() {
   try {
-    const supabase = await createServerClient()
+    const supabase = createAdminClient()
 
     // Fetch active event
     const { data: event, error } = await supabase
@@ -23,7 +24,7 @@ export async function GET() {
       )
     }
 
-    // Fetch visible speakers & agenda for the active event
+    // Fetch visible speakers & agenda for the active event in parallel
     const [speakersResult, agendaResult] = await Promise.all([
       supabase
         .from('event_speakers')
@@ -46,14 +47,21 @@ export async function GET() {
       throw new Error(`Failed to fetch agenda: ${agendaResult.error.message}`)
     }
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        event,
-        speakers: speakersResult.data ?? [],
-        agenda: agendaResult.data ?? [],
+    return NextResponse.json(
+      {
+        success: true,
+        data: {
+          event,
+          speakers: speakersResult.data ?? [],
+          agenda: agendaResult.data ?? [],
+        },
       },
-    })
+      {
+        headers: {
+          'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=120',
+        },
+      }
+    )
   } catch (error: any) {
     return NextResponse.json(
       { success: false, message: error.message || 'Internal Server Error' },
@@ -61,3 +69,6 @@ export async function GET() {
     )
   }
 }
+
+export const GET = withTimeoutGuard(handleGetActiveEvent, 12000)
+

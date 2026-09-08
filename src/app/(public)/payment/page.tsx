@@ -66,9 +66,14 @@ function PaymentContent() {
       }
       try {
         const res = await fetch(`/api/tickets/public?order_code=${encodeURIComponent(orderIdParam)}`);
-        const json = await res.json();
-        if (!res.ok || !json.success) {
-          throw new Error(json.message || "Gagal memuat data pesanan.");
+        let json: any = null;
+        try {
+          json = await res.json();
+        } catch {
+          throw new Error(`Gagal memuat data pesanan (${res.status} ${res.statusText || "Server Error"}).`);
+        }
+        if (!res.ok || !json?.success) {
+          throw new Error(json?.message || json?.error?.message || "Gagal memuat data pesanan.");
         }
         setOrder(json.data);
       } catch (err: unknown) {

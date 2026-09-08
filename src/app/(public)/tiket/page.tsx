@@ -109,8 +109,18 @@ function TiketPageContent() {
       try {
         const res = await fetch("/api/tickets/public");
         if (isCancelled) return;
-        const json = await res.json();
-        if (json.success) {
+        if (!res.ok) {
+          console.warn(`[Catalog] Fetch tickets returned status ${res.status}`);
+          return;
+        }
+        let json: any = null;
+        try {
+          json = await res.json();
+        } catch {
+          console.warn("[Catalog] Non-JSON response received for tickets");
+          return;
+        }
+        if (json?.success && Array.isArray(json?.data)) {
           setTickets(json.data);
         }
       } catch (err) {
@@ -122,9 +132,11 @@ function TiketPageContent() {
 
     fetchTickets();
 
-    // Poll catalog every 30s so sold-out/remaining quota stays fresh
+    // Poll catalog every 30s only when tab is visible
     const intervalId = setInterval(() => {
-      if (activeTab === "catalog") fetchTickets();
+      if (activeTab === "catalog" && typeof document !== "undefined" && document.visibilityState === "visible") {
+        fetchTickets();
+      }
     }, 30000);
 
     return () => {
@@ -142,8 +154,18 @@ function TiketPageContent() {
       try {
         const res = await fetch("/api/public/referrals");
         if (isCancelled) return;
-        const json = await res.json();
-        if (json.success) {
+        if (!res.ok) {
+          console.warn(`[Referrals] Fetch referrals returned status ${res.status}`);
+          return;
+        }
+        let json: any = null;
+        try {
+          json = await res.json();
+        } catch {
+          console.warn("[Referrals] Non-JSON response received for referrals");
+          return;
+        }
+        if (json?.success && Array.isArray(json?.items)) {
           setReferrals(json.items);
         }
       } catch (err) {
@@ -174,9 +196,11 @@ function TiketPageContent() {
       )
       .subscribe();
 
-    // Also poll every 30s as fallback
+    // Also poll every 30s as fallback when tab is visible
     const intervalId = setInterval(() => {
-      if (activeTab === "referral") fetchReferrals();
+      if (activeTab === "referral" && typeof document !== "undefined" && document.visibilityState === "visible") {
+        fetchReferrals();
+      }
     }, 30000);
 
     return () => {
@@ -213,7 +237,18 @@ function TiketPageContent() {
       const res = await fetch(`/api/tickets/public?order_code=${encodeURIComponent(q)}`, {
         signal: controller.signal,
       });
-      const data = await res.json();
+
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        if (res.status === 408) {
+          setSearchError("Permintaan terlalu lama. Coba lagi.");
+          return;
+        }
+        setSearchError("Terjadi gangguan jaringan atau server. Coba beberapa saat lagi.");
+        return;
+      }
 
       if (res.status === 400) {
         setSearchError(data.message || "Format Order ID tidak valid.");

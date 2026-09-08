@@ -35,8 +35,13 @@ function SuccessContent() {
     if (!orderId) return;
     fetch(`/api/tickets/public?order_code=${encodeURIComponent(orderId)}`)
       .then(async (res) => {
-        const data = await res.json();
-        if (res.ok && data.success) setOrder(data.data);
+        if (!res.ok) return;
+        try {
+          const data = await res.json();
+          if (data?.success) setOrder(data.data);
+        } catch {
+          // ignore non-json response
+        }
       })
       .catch(() => {});
   }, [orderId]);

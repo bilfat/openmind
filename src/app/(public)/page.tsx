@@ -75,8 +75,16 @@ export default function BerandaPage() {
       try {
         const res = await fetch("/api/tickets/public");
         if (isCancelled) return;
-        const json = await res.json();
-        if (json.success) setHomeTickets(json.data.slice(0, 3));
+        if (!res.ok) return;
+        let json: any = null;
+        try {
+          json = await res.json();
+        } catch {
+          return;
+        }
+        if (json?.success && Array.isArray(json?.data)) {
+          setHomeTickets(json.data.slice(0, 3));
+        }
       } catch {
         // Keep existing tickets on failure
       }
@@ -84,8 +92,12 @@ export default function BerandaPage() {
 
     fetchTickets();
 
-    // Poll catalog every 30s so sold-out/remaining quota stays fresh
-    const intervalId = setInterval(fetchTickets, 30000);
+    // Poll catalog every 30s only when tab is active/visible
+    const intervalId = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        fetchTickets();
+      }
+    }, 30000);
 
     return () => {
       isCancelled = true;

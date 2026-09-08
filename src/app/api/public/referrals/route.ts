@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { withTimeoutGuard } from '@/lib/timeout'
 
-export async function GET() {
+async function handleGetPublicReferrals() {
   const supabase = createAdminClient()
 
   try {
@@ -62,12 +63,21 @@ export async function GET() {
       }
     })
 
-    return NextResponse.json({
-      success: true,
-      items,
-    })
+    return NextResponse.json(
+      {
+        success: true,
+        items,
+      },
+      {
+        headers: {
+          'Cache-Control': 'public, s-maxage=15, stale-while-revalidate=60',
+        },
+      }
+    )
   } catch (error) {
     console.error('Public referrals fetch error:', error)
     return NextResponse.json({ success: false, message: 'Gagal mengambil data kode referal publik.' }, { status: 500 })
   }
 }
+
+export const GET = withTimeoutGuard(handleGetPublicReferrals, 12000)

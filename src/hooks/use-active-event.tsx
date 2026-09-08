@@ -44,9 +44,20 @@ export function ActiveEventProvider({ children }: { children: React.ReactNode })
   const refetch = useCallback(async () => {
     try {
       const res = await fetch("/api/events/active", { cache: "no-store" });
-      const json = await res.json();
-      if (!res.ok || !json.success) {
-        throw new Error(json.message || "Gagal memuat data event.");
+      let json: any = null;
+      try {
+        json = await res.json();
+      } catch {
+        // Response was not valid JSON (e.g. gateway timeout or proxy error)
+        throw new Error(
+          res.ok
+            ? "Format data event tidak valid."
+            : `Gagal memuat data event (${res.status} ${res.statusText || "Server Error"}).`
+        );
+      }
+
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.message || json?.error?.message || "Gagal memuat data event.");
       }
       sharedCache = json.data;
       setState({ event: json.data.event, speakers: json.data.speakers, agenda: json.data.agenda, loading: false, error: null });

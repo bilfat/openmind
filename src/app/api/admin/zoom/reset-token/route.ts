@@ -17,9 +17,7 @@ export async function POST(request: Request) {
       .from('issued_tickets')
       .update({ 
         zoom_status: 'PENDING', 
-        zoom_used_at: null,
-        status: 'ACTIVE',
-        checked_in_at: null
+        zoom_used_at: null 
       })
       .eq('ticket_code', ticketCode)
       .eq('zoom_status', 'USED') // Hanya reset yang statusnya USED

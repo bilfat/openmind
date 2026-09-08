@@ -529,102 +529,54 @@ export async function renderTicketPage(pdf: PDFDocument, ticket: TicketPdfData) 
   // =========================================================
   // RIGHT STUB — QR VERIFICATION
   // =========================================================
-  if (!ticket.zoomEnabled) {
-    const qrCenterX = dividerX + stubW / 2
+  const qrCenterX = dividerX + stubW / 2
 
-    page.drawText('TICKET VERIFICATION', {
-      x: qrCenterX - bold.widthOfTextAtSize('TICKET VERIFICATION', 6.5) / 2,
-      y: headerBottom - 28,
-      size: 8,
-      font: bold,
-      color: softGold,
-    })
+  page.drawText('TICKET VERIFICATION', {
+    x: qrCenterX - bold.widthOfTextAtSize('TICKET VERIFICATION', 6.5) / 2,
+    y: headerBottom - 28,
+    size: 8,
+    font: bold,
+    color: softGold,
+  })
 
-    const scanTitle = 'SCAN TO VERIFY TICKET'
-    const scanTitleWidth = bold.widthOfTextAtSize(scanTitle, 8.5)
+  const scanTitle = 'SCAN TO VERIFY TICKET'
+  const scanTitleWidth = bold.widthOfTextAtSize(scanTitle, 8.5)
 
-    page.drawText(scanTitle, {
-      x: qrCenterX - scanTitleWidth / 2,
-      y: headerBottom - 48,
-      size: 10,
-      font: bold,
-      color: gold,
-    })
+  page.drawText(scanTitle, {
+    x: qrCenterX - scanTitleWidth / 2,
+    y: headerBottom - 48,
+    size: 10,
+    font: bold,
+    color: gold,
+  })
 
-    // Generate QR at high source resolution.
-    const qrDataUrl = await createTicketQrDataUrl(ticket.qrToken)
-    const qrBytes = Buffer.from(qrDataUrl.split(',')[1], 'base64')
-    const qrImage = await pdf.embedPng(qrBytes)
+  // Generate QR at high source resolution.
+  const qrDataUrl = await createTicketQrDataUrl(ticket.qrToken)
+  const qrBytes = Buffer.from(qrDataUrl.split(',')[1], 'base64')
+  const qrImage = await pdf.embedPng(qrBytes)
 
-    const qrSize = 145
-    const qrPadding = 12
-    const qrBoxSize = qrSize + qrPadding * 2
-    const qrBoxX = qrCenterX - qrBoxSize / 2
-    const qrBoxY = headerBottom - 48 - qrBoxSize - 17
+  const qrSize = 145
+  const qrPadding = 12
+  const qrBoxSize = qrSize + qrPadding * 2
+  const qrBoxX = qrCenterX - qrBoxSize / 2
+  const qrBoxY = headerBottom - 48 - qrBoxSize - 17
 
-    page.drawRectangle({
-      x: qrBoxX,
-      y: qrBoxY,
-      width: qrBoxSize,
-      height: qrBoxSize,
-      color: rgb(0.99, 0.99, 0.98),
-      borderColor: border,
-      borderWidth: 1,
-    })
+  page.drawRectangle({
+    x: qrBoxX,
+    y: qrBoxY,
+    width: qrBoxSize,
+    height: qrBoxSize,
+    color: rgb(0.99, 0.99, 0.98),
+    borderColor: border,
+    borderWidth: 1,
+  })
 
-    page.drawImage(qrImage, {
-      x: qrCenterX - qrSize / 2,
-      y: qrBoxY + qrPadding,
-      width: qrSize,
-      height: qrSize,
-    })
-  } else {
-    // For online tickets, show a different message instead of QR code
-    const qrCenterX = dividerX + stubW / 2
-
-    page.drawText('ONLINE ACCESS TICKET', {
-      x: qrCenterX - bold.widthOfTextAtSize('ONLINE ACCESS TICKET', 6.5) / 2,
-      y: headerBottom - 28,
-      size: 8,
-      font: bold,
-      color: softGold,
-    })
-
-    const infoTitle = 'ZOOM HYBRID EVENT'
-    page.drawText(infoTitle, {
-      x: qrCenterX - bold.widthOfTextAtSize(infoTitle, 8.5) / 2,
-      y: headerBottom - 48,
-      size: 10,
-      font: bold,
-      color: gold,
-    })
-
-    const instruction1 = 'Scan or click the button'
-    const instruction2 = 'on your E-Ticket to'
-    const instruction3 = 'join the Zoom meeting.'
-    
-    page.drawText(instruction1, {
-      x: qrCenterX - regular.widthOfTextAtSize(instruction1, 9) / 2,
-      y: headerBottom - 100,
-      size: 9,
-      font: regular,
-      color: rgb(0.2, 0.4, 0.6),
-    })
-    page.drawText(instruction2, {
-      x: qrCenterX - regular.widthOfTextAtSize(instruction2, 9) / 2,
-      y: headerBottom - 115,
-      size: 9,
-      font: regular,
-      color: rgb(0.2, 0.4, 0.6),
-    })
-    page.drawText(instruction3, {
-      x: qrCenterX - bold.widthOfTextAtSize(instruction3, 9) / 2,
-      y: headerBottom - 130,
-      size: 9,
-      font: bold,
-      color: gold,
-    })
-  }
+  page.drawImage(qrImage, {
+    x: qrCenterX - qrSize / 2,
+    y: qrBoxY + qrPadding,
+    width: qrSize,
+    height: qrSize,
+  })
 
   const instruction = 'Present this ticket at the venue entrance.'
   const instructionLines = wrapTextInBox(

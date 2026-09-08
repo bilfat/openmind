@@ -1,13 +1,14 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { CheckCircle2, AlertTriangle, ArrowRight, ScanLine } from "lucide-react";
+import { CheckCircle2, AlertTriangle, ArrowRight } from "lucide-react";
 
 type ValidationState = "loading" | "valid" | "expired" | "invalid";
 
-export default function ZoomJoinPage() {
+// ─── Child component that uses useSearchParams ───────────────────────────────
+function ZoomJoinContent() {
   const searchParams = useSearchParams();
   const sessionToken = searchParams.get("s");
   const [state, setState] = useState<ValidationState>("loading");
@@ -43,6 +44,82 @@ export default function ZoomJoinPage() {
   }, [sessionToken]);
 
   return (
+    /* Content based on state */
+    <div className="relative z-10 bg-navy-950/50 rounded-2xl p-5 border border-navy-800 text-center">
+      {state === "loading" && (
+        <div className="py-6 flex flex-col items-center justify-center gap-3">
+          <div className="h-8 w-8 rounded-full border-2 border-gold-500/20 border-t-gold-500 animate-spin" />
+          <p className="text-sm text-ivory-200/70">Memvalidasi session QR...</p>
+        </div>
+      )}
+
+      {state === "valid" && (
+        <div className="space-y-4 text-left">
+          <div className="flex items-center gap-2 justify-center text-emerald-400 mb-6">
+            <CheckCircle2 className="h-5 w-5" />
+            <span className="font-bold">Session QR Valid</span>
+          </div>
+
+          <div className="space-y-3">
+            <p className="text-sm font-semibold text-ivory-100 mb-2">Cara Bergabung:</p>
+            <div className="flex items-start gap-3 text-sm text-ivory-200/80">
+              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-xs mt-0.5">1</span>
+              <p>Buka <strong className="text-ivory-100">E-Tiket</strong> Anda melalui tombol di bawah.</p>
+            </div>
+            <div className="flex items-start gap-3 text-sm text-ivory-200/80">
+              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-xs mt-0.5">2</span>
+              <p>Gulir ke bagian <strong className="text-blue-300">Akses Zoom (Online)</strong> di tiket Anda.</p>
+            </div>
+            <div className="flex items-start gap-3 text-sm text-ivory-200/80">
+              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-xs mt-0.5">3</span>
+              <p>Klik <strong className="text-ivory-100">Scanner Kamera</strong> dan arahkan ke QR ini lagi.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {state === "expired" && (
+        <div className="py-4 flex flex-col items-center justify-center gap-3">
+          <div className="p-3 bg-amber-500/10 rounded-full">
+            <AlertTriangle className="h-8 w-8 text-amber-500" />
+          </div>
+          <p className="font-bold text-amber-500">Session QR Kadaluarsa</p>
+          <p className="text-xs text-ivory-200/60 text-center max-w-[250px]">
+            QR ini sudah tidak berlaku. Mintalah QR baru dari panitia di grup WhatsApp.
+          </p>
+        </div>
+      )}
+
+      {state === "invalid" && (
+        <div className="py-4 flex flex-col items-center justify-center gap-3">
+          <div className="p-3 bg-red-500/10 rounded-full">
+            <AlertTriangle className="h-8 w-8 text-red-500" />
+          </div>
+          <p className="font-bold text-red-500">Link Tidak Valid</p>
+          <p className="text-xs text-ivory-200/60 text-center max-w-[250px]">
+            Pastikan Anda memindai QR Code yang benar dari panitia OPEN MIND 2026.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Suspense fallback (loading state) ───────────────────────────────────────
+function ZoomJoinFallback() {
+  return (
+    <div className="relative z-10 bg-navy-950/50 rounded-2xl p-5 border border-navy-800 text-center">
+      <div className="py-6 flex flex-col items-center justify-center gap-3">
+        <div className="h-8 w-8 rounded-full border-2 border-gold-500/20 border-t-gold-500 animate-spin" />
+        <p className="text-sm text-ivory-200/70">Memuat...</p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Page shell (no useSearchParams here) ────────────────────────────────────
+export default function ZoomJoinPage() {
+  return (
     <div className="min-h-screen bg-navy-950 flex flex-col items-center justify-center p-4">
       <div className="max-w-md w-full rounded-3xl border border-navy-800 bg-navy-900 shadow-2xl p-6 sm:p-8 space-y-8 relative overflow-hidden">
 
@@ -68,64 +145,10 @@ export default function ZoomJoinPage() {
           </div>
         </div>
 
-        {/* Content based on state */}
-        <div className="relative z-10 bg-navy-950/50 rounded-2xl p-5 border border-navy-800 text-center">
-          {state === "loading" && (
-            <div className="py-6 flex flex-col items-center justify-center gap-3">
-              <div className="h-8 w-8 rounded-full border-2 border-gold-500/20 border-t-gold-500 animate-spin" />
-              <p className="text-sm text-ivory-200/70">Memvalidasi session QR...</p>
-            </div>
-          )}
-
-          {state === "valid" && (
-            <div className="space-y-4 text-left">
-              <div className="flex items-center gap-2 justify-center text-emerald-400 mb-6">
-                <CheckCircle2 className="h-5 w-5" />
-                <span className="font-bold">Session QR Valid</span>
-              </div>
-
-              <div className="space-y-3">
-                <p className="text-sm font-semibold text-ivory-100 mb-2">Cara Bergabung:</p>
-                <div className="flex items-start gap-3 text-sm text-ivory-200/80">
-                  <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-xs mt-0.5">1</span>
-                  <p>Buka <strong className="text-ivory-100">E-Tiket</strong> Anda melalui tombol di bawah.</p>
-                </div>
-                <div className="flex items-start gap-3 text-sm text-ivory-200/80">
-                  <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-xs mt-0.5">2</span>
-                  <p>Gulir ke bagian <strong className="text-blue-300">Akses Zoom (Online)</strong> di tiket Anda.</p>
-                </div>
-                <div className="flex items-start gap-3 text-sm text-ivory-200/80">
-                  <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-xs mt-0.5">3</span>
-                  <p>Klik <strong className="text-ivory-100">Scanner Kamera</strong> dan arahkan ke QR ini lagi.</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {state === "expired" && (
-            <div className="py-4 flex flex-col items-center justify-center gap-3">
-              <div className="p-3 bg-amber-500/10 rounded-full">
-                <AlertTriangle className="h-8 w-8 text-amber-500" />
-              </div>
-              <p className="font-bold text-amber-500">Session QR Kadaluarsa</p>
-              <p className="text-xs text-ivory-200/60 text-center max-w-[250px]">
-                QR ini sudah tidak berlaku. Mintalah QR baru dari panitia di grup WhatsApp.
-              </p>
-            </div>
-          )}
-
-          {state === "invalid" && (
-            <div className="py-4 flex flex-col items-center justify-center gap-3">
-              <div className="p-3 bg-red-500/10 rounded-full">
-                <AlertTriangle className="h-8 w-8 text-red-500" />
-              </div>
-              <p className="font-bold text-red-500">Link Tidak Valid</p>
-              <p className="text-xs text-ivory-200/60 text-center max-w-[250px]">
-                Pastikan Anda memindai QR Code yang benar dari panitia OPEN MIND 2026.
-              </p>
-            </div>
-          )}
-        </div>
+        {/* Content wrapped in Suspense — required for useSearchParams() */}
+        <Suspense fallback={<ZoomJoinFallback />}>
+          <ZoomJoinContent />
+        </Suspense>
 
         {/* Action Button */}
         <div className="relative z-10 pt-2">

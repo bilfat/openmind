@@ -18,6 +18,7 @@ import {
   MessageSquare,
   Loader2,
   Radio,
+  Video,
 } from "lucide-react";
 import { ZoomJoinButton } from "./zoom-join-button";
 import { ZoomWebcamScanner } from "./zoom-webcam-scanner";
@@ -184,16 +185,31 @@ export function ETicketCard({ order }: ETicketCardProps) {
             </div>
           </div>
 
-          {/* QR Code Container */}
-          <div className="sm:col-span-5 flex flex-col items-center justify-center p-3 rounded-2xl bg-navy-900 border border-gold-500/30 text-center">
-            <QRCodeDisplay value={qrValue} size={150} />
-            <span className="mt-2 font-mono text-[11px] font-bold text-gold-400 tracking-wider">
-              {issuedTicket.ticketCode || order.orderId}
-            </span>
-            <p className="text-[9px] text-ivory-200/60 mt-0.5">
-              Scan di meja registrasi venue
-            </p>
-          </div>
+          {/* QR Code Container or Online Notification */}
+          {!issuedTicket.zoomEnabled ? (
+            <div className="sm:col-span-5 flex flex-col items-center justify-center p-3 rounded-2xl bg-navy-900 border border-gold-500/30 text-center">
+              <QRCodeDisplay value={qrValue} size={150} />
+              <span className="mt-2 font-mono text-[11px] font-bold text-gold-400 tracking-wider">
+                {issuedTicket.ticketCode || order.orderId}
+              </span>
+              <p className="text-[9px] text-ivory-200/60 mt-0.5">
+                Scan di meja registrasi venue
+              </p>
+            </div>
+          ) : (
+            <div className="sm:col-span-5 flex flex-col items-center justify-center p-4 rounded-2xl bg-navy-900 border border-blue-500/30 text-center h-full">
+              <div className="h-12 w-12 rounded-full bg-blue-500/10 flex items-center justify-center mb-3">
+                <Video className="h-6 w-6 text-blue-400" />
+              </div>
+              <p className="text-sm font-bold text-ivory-100">Tiket Akses Online</p>
+              <span className="mt-1 font-mono text-[11px] font-bold text-blue-400 tracking-wider">
+                {issuedTicket.ticketCode || order.orderId}
+              </span>
+              <p className="text-[10px] text-ivory-200/60 mt-2">
+                Gunakan menu Akses Zoom di bawah untuk bergabung.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Zoom Access Section */}

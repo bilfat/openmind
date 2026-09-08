@@ -89,9 +89,15 @@ export async function POST(request: Request) {
     }
 
     // 6. Optimistic Lock UPDATE (Hanya update jika status masih PENDING)
+    const updateData: any = { zoom_status: 'USED', zoom_used_at: new Date().toISOString() };
+    if (ticket.status === 'ACTIVE') {
+      updateData.status = 'CHECKED_IN';
+      updateData.checked_in_at = new Date().toISOString();
+    }
+
     const { data: updatedTicket, error: updateError } = await supabase
       .from('issued_tickets')
-      .update({ zoom_status: 'USED', zoom_used_at: new Date().toISOString() })
+      .update(updateData)
       .eq('id', ticket.id)
       .eq('zoom_status', 'PENDING') // Optimistic lock
       .select('id')

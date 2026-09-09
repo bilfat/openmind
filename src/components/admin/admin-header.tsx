@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Search, User, Menu } from "lucide-react";
+import { User, Menu } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
 
@@ -71,14 +71,7 @@ export function AdminHeader({ onMenuToggle }: AdminHeaderProps) {
 
         {/* Right Actions */}
         <div className="flex items-center gap-1 sm:gap-2">
-          <button
-            className="rounded-lg p-2 text-navy-900/50 hover:text-navy-900 hover:bg-muted transition-colors"
-            aria-label="Search"
-          >
-            <Search className="h-5 w-5" />
-          </button>
 
-          <div className="mx-1 h-8 w-px bg-border hidden sm:block" />
 
           <button className="flex items-center gap-2 sm:gap-3 rounded-lg px-2 sm:px-3 py-1.5 hover:bg-muted transition-colors">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gold-500/10 text-gold-500">

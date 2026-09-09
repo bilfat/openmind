@@ -1,6 +1,5 @@
 import { requireActiveAdmin, jsonError } from '@/lib/admin-read-auth'
 import { createClient } from '@supabase/supabase-js'
-import { broadcastToAllAdmins } from '@/lib/notifications'
 import { triggerEmailWorker } from '@/lib/tickets/trigger-email-worker'
 
 function getAdminClient() {
@@ -65,22 +64,7 @@ export async function POST(req: Request) {
       p_audience_type: audience_type,
       p_created_by: authResult.userId,
     })
-
     if (!rpcError && rpcData && rpcData.success) {
-      // Notification (FAIL-OPEN): BROADCAST — only after the broadcast transaction committed.
-      await broadcastToAllAdmins({
-        type: 'BROADCAST',
-        title: 'Broadcast Campaign',
-        message: `Broadcast "${title}" berhasil dikirim ke ${rpcData.recipient_count} penerima.`,
-        link: '/admin/broadcast',
-        metadata: {
-          broadcast_id: rpcData.broadcast_id,
-          recipient_count: rpcData.recipient_count,
-          title,
-        },
-        client: supabaseAdmin,
-      })
-
       return Response.json(
         {
           success: true,
@@ -252,21 +236,6 @@ export async function POST(req: Request) {
 
     // Kick the existing email worker so BROADCAST jobs are processed immediately
     void triggerEmailWorker(new URL(req.url).origin)
-
-    // Transaction committed successfully
-    // Notification (FAIL-OPEN): BROADCAST — only after the fallback transaction committed.
-    await broadcastToAllAdmins({
-      type: 'BROADCAST',
-      title: 'Broadcast Campaign',
-      message: `Broadcast "${title}" berhasil dikirim ke ${eligibleParticipants.length} penerima.`,
-      link: '/admin/broadcast',
-      metadata: {
-        broadcast_id: broadcastId,
-        recipient_count: eligibleParticipants.length,
-        title,
-      },
-      client: supabaseAdmin,
-    })
 
     return Response.json(
       {

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { broadcastToAllAdmins } from '@/lib/notifications';
+
 import { z } from 'zod';
 import { triggerEmailWorker } from '@/lib/tickets/trigger-email-worker';
 
@@ -77,19 +77,7 @@ export async function POST(
     // Kick the existing email worker so PAYMENT_REJECTED jobs are processed immediately
     void triggerEmailWorker(new URL(req.url).origin)
 
-    // 4. Notification (FAIL-OPEN): ORDER_REJECTED — only after RPC success
-    await broadcastToAllAdmins({
-      type: 'ORDER_REJECTED',
-      title: 'Pembayaran Ditolak',
-      message: 'Pembayaran untuk sebuah pesanan telah ditolak.',
-      link: '/admin/orders',
-      metadata: {
-        order_id: orderId,
-        rejected_by: user.id,
-        reason: rejectionReason,
-      },
-      client: supabaseAdmin,
-    });
+
 
     return NextResponse.json({
       success: true,

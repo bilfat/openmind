@@ -4,8 +4,6 @@ import { usePathname } from "next/navigation";
 import { Search, User, Menu } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
-import { NotificationDropdown } from "@/components/admin/notification-dropdown";
-import { PushNotificationButton } from "@/components/admin/push-notification-button";
 
 const pageTitles: Record<string, string> = {
   "/admin/dashboard": "Dashboard",
@@ -17,7 +15,6 @@ const pageTitles: Record<string, string> = {
   "/admin/admins": "Admin Management",
   "/admin/event": "Event Settings",
   "/admin/settings": "System Settings",
-  "/admin/notifications": "Notifications",
 };
 
 interface AdminHeaderProps {
@@ -80,10 +77,6 @@ export function AdminHeader({ onMenuToggle }: AdminHeaderProps) {
           >
             <Search className="h-5 w-5" />
           </button>
-
-          <PushNotificationButton />
-
-          <NotificationDropdown />
 
           <div className="mx-1 h-8 w-px bg-border hidden sm:block" />
 

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { broadcastToAllAdmins } from '@/lib/notifications';
+
 import { triggerEmailWorker } from '@/lib/tickets/trigger-email-worker';
 import { APP_URL } from '@/lib/app-url';
 
@@ -72,18 +72,7 @@ export async function POST(
     // Kick the existing email worker so PAYMENT_APPROVED + TICKET_ISSUED jobs are processed immediately
     void triggerEmailWorker(new URL(req.url).origin)
 
-    // 4. Notification (FAIL-OPEN): ORDER_APPROVED — only after RPC success
-    await broadcastToAllAdmins({
-      type: 'ORDER_APPROVED',
-      title: 'Pembayaran Disetujui',
-      message: 'Pembayaran untuk sebuah pesanan telah disetujui.',
-      link: '/admin/orders',
-      metadata: {
-        order_id: orderId,
-        approved_by: user.id,
-      },
-      client: supabaseAdmin,
-    });
+
 
     return NextResponse.json({
       success: true,

@@ -69,12 +69,16 @@ export async function POST(request: Request) {
     // 4. Dapatkan zoom info dari Event
     const { data: event, error: eventError } = await supabase
       .from('events')
-      .select('zoom_meeting_link, zoom_session_token, zoom_session_expires_at')
+      .select('zoom_meeting_link, zoom_session_token, zoom_session_expires_at, zoom_enabled')
       .eq('id', eventId)
       .single();
 
     if (eventError || !event || !event.zoom_meeting_link) {
       return NextResponse.json({ success: false, reason: 'link_not_ready', message: 'Zoom link belum siap' }, { status: 403 });
+    }
+
+    if (!event.zoom_enabled) {
+      return NextResponse.json({ success: false, reason: 'access_closed', message: 'Sesi Zoom belum dibuka oleh panitia. Silakan tunggu hingga sesi dibuka di hari H.' }, { status: 403 });
     }
 
     // 5. Jika sessionToken dikirimkan, validasi session

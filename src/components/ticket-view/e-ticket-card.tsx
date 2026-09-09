@@ -34,6 +34,7 @@ export function ETicketCard({ order }: ETicketCardProps) {
     zoomEnabled?: boolean;
     zoomToken?: string;
     zoomStatus?: string;
+    zoomAccessUnlocked?: boolean;
   };
   const qrValue = issuedTicket.qrToken
     ? ticketUrl(issuedTicket.qrToken)
@@ -215,16 +216,18 @@ export function ETicketCard({ order }: ETicketCardProps) {
                 </h3>
               </div>
               <p className="text-[11px] text-ivory-200/70 mb-4 sm:max-w-[80%]">
-                Gunakan tombol di bawah untuk bergabung ke sesi Zoom pada hari acara, 
-                atau scan QR yang dibagikan panitia menggunakan webcam.
+                Gunakan tombol di bawah untuk bergabung ke sesi Zoom pada hari acara.
               </p>
               
               <ZoomJoinButton 
                 zoomToken={issuedTicket.zoomToken} 
                 zoomStatus={issuedTicket.zoomStatus || "PENDING"} 
+                zoomAccessUnlocked={issuedTicket.zoomAccessUnlocked ?? true}
+                participantName={order.customerName}
+                ticketCode={issuedTicket.ticketCode || order.orderId}
               />
-              
-              {issuedTicket.zoomStatus !== "USED" && (
+
+              {issuedTicket.zoomAccessUnlocked !== false && issuedTicket.zoomStatus !== "USED" && (
                 <ZoomWebcamScanner 
                   zoomToken={issuedTicket.zoomToken} 
                   zoomStatus={issuedTicket.zoomStatus || "PENDING"} 

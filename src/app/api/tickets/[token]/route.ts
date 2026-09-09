@@ -73,6 +73,7 @@ type TicketPayload = {
   zoomEnabled?: boolean
   zoomToken?: string
   zoomStatus?: string
+  zoomAccessUnlocked?: boolean
 }
 
 function one<T>(value: T | T[] | null | undefined): T | null {
@@ -104,7 +105,7 @@ export async function GET(
 
     const { data: order, error: orderError } = await supabase
       .from('orders')
-      .select('id, order_code, status, total_amount, created_at')
+      .select('id, order_code, status, total_amount, created_at, event_id')
       .eq('id', seed.order_id)
       .maybeSingle()
     if (orderError) throw orderError
@@ -124,6 +125,15 @@ export async function GET(
       .order('created_at', { ascending: true })
       .order('id', { ascending: true })
     if (itemsError) throw itemsError
+
+    // Dapatkan status pembukaan Zoom oleh admin dari event
+    const { data: eventData } = await supabase
+      .from('events')
+      .select('zoom_enabled')
+      .eq('id', order.event_id)
+      .maybeSingle()
+
+    const zoomAccessUnlocked = Boolean(eventData?.zoom_enabled)
 
     const tickets: TicketPayload[] = []
     const issuedIds: string[] = []
@@ -160,6 +170,7 @@ export async function GET(
         zoomEnabled: ticketType.zoom_enabled,
         zoomToken: issued.zoom_token,
         zoomStatus: issued.zoom_status,
+        zoomAccessUnlocked,
       })
     }
 
@@ -184,6 +195,7 @@ export async function GET(
         quantity: tickets.length,
         totalPrice: order.total_amount,
         createdAt: order.created_at,
+        zoomAccessUnlocked,
         tickets,
       },
     })

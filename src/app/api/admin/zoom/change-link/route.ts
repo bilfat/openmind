@@ -23,9 +23,17 @@ export async function POST(request: Request) {
     if (zoomMeetingLink !== undefined) {
       updates.zoom_link_updated_at = new Date().toISOString();
       updates.zoom_meeting_link = zoomMeetingLink;
+      if (!zoomMeetingLink) {
+        updates.zoom_session_token = null;
+        updates.zoom_session_expires_at = null;
+      }
     }
     if (zoomEnabled !== undefined) {
       updates.zoom_enabled = zoomEnabled;
+      if (!zoomEnabled) {
+        updates.zoom_session_token = null;
+        updates.zoom_session_expires_at = null;
+      }
     }
     if (zoomLiveTrackingEnabled !== undefined) {
       updates.zoom_live_tracking_enabled = zoomLiveTrackingEnabled;

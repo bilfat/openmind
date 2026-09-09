@@ -20,9 +20,7 @@ export function ZoomSessionQR({
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    if (initialQrCodeUrl) {
-      setQrCodeDataUrl(initialQrCodeUrl);
-    }
+    setQrCodeDataUrl(initialQrCodeUrl || null);
   }, [initialQrCodeUrl]);
 
   const handleGenerateQR = async () => {

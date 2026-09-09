@@ -13,7 +13,8 @@ export async function POST(request: Request) {
     
     const { data: tickets, error: fetchError } = await supabase
       .from('issued_tickets')
-      .select('id')
+      .select('id, ticket_types!inner(zoom_enabled)')
+      .eq('ticket_types.zoom_enabled', true)
       .eq('zoom_status', 'PENDING');
 
     if (fetchError) {

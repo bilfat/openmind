@@ -13,13 +13,20 @@ export async function POST(request: Request) {
     // Dapatkan event aktif
     const { data: event, error: fetchError } = await supabase
       .from('events')
-      .select('id')
+      .select('id, zoom_enabled, zoom_meeting_link')
       .order('event_date', { ascending: false })
       .limit(1)
       .single();
 
     if (fetchError || !event) {
       return NextResponse.json({ success: false, message: 'Event not found' }, { status: 404 });
+    }
+
+    if (!event.zoom_enabled || !event.zoom_meeting_link) {
+      return NextResponse.json({ 
+        success: false, 
+        message: 'Akses Zoom harus diaktifkan dan link Zoom harus diisi terlebih dahulu.' 
+      }, { status: 400 });
     }
 
     const zoom_session_token = `zs:${crypto.randomUUID()}`;

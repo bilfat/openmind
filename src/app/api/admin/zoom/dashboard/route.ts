@@ -19,16 +19,19 @@ export async function GET(request: Request) {
     }
 
     const sessionActive = !!(
+      event.zoom_enabled &&
+      event.zoom_meeting_link &&
       event.zoom_session_token &&
       event.zoom_session_expires_at &&
       new Date(event.zoom_session_expires_at) > new Date()
     );
 
     // Ambil agregasi status tiket untuk event ini
-    // Membutuhkan join melalui orders, atau asumsi kita menghitung semua tiket
+    // Hanya hitung tiket yang tipe tiketnya mengaktifkan Zoom (zoom_enabled = true)
     const { data: statsData, error: statsError } = await supabase
       .from('issued_tickets')
-      .select('zoom_status')
+      .select('zoom_status, ticket_types!inner(zoom_enabled)')
+      .eq('ticket_types.zoom_enabled', true)
       .not('zoom_token', 'is', null);
 
     let stats = {

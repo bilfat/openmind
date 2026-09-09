@@ -6,10 +6,6 @@ import { withTimeoutGuard } from '@/lib/timeout'
 
 const ORDER_STATUSES = ['DRAFT', 'PENDING_PAYMENT', 'WAITING_VERIFICATION', 'APPROVED', 'REJECTED', 'CANCELLED', 'EXPIRED', 'TICKET_ISSUED']
 const TICKET_TYPES = ['FREE', 'PAID']
-// DRAFT orders are hidden checkout sessions (no proof uploaded yet) and
-// EXPIRED orders are stale drafts beyond the payment window — both are
-// excluded from the default "all" listing & counters to keep the admin
-// clean. Explicit status filters still work.
 const HIDDEN_STATUSES = ['DRAFT', 'EXPIRED']
 
 async function handleGetOrders(request: Request) {
@@ -25,10 +21,12 @@ async function handleGetOrders(request: Request) {
   const status = url.searchParams.get('status')?.trim() || ''
   const source = url.searchParams.get('source')?.trim().toUpperCase() || ''
   const ticketType = url.searchParams.get('ticket_type')?.trim().toUpperCase() || ''
+  const accessType = url.searchParams.get('access_type')?.trim().toUpperCase() || ''
   const faculty = url.searchParams.get('faculty')?.trim() || ''
   const statusList = status ? status.split(',').map((s) => s.trim()).filter(Boolean) : []
   if (statusList.some((s) => !ORDER_STATUSES.includes(s))) return jsonError('Status filter tidak valid.', 400)
   if (source && !['ONLINE', 'MANUAL'].includes(source)) return jsonError('Source filter tidak valid.', 400)
+  if (accessType && !['ONLINE', 'OFFLINE', 'ZOOM'].includes(accessType)) return jsonError('Access type filter tidak valid.', 400)
   if (ticketType && !TICKET_TYPES.includes(ticketType)) return jsonError('Ticket type filter tidak valid.', 400)
   if (faculty.length > 100) return jsonError('Faculty filter maksimal 100 karakter.', 400)
 
@@ -36,6 +34,7 @@ async function handleGetOrders(request: Request) {
     const { supabase } = auth
     let matchingOrderIds: string[] | null = null
 
+    // Perform text/candidate search only for text search / faculty / ticketType filters
     if (parsedSearch.search || faculty || ticketType) {
       const candidateIds = new Set<string>()
       if (parsedSearch.search) {
@@ -91,20 +90,24 @@ async function handleGetOrders(request: Request) {
           issuedTicketCount: 0,
         })
       }
+      // Cap candidate IDs to 150 to avoid PostgREST URL length limit (HTTP 400 Bad Request)
+      if (matchingOrderIds.length > 150) {
+        matchingOrderIds = matchingOrderIds.slice(0, 150)
+      }
     }
 
-    // Server-side totals so tab badges stay accurate even when the order count
-    // exceeds the page limit (previously tab counts were derived from the
-    // loaded page only, so they became partial once orders passed the limit).
-    // Counts and the issued-ticket query are independent, so they run in
-    // parallel to keep the route fast (avoids serial round-trips that could
-    // trip the read timeout guard).
-    // Server-side totals so tab badges stay accurate even when the order count
-    // exceeds the page limit. Single status grouping query replaces 9 separate count queries.
+    const isOnlineAccess = accessType ? (accessType === 'ONLINE' || accessType === 'ZOOM') : null
+
+    // Server-side totals so tab badges stay accurate
     const [statusCountsResult, issuedTicketCountResult] = await Promise.all([
       (async () => {
-        let q = supabase.from('orders').select('status')
+        let q = (supabase.from('orders') as any).select(
+          isOnlineAccess !== null
+            ? 'status, order_items!inner(ticket_types!inner(zoom_enabled))'
+            : 'status'
+        )
         if (source) q = q.eq('source', source)
+        if (isOnlineAccess !== null) q = q.eq('order_items.ticket_types.zoom_enabled', isOnlineAccess)
         if (matchingOrderIds) q = q.in('id', matchingOrderIds)
         const { data: rows, error } = await q
         if (error) throw new Error(error.message)
@@ -124,15 +127,12 @@ async function handleGetOrders(request: Request) {
         return statusCounts
       })(),
       (async () => {
-        // Total issued tickets (not orders) for TICKET_ISSUED orders. An order
-        // can contain multiple tickets (e.g. one buyer purchasing 2 tickets), so
-        // the badge counts tickets, matching the "Terbit" figure on the tickets page.
-        let q = supabase
-          .from('issued_tickets')
-          .select('id, orders!inner(source, status)', { count: 'exact', head: true })
+        let q = (supabase.from('issued_tickets') as any)
+          .select('id, orders!inner(source, status), ticket_types!inner(zoom_enabled)', { count: 'exact', head: true })
           .neq('status', 'CANCELLED')
           .eq('orders.status', 'TICKET_ISSUED')
         if (source) q = q.eq('orders.source', source)
+        if (isOnlineAccess !== null) q = q.eq('ticket_types.zoom_enabled', isOnlineAccess)
         if (matchingOrderIds) q = q.in('order_id', matchingOrderIds)
         const { count, error } = await q
         if (error) throw new Error(error.message)
@@ -142,17 +142,15 @@ async function handleGetOrders(request: Request) {
     const statusCounts = statusCountsResult
     const issuedTicketCount = issuedTicketCountResult
 
-    // View mode: when the "Tiket Diterbitkan" tab is selected, show one row per
-    // issued ticket (per pax) instead of one row per order, so multi-pax orders
-    // are listed individually and never merged into a single row.
+    // View mode: when the "Tiket Diterbitkan" tab is selected, show one row per issued ticket
     const isTicketIssuedView = statusList.length === 1 && statusList[0] === 'TICKET_ISSUED'
     if (isTicketIssuedView) {
-      let q = supabase
-        .from('issued_tickets')
-        .select('id, ticket_code, order_id, status, issued_at, orders!inner(order_code, source, total_amount, created_by, created_at, status), participants(full_name, nim, faculty, study_program, email, whatsapp), ticket_types(name, code, ticket_type)', { count: 'exact' })
+      let q = (supabase.from('issued_tickets') as any)
+        .select('id, ticket_code, order_id, status, issued_at, orders!inner(order_code, source, total_amount, created_by, created_at, status), participants(full_name, nim, faculty, study_program, email, whatsapp), ticket_types!inner(name, code, ticket_type, zoom_enabled)', { count: 'exact' })
         .neq('status', 'CANCELLED')
         .eq('orders.status', 'TICKET_ISSUED')
       if (source) q = q.eq('orders.source', source)
+      if (isOnlineAccess !== null) q = q.eq('ticket_types.zoom_enabled', isOnlineAccess)
       if (matchingOrderIds) q = q.in('order_id', matchingOrderIds)
 
       const result = await q
@@ -192,6 +190,7 @@ async function handleGetOrders(request: Request) {
           issued_at: t.issued_at,
           participant: t.participants ?? {},
           ticket_type: t.ticket_types ?? {},
+          has_online_ticket: !!t.ticket_types?.zoom_enabled,
           order: {
             source: t.orders?.source ?? 'ONLINE',
             total_amount: t.orders?.total_amount ?? 0,
@@ -211,12 +210,17 @@ async function handleGetOrders(request: Request) {
       })
     }
 
-    let query = supabase
-      .from('orders')
-      .select('id, order_code, event_id, status, source, subtotal, discount_total, total_amount, currency, created_by, created_at, updated_at, events(id, name)', { count: 'exact' })
+    let query = (supabase.from('orders') as any)
+      .select(
+        isOnlineAccess !== null
+          ? 'id, order_code, event_id, status, source, subtotal, discount_total, total_amount, currency, created_by, created_at, updated_at, events(id, name), order_items!inner(ticket_types!inner(zoom_enabled))'
+          : 'id, order_code, event_id, status, source, subtotal, discount_total, total_amount, currency, created_by, created_at, updated_at, events(id, name)',
+        { count: 'exact' }
+      )
     if (statusList.length) query = query.in('status', statusList)
     else query = query.not('status', 'in', `(${HIDDEN_STATUSES.join(',')})`)
     if (source) query = query.eq('source', source)
+    if (isOnlineAccess !== null) query = query.eq('order_items.ticket_types.zoom_enabled', isOnlineAccess)
     if (matchingOrderIds) query = query.in('id', matchingOrderIds)
 
     const { data, count, error } = await query
@@ -225,8 +229,8 @@ async function handleGetOrders(request: Request) {
       .range(pagination.offset, pagination.offset + pagination.limit - 1)
     if (error) throw new Error(error.message)
 
-    const orderIds = (data ?? []).map((row) => row.id)
-    let summaries: Record<string, { participants: any[]; ticketTypes: string[] }> = {}
+    const orderIds = (data ?? []).map((row: any) => row.id)
+    let summaries: Record<string, { participants: any[]; ticketTypes: string[]; hasOnlineTicket: boolean }> = {}
     let issuedCounts: Record<string, number> = {}
     let ticketEmailJobCounts: Record<string, number> = {}
     let operatorNames: Record<string, { full_name: string; role: string }> = {}
@@ -236,7 +240,7 @@ async function handleGetOrders(request: Request) {
       const [itemsQuery, profilesQuery, issuedQuery, emailQuery] = await Promise.all([
         supabase
           .from('order_items')
-          .select('order_id, participants(id, full_name, email, nim, faculty, study_program), ticket_types(id, name, code, ticket_type)')
+          .select('order_id, participants(id, full_name, email, nim, faculty, study_program), ticket_types(id, name, code, ticket_type, zoom_enabled)')
           .in('order_id', orderIds)
           .order('created_at', { ascending: true })
           .order('id', { ascending: true }),
@@ -253,12 +257,13 @@ async function handleGetOrders(request: Request) {
       if (emailQuery.error) throw new Error(emailQuery.error.message)
 
       summaries = (itemsQuery.data ?? []).reduce((acc, item: any) => {
-        const current = acc[item.order_id] ?? { participants: [], ticketTypes: [] }
+        const current = acc[item.order_id] ?? { participants: [], ticketTypes: [], hasOnlineTicket: false }
         if (item.participants) current.participants.push(item.participants)
         if (item.ticket_types?.name && !current.ticketTypes.includes(item.ticket_types.name)) current.ticketTypes.push(item.ticket_types.name)
+        if (item.ticket_types?.zoom_enabled) current.hasOnlineTicket = true
         acc[item.order_id] = current
         return acc
-      }, {} as Record<string, { participants: any[]; ticketTypes: string[] }>)
+      }, {} as Record<string, { participants: any[]; ticketTypes: string[]; hasOnlineTicket: boolean }>)
 
       operatorNames = (profilesQuery.data ?? []).reduce((acc, p: any) => {
         acc[p.id] = { full_name: p.full_name, role: p.role }
@@ -276,7 +281,7 @@ async function handleGetOrders(request: Request) {
     }
 
     const items = (data ?? []).map((order: any) => {
-      const summary = summaries[order.id] ?? { participants: [], ticketTypes: [] }
+      const summary = summaries[order.id] ?? { participants: [], ticketTypes: [], hasOnlineTicket: false }
       const operator = operatorNames[order.created_by]
       return {
         id: order.id,
@@ -291,6 +296,7 @@ async function handleGetOrders(request: Request) {
         participant_count: summary.participants.length,
         participants: summary.participants,
         ticket_types: summary.ticketTypes,
+        has_online_ticket: summary.hasOnlineTicket,
         issued_ticket_count: issuedCounts[order.id] ?? 0,
         has_ticket_email_job: (ticketEmailJobCounts[order.id] ?? 0) > 0,
         created_by: order.created_by ?? null,
@@ -308,11 +314,10 @@ async function handleGetOrders(request: Request) {
       statusCounts,
       issuedTicketCount,
     })
-  } catch (error) {
-    console.error('Admin orders read error:', error)
-    return jsonError('Gagal mengambil data pesanan.', 500)
+  } catch (error: any) {
+    console.error('Admin orders read error:', error?.message || error)
+    return jsonError(error?.message || 'Gagal mengambil data pesanan.', 500)
   }
 }
 
 export const GET = withTimeoutGuard(handleGetOrders)
-

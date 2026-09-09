@@ -7,7 +7,7 @@ export const OPERATOR_ROLES = ['ADMIN', 'SUPER_ADMIN', 'STAFF'] as const
 export type OperatorRole = (typeof OPERATOR_ROLES)[number]
 
 export type AdminReadAuth =
-  | { authorized: true; supabase: Awaited<ReturnType<typeof createClient>>; userId: string }
+  | { authorized: true; supabase: Awaited<ReturnType<typeof createClient>>; userId: string; role: OperatorRole }
   | { authorized: false; status: 401 | 403; message: string }
 
 export async function requireActiveAdmin(): Promise<AdminReadAuth> {
@@ -28,7 +28,7 @@ export async function requireActiveAdmin(): Promise<AdminReadAuth> {
     return { authorized: false, status: 403, message: 'Forbidden: Anda tidak memiliki akses.' }
   }
 
-  return { authorized: true, supabase, userId: user.id }
+  return { authorized: true, supabase, userId: user.id, role: profile.role as OperatorRole }
 }
 
 /**
@@ -54,7 +54,7 @@ export async function requireActiveOperator(): Promise<AdminReadAuth> {
     return { authorized: false, status: 403, message: 'Forbidden: Anda tidak memiliki akses.' }
   }
 
-  return { authorized: true, supabase, userId: user.id }
+  return { authorized: true, supabase, userId: user.id, role: profile.role as OperatorRole }
 }
 
 export function parsePagination(params: URLSearchParams, maxLimit: number = MAX_PAGE_SIZE) {

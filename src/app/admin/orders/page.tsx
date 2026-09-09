@@ -7,6 +7,7 @@ import { OrderItem } from "@/lib/order-store";
 import { canDeliverTickets, ticketEmailActionLabel, withActionLock } from "@/lib/admin-order-actions";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { createClient } from "@/lib/supabase/browser";
 import {
   Search,
   Download,
@@ -21,6 +22,7 @@ import {
   ChevronLeft,
   ChevronRight,
   RefreshCw,
+  Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -54,6 +56,7 @@ type ApiOrder = {
   participant_count: number;
   issued_ticket_count: number;
   has_ticket_email_job: boolean;
+  has_online_ticket?: boolean;
   participants: Array<{ full_name: string; email: string; nim: string; faculty: string; study_program: string; whatsapp?: string }>;
   ticket_types: string[];
   created_by_name: string | null;
@@ -67,6 +70,7 @@ type AdminOrder = OrderItem & {
   source: string;
   issuedTicketCount: number;
   hasTicketEmailJob: boolean;
+  hasOnlineTicket: boolean;
   createdByName?: string | null;
   createdByRole?: string | null;
   paymentProofUrl?: string;
@@ -92,8 +96,9 @@ type ApiIssuedTicket = {
   ticket_code: string;
   status: string;
   issued_at: string;
+  has_online_ticket?: boolean;
   participant: { full_name: string; nim: string; faculty: string; study_program: string; email: string; whatsapp?: string };
-  ticket_type: { name: string; code: string; ticket_type: string };
+  ticket_type: { name: string; code: string; ticket_type: string; zoom_enabled?: boolean };
   order: {
     source: string;
     total_amount: number;
@@ -118,6 +123,7 @@ type IssuedTicketRow = {
   email: string;
   whatsapp: string;
   ticketName: string;
+  hasOnlineTicket: boolean;
   totalAmount: number;
   source: string;
   createdAt: string;
@@ -154,6 +160,7 @@ function toLegacyOrder(order: ApiOrder): AdminOrder {
     source: order.source,
     issuedTicketCount: order.issued_ticket_count,
     hasTicketEmailJob: order.has_ticket_email_job,
+    hasOnlineTicket: order.has_online_ticket ?? false,
     createdByName: order.created_by_name ?? null,
     createdByRole: order.created_by_role ?? null,
     paymentDeadline: new Date(order.created_at).getTime() + PAYMENT_WINDOW_HOURS * 60 * 60 * 1000,
@@ -178,6 +185,7 @@ function toIssuedTicketRow(ticket: ApiIssuedTicket): IssuedTicketRow {
     email: participant.email ?? "-",
     whatsapp: participant.whatsapp ?? "-",
     ticketName: ticketType.name ?? "-",
+    hasOnlineTicket: ticket.has_online_ticket ?? ticketType.zoom_enabled ?? false,
     totalAmount: order.total_amount ?? 0,
     source: order.source ?? "ONLINE",
     createdAt: order.created_at ?? "",
@@ -212,6 +220,7 @@ function toOrderLikeFromTicket(ticket: IssuedTicketRow): AdminOrder {
     source: ticket.source,
     issuedTicketCount: 1,
     hasTicketEmailJob: ticket.hasTicketEmailJob,
+    hasOnlineTicket: ticket.hasOnlineTicket,
     createdByName: ticket.createdByName,
     createdByRole: ticket.createdByRole,
     paymentDeadline: ticket.createdAt
@@ -277,6 +286,7 @@ function OrdersPageContent() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState(initialStatusParam);
   const [sourceFilter, setSourceFilter] = useState("all");
+  const [accessFilter, setAccessFilter] = useState("all");
   const [selectedOrder, setSelectedOrder] = useState<AdminOrder | null>(null);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
@@ -287,6 +297,72 @@ function OrdersPageContent() {
   const [now, setNow] = useState(() => Date.now());
   const [lastRefreshed, setLastRefreshed] = useState<number | null>(null);
   const [isFilterLoading, setIsFilterLoading] = useState(false);
+
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState<boolean>(true);
+  const [isSuperAdmin, setIsSuperAdmin] = useState<boolean>(false);
+  const [isTogglingRefresh, setIsTogglingRefresh] = useState<boolean>(false);
+
+  // Fetch Auto-refresh setting and user role on mount
+  useEffect(() => {
+    async function initAutoRefresh() {
+      // 1. Immediate client-side role check from Supabase auth session
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("role")
+            .eq("id", user.id)
+            .maybeSingle();
+          if (profile?.role === "SUPER_ADMIN") {
+            setIsSuperAdmin(true);
+          }
+        }
+      } catch (err) {
+        console.error("Gagal memeriksa role admin di client:", err);
+      }
+
+      // 2. Fetch server setting & double-confirm role via API
+      try {
+        const res = await fetch("/api/admin/orders/auto-refresh", { cache: "no-store" });
+        const data = await res.json();
+        if (data.success) {
+          setAutoRefreshEnabled(data.autoRefreshEnabled);
+          if (typeof data.isSuperAdmin === "boolean") {
+            setIsSuperAdmin(data.isSuperAdmin);
+          }
+        }
+      } catch (err) {
+        console.error("Gagal mengambil status auto-refresh:", err);
+      }
+    }
+    initAutoRefresh();
+  }, []);
+
+  const handleToggleAutoRefresh = async () => {
+    if (!isSuperAdmin || isTogglingRefresh) return;
+    const nextState = !autoRefreshEnabled;
+    setIsTogglingRefresh(true);
+    try {
+      const res = await fetch("/api/admin/orders/auto-refresh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: nextState }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setAutoRefreshEnabled(nextState);
+        toast.success(data.message || `Auto-refresh ${nextState ? "diaktifkan" : "dinonaktifkan"}.`);
+      } else {
+        toast.error(data.message || "Gagal mengubah status auto-refresh.");
+      }
+    } catch (err) {
+      toast.error("Gagal mengubah status auto-refresh.");
+    } finally {
+      setIsTogglingRefresh(false);
+    }
+  };
 
   // Live tick only while any DRAFT (waiting-payment) order is visible,
   // so the "Sisa Waktu" countdown stays current without constant re-renders.
@@ -304,6 +380,7 @@ function OrdersPageContent() {
     if (searchQuery.trim()) params.set("search", searchQuery.trim());
     if (statusFilter !== "all") params.set("status", statusFilter);
     if (sourceFilter !== "all") params.set("source", sourceFilter);
+    if (accessFilter !== "all") params.set("access_type", accessFilter);
     const response = await fetch(`/api/admin/orders?${params.toString()}`, { cache: "no-store" });
     const payload = await response.json();
     if (!response.ok) {
@@ -325,7 +402,7 @@ function OrdersPageContent() {
   useEffect(() => {
     setPage(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery, statusFilter, sourceFilter]);
+  }, [searchQuery, statusFilter, sourceFilter, accessFilter]);
 
   useEffect(() => {
     // Fetch after the effect commits so the server refresh does not run in the effect body.
@@ -334,7 +411,7 @@ function OrdersPageContent() {
     };
     queueMicrotask(refresh);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, searchQuery, statusFilter, sourceFilter]);
+  }, [page, searchQuery, statusFilter, sourceFilter, accessFilter]);
 
   // Ref yang selalu memegang fungsi refresh TERBARU (page & filter terkini).
   // Dipakai interval polling supaya auto-refresh tidak pernah memakai filter lama.
@@ -346,13 +423,14 @@ function OrdersPageContent() {
   });
 
   // Auto-refresh berkala agar pesanan baru (di tab manapun) muncul tanpa perlu
-  // refresh manual — sama seperti dashboard.
+  // refresh manual — hanya berjalan jika autoRefreshEnabled === true.
   useEffect(() => {
+    if (!autoRefreshEnabled) return;
     const interval = setInterval(() => {
       refreshNowRef.current();
     }, 15000);
     return () => clearInterval(interval);
-  }, []);
+  }, [autoRefreshEnabled]);
 
   const goToPage = (targetPage: number) => {
     if (targetPage < 1 || targetPage > pagination.totalPages) return;
@@ -558,11 +636,67 @@ function OrdersPageContent() {
             Kelola & verifikasi pembayaran peserta OPEN MIND 2026.
           </p>
         </div>
-        <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-          <span className="inline-flex items-center gap-1 rounded-full bg-gold-500/10 border border-gold-500/30 px-2.5 py-1 font-semibold text-gold-700">
-            <RefreshCw className="h-3 w-3 animate-spin [animation-duration:3s]" />
-            Auto-refresh 15 detik
-          </span>
+        <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+          {/* Auto Refresh Toggle & Status Badge */}
+          {isSuperAdmin ? (
+            <div className="flex items-center gap-2 rounded-xl bg-slate-100/80 p-1.5 px-3 border border-border shadow-2xs">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-navy-900">
+                <RefreshCw
+                  className={cn(
+                    "h-3.5 w-3.5 text-navy-700",
+                    autoRefreshEnabled && "animate-spin [animation-duration:3s]"
+                  )}
+                />
+                <span>Auto-refresh (15s):</span>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={autoRefreshEnabled}
+                onClick={handleToggleAutoRefresh}
+                disabled={isTogglingRefresh}
+                title="Klik untuk mengaktifkan / menonaktifkan auto-refresh 15 detik"
+                className={cn(
+                  "relative inline-flex h-6 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-gold-500 focus:ring-offset-1 disabled:opacity-50",
+                  autoRefreshEnabled ? "bg-emerald-500" : "bg-slate-300"
+                )}
+              >
+                <span className="sr-only">Toggle Auto-refresh</span>
+                <span
+                  className={cn(
+                    "pointer-events-none inline-flex h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out items-center justify-center text-[9px] font-black text-navy-900",
+                    autoRefreshEnabled ? "translate-x-6 text-emerald-700" : "translate-x-0 text-slate-500"
+                  )}
+                >
+                  {autoRefreshEnabled ? "ON" : "OFF"}
+                </span>
+              </button>
+            </div>
+          ) : (
+            <div
+              title="Status Auto-refresh. Hanya Super Admin yang dapat mengubah."
+              className="flex items-center gap-2 rounded-xl bg-slate-100/80 p-1.5 px-3 border border-border text-xs font-semibold text-navy-900"
+            >
+              <RefreshCw
+                className={cn(
+                  "h-3.5 w-3.5 text-navy-700",
+                  autoRefreshEnabled && "animate-spin [animation-duration:3s]"
+                )}
+              />
+              <span>Auto-refresh:</span>
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold border",
+                  autoRefreshEnabled
+                    ? "bg-emerald-500/15 text-emerald-700 border-emerald-500/30"
+                    : "bg-slate-200 text-slate-600 border-slate-300"
+                )}
+              >
+                <Lock className="h-2.5 w-2.5" />
+                {autoRefreshEnabled ? "ON (15s)" : "OFF"}
+              </span>
+            </div>
+          )}
           <span className="hidden sm:inline">
             Update terakhir: {lastRefreshed ? new Date(lastRefreshed).toLocaleTimeString("id-ID") : "—"}
           </span>
@@ -630,7 +764,7 @@ function OrdersPageContent() {
         {/* Search & Secondary Filters Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
           {/* Search Box */}
-          <div className="sm:col-span-9 relative">
+          <div className="sm:col-span-6 relative">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <input
               type="text"
@@ -641,16 +775,29 @@ function OrdersPageContent() {
             />
           </div>
 
-          {/* Source Filter (Walk-in / Online) */}
+          {/* Source Filter (Metode Checkout) */}
           <div className="sm:col-span-3">
             <select
               value={sourceFilter}
               onChange={(e) => setSourceFilter(e.target.value)}
-              className="w-full rounded-xl border border-border bg-secondary/20 py-2.5 px-3 text-xs text-navy-900 focus:border-gold-500 focus:bg-white focus:outline-none"
+              className="w-full rounded-xl border border-border bg-secondary/20 py-2.5 px-3 text-xs text-navy-900 focus:border-gold-500 focus:bg-white focus:outline-none font-medium"
             >
-              <option value="all">Semua Sumber</option>
-              <option value="MANUAL">Walk-in</option>
-              <option value="ONLINE">Online</option>
+              <option value="all">Semua Metode Checkout</option>
+              <option value="ONLINE">🌐 Web Checkout</option>
+              <option value="MANUAL">👤 Walk-in (Kasir)</option>
+            </select>
+          </div>
+
+          {/* Access Filter (Zoom / Offline) */}
+          <div className="sm:col-span-3">
+            <select
+              value={accessFilter}
+              onChange={(e) => setAccessFilter(e.target.value)}
+              className="w-full rounded-xl border border-border bg-secondary/20 py-2.5 px-3 text-xs text-navy-900 focus:border-gold-500 focus:bg-white focus:outline-none font-medium"
+            >
+              <option value="all">Semua Akses Tiket</option>
+              <option value="ONLINE">💻 Tiket Online (Zoom)</option>
+              <option value="OFFLINE">🏢 Tiket Offline (Lokasi)</option>
             </select>
           </div>
         </div>
@@ -739,9 +886,20 @@ function OrdersPageContent() {
                             </span>
                           </td>
                           <td className="px-5 py-4 whitespace-nowrap border-b border-border/70 border-l border-border/70">
-                            <span className="font-bold text-gold-600">
-                              {ticket.ticketName}
-                            </span>
+                            <div className="flex flex-col gap-1">
+                              <span className="font-bold text-gold-600">
+                                {ticket.ticketName}
+                              </span>
+                              {ticket.hasOnlineTicket ? (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/15 text-blue-700 border border-blue-500/30 px-2 py-0.5 text-[9px] font-bold w-fit">
+                                  💻 Zoom Online
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-slate-500/15 text-slate-700 border border-slate-500/30 px-2 py-0.5 text-[9px] font-bold w-fit">
+                                  🏢 Offline
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="px-5 py-4 whitespace-nowrap border-b border-border/70 border-l border-border/70">
                             <span
@@ -868,12 +1026,25 @@ function OrdersPageContent() {
                       </span>
                     </td>
                     <td className="px-5 py-4 whitespace-nowrap border-b border-border/70 border-l border-border/70">
-                      <span className="font-bold text-gold-600">
-                        {order.ticketName}
-                      </span>
-                      <span className="text-[10px] text-muted-foreground block">
-                        {order.quantity} Pax
-                      </span>
+                      <div className="flex flex-col gap-1">
+                        <span className="font-bold text-gold-600">
+                          {order.ticketName}
+                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[10px] text-muted-foreground">
+                            {order.quantity} Pax
+                          </span>
+                          {order.hasOnlineTicket ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/15 text-blue-700 border border-blue-500/30 px-2 py-0.5 text-[9px] font-bold">
+                              💻 Zoom Online
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-slate-500/15 text-slate-700 border border-slate-500/30 px-2 py-0.5 text-[9px] font-bold">
+                              🏢 Offline
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </td>
                     <td className="px-5 py-4 font-bold text-navy-900 whitespace-nowrap border-b border-border/70 border-l border-border/70">
                       {order.totalPrice === 0
@@ -1042,7 +1213,18 @@ function OrdersPageContent() {
             <div className="rounded-2xl bg-secondary/30 p-4 text-xs space-y-2">
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <span className="text-muted-foreground font-semibold uppercase text-[10px]">Tiket & Tagihan</span>
-                <span className="text-gold-600 font-bold">{selectedOrder.ticketName} ({selectedOrder.orderParticipants?.length ?? selectedOrder.quantity} Pax) — Rp {selectedOrder.totalPrice.toLocaleString("id-ID")}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-gold-600 font-bold">{selectedOrder.ticketName} ({selectedOrder.orderParticipants?.length ?? selectedOrder.quantity} Pax) — Rp {selectedOrder.totalPrice.toLocaleString("id-ID")}</span>
+                  {selectedOrder.hasOnlineTicket ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/20 text-blue-700 border border-blue-500/30 px-2.5 py-0.5 text-[10px] font-bold">
+                      💻 Zoom Online
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-slate-500/20 text-slate-700 border border-slate-500/30 px-2.5 py-0.5 text-[10px] font-bold">
+                      🏢 Offline
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="flex items-center justify-between gap-2">
                 <span className="text-muted-foreground font-semibold uppercase text-[10px]">Jumlah Pemesan</span>

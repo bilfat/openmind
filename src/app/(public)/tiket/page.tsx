@@ -290,7 +290,7 @@ function TiketPageContent() {
   };
 
   return (
-    <div className="pt-24 pb-20 bg-navy-950">
+    <div className="pt-24 pb-20 bg-navy-950 min-h-[calc(100vh-4rem)] flex flex-col justify-between">
       {/* ================= PAGE HEADER (Dark Cinematic) ================= */}
       <section className="relative overflow-hidden border-b border-gold-500/15 bg-navy-950 px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
         <div className="absolute inset-0 bg-gradient-to-b from-navy-950 via-navy-900 to-navy-950" />
@@ -337,7 +337,7 @@ function TiketPageContent() {
             className="mt-8 flex items-center justify-center px-1"
           >
             <LayoutGroup id="ticket-tab-group">
-              <div className="grid grid-cols-3 w-full max-w-xl rounded-full border border-white/15 bg-white/10 p-1 sm:p-1.5 shadow-2xl backdrop-blur-2xl">
+              <div className="grid grid-cols-3 w-full max-w-xl rounded-full border border-white/15 bg-white/10 p-1 sm:p-1.5 shadow-xl backdrop-blur-md">
                 <button
                   type="button"
                   onClick={() => setActiveTab("catalog")}
@@ -349,8 +349,8 @@ function TiketPageContent() {
                   {activeTab === "catalog" && (
                     <motion.span
                       layoutId="ticket-tab-pill"
-                      className="absolute inset-0 rounded-full bg-gold-500 shadow-lg shadow-gold-500/40 transform-gpu will-change-transform"
-                      transition={{ type: "spring", stiffness: 380, damping: 30, mass: 0.8 }}
+                      className="absolute inset-0 rounded-full bg-gold-500 shadow-md shadow-gold-500/40 transform-gpu will-change-transform"
+                      transition={{ type: "spring", stiffness: 450, damping: 35, mass: 0.5 }}
                     />
                   )}
                   <Ticket className="relative z-10 h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
@@ -370,8 +370,8 @@ function TiketPageContent() {
                   {activeTab === "check" && (
                     <motion.span
                       layoutId="ticket-tab-pill"
-                      className="absolute inset-0 rounded-full bg-gold-500 shadow-lg shadow-gold-500/40 transform-gpu will-change-transform"
-                      transition={{ type: "spring", stiffness: 380, damping: 30, mass: 0.8 }}
+                      className="absolute inset-0 rounded-full bg-gold-500 shadow-md shadow-gold-500/40 transform-gpu will-change-transform"
+                      transition={{ type: "spring", stiffness: 450, damping: 35, mass: 0.5 }}
                     />
                   )}
                   <Search className="relative z-10 h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
@@ -391,8 +391,8 @@ function TiketPageContent() {
                   {activeTab === "referral" && (
                     <motion.span
                       layoutId="ticket-tab-pill"
-                      className="absolute inset-0 rounded-full bg-gold-500 shadow-lg shadow-gold-500/40 transform-gpu will-change-transform"
-                      transition={{ type: "spring", stiffness: 380, damping: 30, mass: 0.8 }}
+                      className="absolute inset-0 rounded-full bg-gold-500 shadow-md shadow-gold-500/40 transform-gpu will-change-transform"
+                      transition={{ type: "spring", stiffness: 450, damping: 35, mass: 0.5 }}
                     />
                   )}
                   <Gift className="relative z-10 h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
@@ -413,6 +413,7 @@ function TiketPageContent() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -16 }}
             transition={{ duration: 0.35, ease: "easeOut" }}
+            className="flex-1"
           >
             <section className="relative overflow-hidden bg-gradient-to-b from-navy-950 via-navy-900 to-navy-950 px-4 py-16 sm:px-6 lg:px-8">
               {/* Stage glows */}
@@ -543,7 +544,7 @@ function TiketPageContent() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -16 }}
             transition={{ duration: 0.35, ease: "easeOut" }}
-            className="relative overflow-hidden bg-gradient-to-b from-navy-950 via-navy-900 to-navy-950 px-4 py-16 sm:px-6 lg:px-8"
+            className="relative flex-1 overflow-hidden bg-gradient-to-b from-navy-950 via-navy-900 to-navy-950 px-4 py-16 sm:px-6 lg:px-8 flex flex-col justify-center min-h-[45vh]"
           >
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(201,162,74,0.08),transparent_55%)]" />
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(#C9A24A_1px,transparent_1px)] [background-size:28px_28px] opacity-[0.05]" />
@@ -798,7 +799,7 @@ function TiketPageContent() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -16 }}
             transition={{ duration: 0.35, ease: "easeOut" }}
-            className="relative overflow-hidden bg-gradient-to-b from-navy-950 via-navy-900 to-navy-950 px-4 py-16 sm:px-6 lg:px-8"
+            className="relative flex-1 overflow-hidden bg-gradient-to-b from-navy-950 via-navy-900 to-navy-950 px-4 py-16 sm:px-6 lg:px-8"
           >
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(201,162,74,0.08),transparent_55%)]" />
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(#C9A24A_1px,transparent_1px)] [background-size:28px_28px] opacity-[0.05]" />

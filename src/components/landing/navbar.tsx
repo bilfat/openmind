@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { Menu, X, Ticket, Search, LogIn } from "lucide-react";
 import { MobileMenu } from "./mobile-menu";
 import { useActiveEvent } from "@/hooks/use-active-event";
+import { TrackTicketModal } from "@/components/public/track-ticket-modal";
 
 const navItems = [
   { label: "Beranda", href: "/" },
@@ -22,7 +23,6 @@ const infoItems = [
 
 export function Navbar() {
   const pathname = usePathname();
-  const router = useRouter();
   const { event } = useActiveEvent();
 
   const rawName = event?.name || "OPEN MIND";
@@ -33,8 +33,7 @@ export function Navbar() {
 
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchOpen, setSearchOpen] = useState(false);
+  const [trackModalOpen, setTrackModalOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
 
   useEffect(() => {
@@ -51,14 +50,6 @@ export function Navbar() {
   };
 
   const isHeroTransparent = pathname === "/" && !scrolled;
-
-  const handleQuickSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!searchQuery.trim()) return;
-    router.push(`/tiket?tab=check&order=${encodeURIComponent(searchQuery.trim())}`);
-    setSearchQuery("");
-    setSearchOpen(false);
-  };
 
   return (
     <>
@@ -191,53 +182,21 @@ export function Navbar() {
               </div>
             </div>
 
-            {/* Right Side: Quick Search Bar + Admin Login + CTA Button + Mobile Trigger */}
+            {/* Right Side: Track Ticket Button + Admin Login + CTA Button + Mobile Trigger */}
             <div className="flex items-center gap-1.5 sm:gap-3 flex-shrink-0">
-              {/* Quick Search Form (Desktop) */}
-              <form
-                onSubmit={handleQuickSearch}
-                className="hidden md:flex items-center relative"
-              >
-                <div className="relative flex items-center">
-                  <Search
-                    className={`absolute left-3 h-3.5 w-3.5 pointer-events-none transition-colors ${isHeroTransparent ? "text-gold-400" : "text-muted-foreground"
-                      }`}
-                  />
-                  <input
-                    type="text"
-                    placeholder="Cek Tiket"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className={`h-9 w-40 lg:w-48 rounded-full border pl-8 pr-8 text-xs font-medium transition-all duration-300 focus:w-56 focus:outline-none focus:ring-2 ${isHeroTransparent
-                        ? "border-gold-500/30 bg-navy-900/80 text-ivory-100 placeholder:text-ivory-200/50 focus:border-gold-500 focus:ring-gold-500/20"
-                        : "border-border bg-white text-navy-900 placeholder:text-muted-foreground focus:border-gold-500 focus:ring-gold-500/20 shadow-sm"
-                      }`}
-                  />
-                  {searchQuery && (
-                    <button
-                      type="submit"
-                      className="absolute right-2 text-[10px] font-bold text-gold-500 hover:text-gold-400 uppercase"
-                    >
-                      Go
-                    </button>
-                  )}
-                </div>
-              </form>
-
-              {/* Quick Search Toggle (Mobile/Tablet Icon button) */}
+              {/* Cek Tiket Button */}
               <button
                 type="button"
-                onClick={() => {
-                  setSearchOpen(!searchOpen);
-                  setMobileOpen(false);
-                }}
-                className={`md:hidden p-1.5 sm:p-2 rounded-full transition-colors ${isHeroTransparent
-                    ? "text-ivory-100 hover:bg-white/10"
-                    : "text-navy-900 hover:bg-navy-900/5"
-                  }`}
-                aria-label="Cari tiket"
+                onClick={() => setTrackModalOpen(true)}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold transition-all duration-300 hover:scale-105 ${
+                  isHeroTransparent
+                    ? "border-gold-400/40 bg-navy-900/70 text-gold-300 hover:border-gold-400 hover:bg-navy-900/90"
+                    : "border-gold-500/40 bg-gold-500/10 text-[#856218] hover:border-gold-500/70 hover:bg-gold-500/20 shadow-xs"
+                }`}
+                title="Cek Status & E-Ticket"
               >
-                <Search className="h-5 w-5" />
+                <Search className={`h-3.5 w-3.5 ${isHeroTransparent ? "text-gold-400" : "text-[#856218]"}`} />
+                <span className="text-[11px] sm:text-xs font-bold">Cek Tiket</span>
               </button>
 
               {/* Admin Login */}
@@ -265,10 +224,7 @@ export function Navbar() {
 
               {/* Mobile Hamburger */}
               <button
-                onClick={() => {
-                  setMobileOpen(!mobileOpen);
-                  setSearchOpen(false);
-                }}
+                onClick={() => setMobileOpen(!mobileOpen)}
                 className={`xl:hidden p-1.5 sm:p-2 rounded-lg transition-colors ${isHeroTransparent
                     ? "text-ivory-100 hover:bg-white/10"
                     : "text-navy-900 hover:bg-navy-900/5"
@@ -283,38 +239,14 @@ export function Navbar() {
               </button>
             </div>
           </div>
-
-          {/* Mobile Search Bar Dropdown */}
-          <AnimatePresence>
-            {searchOpen && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-                className="md:hidden pb-3 overflow-hidden"
-              >
-                <form onSubmit={handleQuickSearch} className="relative">
-                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <input
-                    type="text"
-                    placeholder="Masukkan Order ID kamu (misal: OM26-00124)..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full rounded-xl border border-gold-500/40 bg-white py-2.5 pl-10 pr-20 text-xs text-navy-900 shadow-md focus:outline-none focus:ring-2 focus:ring-gold-500"
-                    autoFocus
-                  />
-                  <button
-                    type="submit"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg bg-gold-500 px-3 py-1 text-xs font-bold text-navy-950"
-                  >
-                    Lacak
-                  </button>
-                </form>
-              </motion.div>
-            )}
-          </AnimatePresence>
         </nav>
       </header>
+
+      {/* Track Ticket Popup Modal */}
+      <TrackTicketModal
+        isOpen={trackModalOpen}
+        onClose={() => setTrackModalOpen(false)}
+      />
 
       {/* Mobile Menu */}
       <MobileMenu
@@ -322,6 +254,7 @@ export function Navbar() {
         onClose={() => setMobileOpen(false)}
         navItems={[...navItems, ...infoItems]}
         pathname={pathname}
+        onOpenTrackModal={() => setTrackModalOpen(true)}
       />
     </>
   );

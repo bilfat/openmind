@@ -91,22 +91,40 @@ export async function GET(
     }
 
     const supabase = createAdminClient()
+    const trimmedToken = token.trim()
 
-    const { data: seed, error: seedError } = await supabase
+    let orderId: string | null = null
+
+    // 1. Try finding by qr_token first
+    const { data: seed } = await supabase
       .from('issued_tickets')
       .select('order_id, status')
-      .eq('qr_token', token)
+      .eq('qr_token', trimmedToken)
       .maybeSingle()
 
-    if (seedError) throw seedError
-    if (!seed || !['ACTIVE', 'CHECKED_IN'].includes(seed.status)) {
-      return NextResponse.json({ success: false, message: 'Tiket tidak ditemukan atau tidak aktif.' }, { status: 404 })
+    if (seed && ['ACTIVE', 'CHECKED_IN'].includes(seed.status)) {
+      orderId = seed.order_id
+    } else {
+      // 2. Fallback: Try finding order by order_code (case-insensitive)
+      const { data: orderByCode } = await supabase
+        .from('orders')
+        .select('id, status, order_code')
+        .ilike('order_code', trimmedToken)
+        .maybeSingle()
+
+      if (orderByCode) {
+        orderId = orderByCode.id
+      }
+    }
+
+    if (!orderId) {
+      return NextResponse.json({ success: false, message: 'Tiket atau pesanan tidak ditemukan.' }, { status: 404 })
     }
 
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .select('id, order_code, status, total_amount, created_at, event_id')
-      .eq('id', seed.order_id)
+      .eq('id', orderId)
       .maybeSingle()
     if (orderError) throw orderError
     if (!order) {

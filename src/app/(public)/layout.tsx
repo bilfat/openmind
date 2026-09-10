@@ -10,7 +10,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
         Skip to content
       </a>
       <Navbar />
-      <main id="main-content" className="flex-1 page-enter has-mobile-cta">{children}</main>
+      <main id="main-content" className="flex-1 page-enter has-mobile-cta bg-navy-950">{children}</main>
       <Footer />
       <MobileCtaBar />
     </ActiveEventProvider>

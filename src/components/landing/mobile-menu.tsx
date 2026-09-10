@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { Ticket, ExternalLink, LogIn } from "lucide-react";
+import { Ticket, ExternalLink, LogIn, Search } from "lucide-react";
 
 import { socialLinks } from "@/data/social-links";
 
@@ -11,9 +11,10 @@ interface MobileMenuProps {
   onClose: () => void;
   navItems: { label: string; href: string }[];
   pathname: string;
+  onOpenTrackModal?: () => void;
 }
 
-export function MobileMenu({ isOpen, onClose, navItems, pathname }: MobileMenuProps) {
+export function MobileMenu({ isOpen, onClose, navItems, pathname, onOpenTrackModal }: MobileMenuProps) {
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";
     return pathname.startsWith(href);
@@ -68,10 +69,23 @@ export function MobileMenu({ isOpen, onClose, navItems, pathname }: MobileMenuPr
 
               {/* CTA */}
               <div className="border-t border-gold-500/10 p-4 space-y-2">
+                {onOpenTrackModal && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onOpenTrackModal();
+                    }}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-gold-500/30 bg-gold-500/10 px-6 py-2.5 text-sm font-bold text-[#856218] transition-all hover:bg-gold-500/20"
+                  >
+                    <Search className="h-4 w-4 text-[#856218]" />
+                    Cek Status Tiket
+                  </button>
+                )}
                 <Link
                   href="/tiket"
                   onClick={onClose}
-                  className="flex items-center justify-center gap-2 rounded-xl bg-gold-500 px-6 py-3 text-sm font-semibold text-navy-900 transition-all hover:bg-gold-400"
+                  className="flex items-center justify-center gap-2 rounded-xl bg-gold-500 px-6 py-2.5 text-sm font-semibold text-navy-900 transition-all hover:bg-gold-400"
                 >
                   <Ticket className="h-4 w-4" />
                   Beli Tiket
@@ -79,7 +93,7 @@ export function MobileMenu({ isOpen, onClose, navItems, pathname }: MobileMenuPr
                 <Link
                   href="/admin/login"
                   onClick={onClose}
-                  className="flex items-center justify-center gap-2 rounded-xl border border-navy-900/20 px-6 py-3 text-sm font-semibold text-navy-900 transition-all hover:bg-navy-900/5"
+                  className="flex items-center justify-center gap-2 rounded-xl border border-navy-900/20 px-6 py-2.5 text-sm font-semibold text-navy-900 transition-all hover:bg-navy-900/5"
                 >
                   <LogIn className="h-4 w-4" />
                   Login Admin

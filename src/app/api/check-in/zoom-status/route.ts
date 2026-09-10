@@ -8,7 +8,7 @@ export async function GET(request: Request) {
     // Dapatkan event aktif (yang paling baru/mendatang)
     const { data: event, error } = await supabase
       .from('events')
-      .select('name, zoom_enabled, zoom_meeting_link, zoom_session_token, zoom_session_expires_at')
+      .select('name, zoom_enabled, zoom_meeting_link')
       .order('event_date', { ascending: false })
       .limit(1)
       .single();
@@ -17,19 +17,12 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: true, data: { zoomEnabled: false } });
     }
 
-    const sessionActive = !!(
-      event.zoom_session_token &&
-      event.zoom_session_expires_at &&
-      new Date(event.zoom_session_expires_at) > new Date()
-    );
-
     return NextResponse.json({
       success: true,
       data: {
         eventName: event.name,
         zoomEnabled: event.zoom_enabled,
         zoomReady: !!event.zoom_meeting_link,
-        sessionActive,
       }
     });
 

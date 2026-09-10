@@ -20,7 +20,6 @@ import {
   Radio,
 } from "lucide-react";
 import { ZoomJoinButton } from "./zoom-join-button";
-import { ZoomWebcamScanner } from "./zoom-webcam-scanner";
 
 interface ETicketCardProps {
   order: OrderItem;
@@ -226,13 +225,6 @@ export function ETicketCard({ order }: ETicketCardProps) {
                 participantName={order.customerName}
                 ticketCode={issuedTicket.ticketCode || order.orderId}
               />
-
-              {issuedTicket.zoomAccessUnlocked !== false && issuedTicket.zoomStatus !== "USED" && (
-                <ZoomWebcamScanner 
-                  zoomToken={issuedTicket.zoomToken} 
-                  zoomStatus={issuedTicket.zoomStatus || "PENDING"} 
-                />
-              )}
             </div>
           </div>
         )}

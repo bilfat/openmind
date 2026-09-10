@@ -4,10 +4,8 @@ import React, { useState, useEffect } from "react";
 import { Radio } from "lucide-react";
 import { ZoomStatsCards } from "@/components/admin/zoom/zoom-stats-cards";
 import { ZoomLinkConfig } from "@/components/admin/zoom/zoom-link-config";
-import { ZoomSessionQR } from "@/components/admin/zoom/zoom-session-qr";
 import { ZoomLiveMonitor } from "@/components/admin/zoom/zoom-live-monitor";
 import { createClient } from "@/lib/supabase/browser";
-import { cn } from "@/lib/utils";
 
 function useZoomDashboard() {
   const [data, setData] = useState<any>(null);
@@ -86,38 +84,22 @@ export default function AdminZoomPage() {
           Zoom Hybrid Management
         </h1>
         <p className="text-sm text-navy-900/70 mt-1">
-          Monitor, konfigurasi, dan generate QR untuk akses Zoom online peserta.
+          Monitor dan konfigurasi akses Zoom online peserta.
         </p>
       </div>
 
       {/* Stats */}
       <ZoomStatsCards stats={data?.stats} loading={loading} />
 
-      {/* Top Section: QR & Konfigurasi (bersebelahan pada PC) */}
-      <div
-        className={cn(
-          "grid grid-cols-1 gap-6",
-          role === "SUPER_ADMIN" ? "lg:grid-cols-2" : "grid-cols-1"
-        )}
-      >
-        {/* Session QR */}
-        <ZoomSessionQR
-          sessionActive={data?.sessionActive}
-          sessionExpiresAt={data?.sessionExpiresAt}
+      {/* Zoom Link Config — Super Admin Only */}
+      {role === "SUPER_ADMIN" && (
+        <ZoomLinkConfig
+          zoomEnabled={data?.zoomEnabled}
           zoomLinkReady={data?.zoomLinkReady}
-          initialQrCodeUrl={data?.qrCodeDataUrl}
+          zoomLinkUpdatedAt={data?.zoomLinkUpdatedAt}
+          zoomMeetingLink={data?.zoomMeetingLink}
         />
-
-        {/* Zoom Link Config — Super Admin Only */}
-        {role === "SUPER_ADMIN" && (
-          <ZoomLinkConfig
-            zoomEnabled={data?.zoomEnabled}
-            zoomLinkReady={data?.zoomLinkReady}
-            zoomLinkUpdatedAt={data?.zoomLinkUpdatedAt}
-            zoomMeetingLink={data?.zoomMeetingLink}
-          />
-        )}
-      </div>
+      )}
 
       {/* Bottom Section: Live Join Activity (Full Width) */}
       <ZoomLiveMonitor

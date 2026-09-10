@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import QRCode from 'qrcode';
 
 export async function GET(request: Request) {
   try {
@@ -9,7 +8,7 @@ export async function GET(request: Request) {
     // Dapatkan event aktif
     const { data: event, error: eventError } = await supabase
       .from('events')
-      .select('id, zoom_enabled, zoom_meeting_link, zoom_link_updated_at, zoom_session_token, zoom_session_expires_at, zoom_live_tracking_enabled')
+      .select('id, zoom_enabled, zoom_meeting_link, zoom_link_updated_at, zoom_live_tracking_enabled')
       .order('event_date', { ascending: false })
       .limit(1)
       .single();
@@ -17,14 +16,6 @@ export async function GET(request: Request) {
     if (eventError || !event) {
       return NextResponse.json({ success: false, message: 'Event not found' }, { status: 404 });
     }
-
-    const sessionActive = !!(
-      event.zoom_enabled &&
-      event.zoom_meeting_link &&
-      event.zoom_session_token &&
-      event.zoom_session_expires_at &&
-      new Date(event.zoom_session_expires_at) > new Date()
-    );
 
     // Ambil agregasi status tiket untuk event ini
     // Hanya hitung tiket yang tipe tiketnya mengaktifkan Zoom (zoom_enabled = true)
@@ -77,20 +68,6 @@ export async function GET(request: Request) {
       };
     });
 
-    let qrCodeDataUrl = null;
-    if (sessionActive && event.zoom_session_token) {
-      const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-      const qrUrl = `${APP_URL}/zoom/join?s=${event.zoom_session_token}`;
-      qrCodeDataUrl = await QRCode.toDataURL(qrUrl, {
-        width: 300,
-        margin: 2,
-        color: {
-          dark: '#0f172a',
-          light: '#ffffff'
-        }
-      });
-    }
-
     return NextResponse.json({
       success: true,
       data: {
@@ -98,9 +75,6 @@ export async function GET(request: Request) {
         zoomMeetingLink: event.zoom_meeting_link,
         zoomLinkReady: !!event.zoom_meeting_link,
         zoomLinkUpdatedAt: event.zoom_link_updated_at,
-        sessionActive,
-        sessionExpiresAt: event.zoom_session_expires_at,
-        qrCodeDataUrl,
         zoomLiveTrackingEnabled: event.zoom_live_tracking_enabled,
         stats,
         recentAccess

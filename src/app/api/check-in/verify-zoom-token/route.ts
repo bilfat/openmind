@@ -28,7 +28,7 @@ function buildZoomDeepLink(zoomUrl: string): string {
 
 export async function POST(request: Request) {
   try {
-    const { zoomToken, sessionToken } = await request.json();
+    const { zoomToken } = await request.json();
 
     if (!zoomToken || !zoomToken.startsWith('zm:')) {
       return NextResponse.json({ success: false, reason: 'invalid_token', message: 'Token tidak valid' }, { status: 400 });
@@ -69,7 +69,7 @@ export async function POST(request: Request) {
     // 4. Dapatkan zoom info dari Event
     const { data: event, error: eventError } = await supabase
       .from('events')
-      .select('zoom_meeting_link, zoom_session_token, zoom_session_expires_at, zoom_enabled')
+      .select('zoom_meeting_link, zoom_enabled')
       .eq('id', eventId)
       .single();
 
@@ -79,19 +79,6 @@ export async function POST(request: Request) {
 
     if (!event.zoom_enabled) {
       return NextResponse.json({ success: false, reason: 'access_closed', message: 'Sesi Zoom belum dibuka oleh panitia. Silakan tunggu hingga sesi dibuka di hari H.' }, { status: 403 });
-    }
-
-    // 5. Jika sessionToken dikirimkan, validasi session
-    if (sessionToken) {
-      if (!sessionToken.startsWith('zs:')) {
-        return NextResponse.json({ success: false, reason: 'invalid_session', message: 'Session QR tidak valid' }, { status: 400 });
-      }
-      if (sessionToken !== event.zoom_session_token) {
-        return NextResponse.json({ success: false, reason: 'invalid_session', message: 'Session QR salah' }, { status: 400 });
-      }
-      if (event.zoom_session_expires_at && new Date(event.zoom_session_expires_at) < new Date()) {
-        return NextResponse.json({ success: false, reason: 'session_expired', message: 'Session QR sudah kadaluarsa' }, { status: 403 });
-      }
     }
 
     // 6. Optimistic Lock UPDATE (Hanya update jika status masih PENDING)

@@ -61,7 +61,7 @@ export async function POST(req: Request) {
     rpcError = ticketRes.error
     rpcData = ticketRes.data
 
-    // Fallback: if identifier is not a ticket QR token / ticket code,
+    // Fallback 1: If identifier is not a ticket QR token / ticket code,
     // treat it as an order code and check in ALL tickets under that order.
     if (!rpcError && rpcData && rpcData.status === 'NOT_FOUND') {
       const orderRes = await supabaseAdmin.rpc('check_in_order_rpc', {
@@ -74,12 +74,71 @@ export async function POST(req: Request) {
         rpcData = orderRes.data
       }
     }
+
+    // Fallback 2: If still NOT_FOUND, search participants by Name / NIM / Email
+    if (!rpcError && rpcData && rpcData.status === 'NOT_FOUND') {
+      const { data: matchingParticipants } = await supabaseAdmin
+        .from('participants')
+        .select(`
+          id, full_name, nim, faculty, study_program, email,
+          issued_tickets (
+            id, ticket_code, status,
+            ticket_types ( name ),
+            orders ( order_code )
+          )
+        `)
+        .or(`full_name.ilike.%${identifier}%,nim.ilike.%${identifier}%,email.ilike.%${identifier}%`)
+        .limit(10)
+
+      if (matchingParticipants && matchingParticipants.length > 0) {
+        const candidateList: Array<{
+          ticketCode: string
+          fullName: string
+          nim: string
+          faculty: string
+          studyProgram: string
+          email: string
+          ticketTypeName: string
+          orderCode: string
+          status: string
+        }> = []
+
+        for (const p of matchingParticipants) {
+          const tickets = Array.isArray(p.issued_tickets) ? p.issued_tickets : []
+          for (const t of tickets) {
+            candidateList.push({
+              ticketCode: t.ticket_code,
+              fullName: p.full_name || '-',
+              nim: p.nim || '-',
+              faculty: p.faculty || '-',
+              studyProgram: (p as any).study_program || '-',
+              email: p.email || '-',
+              ticketTypeName: (t as any).ticket_types?.name || '-',
+              orderCode: (t as any).orders?.order_code || '-',
+              status: t.status,
+            })
+          }
+        }
+
+        if (candidateList.length >= 1) {
+          return Response.json(
+            {
+              success: true,
+              status: 'MULTIPLE_CANDIDATES',
+              message: `Ditemukan ${candidateList.length} hasil untuk "${identifier}". Silakan konfirmasi data peserta yang ingin di-check-in:`,
+              candidates: candidateList,
+            },
+            { status: 200 }
+          )
+        }
+      }
+    }
   } catch {
     // Fallback if RPC call throws exception or is missing in schema cache
     rpcData = null
   }
 
-  if (!rpcError && rpcData) {
+  if (!rpcError && rpcData && rpcData.status !== 'NOT_FOUND') {
     const statusMap: Record<string, number> = {
       SUCCESS: 200,
       ALREADY_CHECKED_IN: 409,
@@ -91,7 +150,7 @@ export async function POST(req: Request) {
     return Response.json(rpcData, { status: httpStatus })
   }
 
-  // Fallback direct logic if RPC is not present in schema cache
+  // Fallback direct logic if RPC is not present in schema cache or returned NOT_FOUND
   let { data: ticket } = await supabaseAdmin
     .from('issued_tickets')
     .select('id, ticket_code, qr_token, status, participant_id, ticket_type_id, order_id')
@@ -108,30 +167,68 @@ export async function POST(req: Request) {
   }
 
   if (!ticket) {
-    // Fallback: try order-code based check-in directly (all ACTIVE tickets in the order)
-    const orderRes = await supabaseAdmin.rpc('check_in_order_rpc', {
-      p_order_code: identifier,
-      p_checked_in_by: authResult.userId,
-      p_method: 'MANUAL',
-      p_notes: notes,
-    })
-    if (!orderRes.error && orderRes.data && orderRes.data.status !== 'NOT_FOUND') {
-      const orderStatusMap: Record<string, number> = {
-        SUCCESS: 200,
-        ALREADY_CHECKED_IN: 409,
-        TICKET_CANCELLED: 400,
-        NOT_FOUND: 404,
+    // Fallback direct search by name / NIM
+    const { data: matchingParticipants } = await supabaseAdmin
+      .from('participants')
+      .select(`
+        id, full_name, nim, faculty, study_program, email,
+        issued_tickets (
+          id, ticket_code, qr_token, status, participant_id, ticket_type_id, order_id
+        )
+      `)
+      .or(`full_name.ilike.%${identifier}%,nim.ilike.%${identifier}%,email.ilike.%${identifier}%`)
+      .limit(10)
+
+    if (matchingParticipants && matchingParticipants.length >= 1) {
+      const candidateList: Array<{
+        ticketCode: string
+        fullName: string
+        nim: string
+        faculty: string
+        studyProgram: string
+        email: string
+        ticketTypeName: string
+        orderCode: string
+        status: string
+      }> = []
+
+      for (const p of matchingParticipants) {
+        const tickets = Array.isArray(p.issued_tickets) ? p.issued_tickets : []
+        for (const t of tickets) {
+          candidateList.push({
+            ticketCode: t.ticket_code,
+            fullName: p.full_name || '-',
+            nim: p.nim || '-',
+            faculty: p.faculty || '-',
+            studyProgram: (p as any).study_program || '-',
+            email: p.email || '-',
+            ticketTypeName: '-',
+            orderCode: '-',
+            status: t.status,
+          })
+        }
       }
-      const orderHttpStatus = orderStatusMap[orderRes.data.status] || (orderRes.data.success ? 200 : 400)
 
-      return Response.json(orderRes.data, { status: orderHttpStatus })
+      if (candidateList.length >= 1) {
+        return Response.json(
+          {
+            success: true,
+            status: 'MULTIPLE_CANDIDATES',
+            message: `Ditemukan ${candidateList.length} hasil untuk "${identifier}". Silakan konfirmasi data peserta yang ingin di-check-in:`,
+            candidates: candidateList,
+          },
+          { status: 200 }
+        )
+      }
     }
+  }
 
+  if (!ticket) {
     return Response.json(
       {
         success: false,
         status: 'NOT_FOUND',
-        message: 'Tiket atau order tidak ditemukan.',
+        message: 'Tiket, order, atau nama peserta tidak ditemukan.',
       },
       { status: 404 }
     )

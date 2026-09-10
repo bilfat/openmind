@@ -42,14 +42,16 @@ export async function GET() {
     .select('id', { count: 'exact', head: true })
     .in('status', ['ACTIVE', 'CHECKED_IN'])
 
-  // Count total check-ins
+  // Count total check-ins from issued_tickets (status CHECKED_IN covers both offline scan & online Zoom join)
   const { count: totalCheckedIn } = await supabaseAdmin
-    .from('check_ins')
+    .from('issued_tickets')
     .select('id', { count: 'exact', head: true })
+    .eq('status', 'CHECKED_IN')
 
   const issued = totalIssued || 0
   const checkedIn = totalCheckedIn || 0
-  const attendanceRate = issued > 0 ? Math.round((checkedIn / issued) * 100) : 0
+  const rawRate = issued > 0 ? (checkedIn / issued) * 100 : 0
+  const attendanceRate = rawRate > 0 && rawRate < 1 ? Number(rawRate.toFixed(1)) : Math.round(rawRate)
 
   return Response.json(
     {

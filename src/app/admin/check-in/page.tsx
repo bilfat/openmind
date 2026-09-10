@@ -67,6 +67,18 @@ interface OrderCheckInTicket {
   checkedInAt?: string | null;
 }
 
+interface CandidateParticipant {
+  ticketCode: string;
+  fullName: string;
+  nim: string;
+  faculty: string;
+  studyProgram?: string;
+  email: string;
+  ticketTypeName: string;
+  orderCode: string;
+  status: string;
+}
+
 interface ScanResponseData {
   checkInId?: string;
   checkedInAt?: string;
@@ -78,6 +90,7 @@ interface ScanResponseData {
   checkedInCount?: number;
   alreadyCheckedInCount?: number;
   tickets?: OrderCheckInTicket[];
+  candidates?: CandidateParticipant[];
 }
 
 type ScanStatus =
@@ -85,6 +98,7 @@ type ScanStatus =
   | "ALREADY_CHECKED_IN"
   | "NOT_FOUND"
   | "TICKET_CANCELLED"
+  | "MULTIPLE_CANDIDATES"
   | "ERROR";
 
 const LIST_PAGE_SIZE = 10;
@@ -248,24 +262,8 @@ export default function AdminCheckInPage() {
 
   // Initial statistics fetch on page mount + realtime subscription
   useEffect(() => {
-    let mounted = true;
-    fetch("/api/admin/check-in/stats")
-      .then((res) => {
-        if (!res.ok) throw new Error("Stats fetch failed");
-        return res.json();
-      })
-      .then((json) => {
-        if (mounted && json.success && json.data) {
-          setStats(mapStatsApiResponse(json.data));
-        }
-      })
-      .catch((err) => {
-        console.error("Gagal memuat statistik check-in:", err);
-      });
-    return () => {
-      mounted = false;
-    };
-  }, []);
+    fetchStats();
+  }, [fetchStats]);
 
   // Subscribe to Supabase Realtime channel on check_ins table
   // (statistics & participant list updates come through this channel)
@@ -366,6 +364,17 @@ export default function AdminCheckInPage() {
       const json = await res.json();
 
       if (res.ok && json.success) {
+        if (json.status === "MULTIPLE_CANDIDATES") {
+          playBeep(false);
+          setScanResult({
+            status: "MULTIPLE_CANDIDATES",
+            message: json.message || "Ditemukan beberapa peserta yang sesuai.",
+            data: { candidates: json.candidates },
+          });
+          lastScanTimeRef.current = now;
+          return;
+        }
+
         playBeep(true);
         setScanResult({
           status: "SUCCESS",
@@ -654,30 +663,45 @@ export default function AdminCheckInPage() {
         </button>
       </div>
 
-      {/* Realtime Attendance Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <div className="rounded-2xl border border-border bg-white p-4 shadow-sm">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Total Peserta Terdaftar</span>
-          <p className="font-display text-2xl font-black text-navy-900 mt-1">
+      {/* Realtime Attendance Cards (2x2 Grid on Mobile, 4-Cols on Desktop) */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+        {/* Card 1: Total Peserta */}
+        <div className="rounded-2xl border border-border bg-white p-3 sm:p-4 shadow-sm">
+          <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-muted-foreground block truncate">
+            Total Peserta
+          </span>
+          <p className="font-display text-lg sm:text-2xl font-black text-navy-900 mt-1">
             {loadingStats ? "..." : stats.totalParticipants}
           </p>
         </div>
-        <div className="rounded-2xl border border-emerald-500/30 bg-emerald-950 text-white p-4 shadow-sm">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">Peserta Sudah Check-In</span>
-          <p className="font-display text-2xl font-black text-emerald-400 mt-1">
+
+        {/* Card 2: Sudah Check-In */}
+        <div className="rounded-2xl border border-emerald-500/30 bg-emerald-950 text-white p-3 sm:p-4 shadow-sm">
+          <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-emerald-400 block truncate">
+            Sudah Check-In
+          </span>
+          <p className="font-display text-lg sm:text-2xl font-black text-emerald-400 mt-1">
             {loadingStats ? "..." : stats.totalCheckedIn}
           </p>
         </div>
-        <div className="rounded-2xl border border-border bg-white p-4 shadow-sm">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Peserta Belum Hadir</span>
-          <p className="font-display text-2xl font-black text-amber-600 mt-1">
-            {loadingStats ? "..." : stats.remainingParticipants}
+
+        {/* Card 3: Tingkat Kehadiran */}
+        <div className="rounded-2xl border border-gold-500/30 bg-navy-950 text-ivory-100 p-3 sm:p-4 shadow-sm">
+          <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-gold-400 block truncate">
+            Tingkat Kehadiran
+          </span>
+          <p className="font-display text-lg sm:text-2xl font-black text-gold-400 mt-1">
+            {loadingStats ? "..." : `${stats.attendancePercentage}%`}
           </p>
         </div>
-        <div className="rounded-2xl border border-gold-500/30 bg-navy-950 text-ivory-100 p-4 shadow-sm">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-gold-400">Tingkat Kehadiran</span>
-          <p className="font-display text-2xl font-black text-gold-400 mt-1">
-            {loadingStats ? "..." : `${stats.attendancePercentage}%`}
+
+        {/* Card 4: Belum Check-In */}
+        <div className="rounded-2xl border border-border bg-white p-3 sm:p-4 shadow-sm">
+          <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-muted-foreground block truncate">
+            Belum Check-In
+          </span>
+          <p className="font-display text-lg sm:text-2xl font-black text-amber-600 mt-1">
+            {loadingStats ? "..." : stats.remainingParticipants}
           </p>
         </div>
       </div>
@@ -776,21 +800,23 @@ export default function AdminCheckInPage() {
           <div className="rounded-3xl border border-border bg-white p-6 shadow-sm space-y-4">
             <div className="flex items-center gap-2 border-b border-border pb-3">
               <Search className="h-4 w-4 text-gold-600" />
-              <h3 className="font-display text-base font-bold text-navy-900">Manual Ticket / ID Order</h3>
+              <h3 className="font-display text-base font-bold text-navy-900">Check-In Manual / Cari Nama</h3>
             </div>
 
             <form onSubmit={handleManualSubmit} className="space-y-3">
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-navy-900 mb-1">ID Order / Kode Tiket / QR Token *</label>
+                <label className="block text-xs font-bold uppercase tracking-wider text-navy-900 mb-1">
+                  Nama Peserta / NIM / ID Order / Kode Tiket *
+                </label>
                 <input
                   type="text"
-                  placeholder="Contoh: OM26-XXXXXX (ID Order) / TKT-OM26-XXXXXX (Kode Tiket)"
+                  placeholder="Ketik Nama Peserta (misal: Ahmad), NIM, ID Order, atau Kode Tiket..."
                   value={manualInput}
                   onChange={(e) => setManualInput(e.target.value)}
-                  className="w-full rounded-xl border bg-secondary/20 px-3.5 py-2.5 text-sm"
+                  className="w-full rounded-xl border bg-secondary/20 px-3.5 py-2.5 text-sm focus:border-gold-500 focus:bg-white focus:outline-none"
                 />
                 <p className="text-[10px] text-muted-foreground mt-1.5">
-                  Jika memakai ID Order, seluruh tiket aktif pada order tersebut akan di-check-in sekaligus.
+                  Anda dapat mengetik Nama Peserta, NIM, ID Order (OM26-X), atau Kode Tiket (OMT-X).
                 </p>
               </div>
 
@@ -799,7 +825,7 @@ export default function AdminCheckInPage() {
                 disabled={isSubmittingManual || !manualInput.trim()}
                 className="w-full rounded-xl bg-navy-900 py-3 text-xs font-bold text-white hover:bg-navy-800 disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                {isSubmittingManual ? <Loader2 className="h-4 w-4 animate-spin" /> : "Proses Check-In Manual"}
+                {isSubmittingManual ? <Loader2 className="h-4 w-4 animate-spin" /> : "Cari & Check-In Manual"}
               </button>
             </form>
           </div>
@@ -811,6 +837,7 @@ export default function AdminCheckInPage() {
                 "rounded-3xl p-6 shadow-lg border space-y-4 animate-fade-in",
                 scanResult.status === "SUCCESS" && "bg-emerald-950 text-white border-emerald-500/40",
                 scanResult.status === "ALREADY_CHECKED_IN" && "bg-amber-950 text-white border-amber-500/40",
+                scanResult.status === "MULTIPLE_CANDIDATES" && "bg-navy-950 text-white border-gold-500/40",
                 scanResult.status === "NOT_FOUND" && "bg-rose-950 text-white border-rose-500/40",
                 scanResult.status === "TICKET_CANCELLED" && "bg-rose-950 text-white border-rose-500/40",
                 scanResult.status === "ERROR" && "bg-rose-950 text-white border-rose-500/40"
@@ -819,6 +846,7 @@ export default function AdminCheckInPage() {
               <div className="flex items-center gap-3">
                 {scanResult.status === "SUCCESS" && <CheckCircle2 className="h-8 w-8 text-emerald-400 shrink-0" />}
                 {scanResult.status === "ALREADY_CHECKED_IN" && <AlertTriangle className="h-8 w-8 text-amber-400 shrink-0" />}
+                {scanResult.status === "MULTIPLE_CANDIDATES" && <Search className="h-8 w-8 text-gold-400 shrink-0" />}
                 {(scanResult.status === "NOT_FOUND" || scanResult.status === "TICKET_CANCELLED" || scanResult.status === "ERROR") && (
                   <XCircle className="h-8 w-8 text-rose-400 shrink-0" />
                 )}
@@ -828,6 +856,41 @@ export default function AdminCheckInPage() {
                   <h4 className="font-display text-base font-bold">{scanResult.message}</h4>
                 </div>
               </div>
+
+              {/* Multiple Candidates Result */}
+              {scanResult.status === "MULTIPLE_CANDIDATES" && scanResult.data?.candidates && (
+                <div className="rounded-2xl bg-black/40 p-4 text-xs space-y-3 border border-gold-500/30">
+                  <p className="text-[11px] font-semibold text-gold-300">
+                    Klik tombol <strong>Check-In Peserta Ini</strong> pada nama yang sesuai:
+                  </p>
+                  <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                    {scanResult.data.candidates.map((c) => (
+                      <div key={c.ticketCode} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-xl bg-navy-900 border border-navy-800">
+                        <div className="space-y-0.5">
+                          <p className="font-bold text-white text-xs">{c.fullName}</p>
+                          <p className="text-[10px] text-ivory-200/70">
+                            NIM: {c.nim} · {c.studyProgram && c.studyProgram !== "-" ? `${c.studyProgram} (${c.faculty})` : c.faculty}
+                          </p>
+                          <p className="text-[10px] text-gold-400 font-mono">{c.ticketCode} · {c.ticketTypeName}</p>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={c.status === "CHECKED_IN"}
+                          onClick={() => submitCheckIn(c.ticketCode, "MANUAL")}
+                          className={cn(
+                            "rounded-xl px-3.5 py-2 text-xs font-bold transition shrink-0 self-start sm:self-center",
+                            c.status === "CHECKED_IN"
+                              ? "bg-amber-500/20 text-amber-300 cursor-not-allowed"
+                              : "bg-emerald-500 text-navy-950 hover:bg-emerald-400 active:scale-95 shadow-sm"
+                          )}
+                        >
+                          {c.status === "CHECKED_IN" ? "Sudah Hadir" : "Check-In Peserta Ini"}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Order-based check-in result */}
               {scanResult.data?.orderCode && (
@@ -1031,12 +1094,20 @@ export default function AdminCheckInPage() {
                     <td className="px-5 py-4 text-muted-foreground whitespace-nowrap">
                       {row.checkIn ? (
                         <span>
-                          <span className="block">
+                          <span className="block font-medium text-navy-900">
                             {new Date(row.checkIn.checked_in_at).toLocaleString("id-ID", { dateStyle: "short", timeStyle: "short" })}
                           </span>
-                          {row.checkIn.profiles?.full_name && (
+                          {row.checkIn.method === "ZOOM_JOIN" ? (
+                            <span className="text-[10px] text-blue-600 block font-semibold">
+                              Online (Join Zoom)
+                            </span>
+                          ) : row.checkIn.profiles?.full_name ? (
                             <span className="text-[10px] text-gold-600 block font-semibold">
                               {row.checkIn.method === "MANUAL" ? "Manual" : "Scan"} oleh {row.checkIn.profiles.full_name}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-emerald-600 block font-semibold">
+                              Check-In Berhasil
                             </span>
                           )}
                         </span>

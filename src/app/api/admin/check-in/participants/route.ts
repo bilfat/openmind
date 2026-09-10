@@ -24,7 +24,7 @@ async function handleGetParticipants(request: Request) {
     let query = supabase
       .from('issued_tickets')
       .select(
-        `id, ticket_code, status, issued_at,
+        `id, ticket_code, status, issued_at, updated_at, zoom_used_at, zoom_token,
          participants(id, full_name, nim, faculty, email),
          orders(order_code),
          ticket_types(name),
@@ -74,6 +74,30 @@ async function handleGetParticipants(request: Request) {
 
     const items = (data ?? []).map((ticket: any) => {
       const checkIns = Array.isArray(ticket.check_ins) ? ticket.check_ins : []
+      let checkIn = checkIns.length > 0 ? checkIns[0] : null
+
+      // Fallback 1: Online Zoom participant timestamp if zoom_used_at is present
+      if (!checkIn && ticket.zoom_used_at) {
+        checkIn = {
+          id: `zoom-${ticket.id}`,
+          checked_in_at: ticket.zoom_used_at,
+          method: 'ZOOM_JOIN',
+          checked_in_by: null,
+          profiles: null,
+        }
+      }
+
+      // Fallback 2: If status is CHECKED_IN but check_ins record is missing (e.g. status changed in DB/admin), use updated_at or issued_at
+      if (!checkIn && ticket.status === 'CHECKED_IN') {
+        checkIn = {
+          id: `checkedin-${ticket.id}`,
+          checked_in_at: ticket.updated_at || ticket.issued_at,
+          method: ticket.zoom_token ? 'ZOOM_JOIN' : 'MANUAL',
+          checked_in_by: null,
+          profiles: null,
+        }
+      }
+
       return {
         id: ticket.id,
         ticketCode: ticket.ticket_code,
@@ -82,8 +106,8 @@ async function handleGetParticipants(request: Request) {
         participant: ticket.participants ?? null,
         order: ticket.orders ?? null,
         ticketTypeName: ticket.ticket_types?.name ?? '-',
-        checkIn: checkIns.length > 0 ? checkIns[0] : null,
-        isCheckedIn: ticket.status === 'CHECKED_IN' || checkIns.length > 0,
+        checkIn,
+        isCheckedIn: ticket.status === 'CHECKED_IN' || checkIns.length > 0 || !!ticket.zoom_used_at,
       }
     })
 

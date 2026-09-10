@@ -252,29 +252,29 @@ function ParticipantsPageContent() {
                       "hover:bg-secondary/50"
                     )}
                   >
-                    <td className="px-5 py-4 font-mono font-bold text-navy-900 whitespace-nowrap text-center border-b border-border/70">
+                    <td className="px-5 py-4 font-mono font-bold text-navy-950 whitespace-nowrap text-center border-b border-border/70">
                       {(pagination.page - 1) * pagination.limit + index + 1}
                     </td>
-                    <td className="px-5 py-4 font-mono whitespace-nowrap border-b border-border/70 border-l border-border/70">
+                    <td className="px-5 py-4 font-mono font-bold text-navy-950 whitespace-nowrap border-b border-border/70 border-l border-border/70">
                       {participant.orders.map((order) => order.order?.order_code ?? "-").join(", ")}
                     </td>
                     <td className="px-5 py-4 border-b border-border/70 border-l border-border/70">
-                      <strong className="block text-navy-900 font-bold">{participant.full_name}</strong>
+                      <strong className="block text-navy-950 font-bold">{participant.full_name}</strong>
                     </td>
-                    <td className="px-5 py-4 whitespace-nowrap border-b border-border/70 border-l border-border/70">
-                      {participant.nim}
+                    <td className="px-5 py-4 font-mono font-semibold text-slate-800 whitespace-nowrap border-b border-border/70 border-l border-border/70">
+                      {participant.nim || "-"}
                     </td>
-                    <td className="px-5 py-4 border-b border-border/70 border-l border-border/70">
-                      {participant.faculty}
+                    <td className="px-5 py-4 text-slate-800 font-medium border-b border-border/70 border-l border-border/70">
+                      {participant.faculty || "-"}
                     </td>
-                    <td className="px-5 py-4 border-b border-border/70 border-l border-border/70">
-                      {participant.study_program}
+                    <td className="px-5 py-4 text-slate-800 font-medium border-b border-border/70 border-l border-border/70">
+                      {participant.study_program || "-"}
                     </td>
-                    <td className="px-5 py-4 border-b border-border/70 border-l border-border/70">
-                      {participant.email}
+                    <td className="px-5 py-4 text-slate-700 font-mono text-[11px] border-b border-border/70 border-l border-border/70">
+                      {participant.email || "-"}
                     </td>
-                    <td className="px-5 py-4 whitespace-nowrap border-b border-border/70 border-l border-border/70">
-                      {participant.whatsapp}
+                    <td className="px-5 py-4 font-mono text-slate-800 font-medium whitespace-nowrap border-b border-border/70 border-l border-border/70">
+                      {participant.whatsapp || "-"}
                     </td>
                     <td className="px-5 py-4 whitespace-nowrap border-b border-border/70 border-l border-border/70">
                       {participant.is_present ? (

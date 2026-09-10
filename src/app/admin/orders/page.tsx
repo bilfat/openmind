@@ -874,20 +874,20 @@ function OrdersPageContent() {
                               </span>
                             )}
                           </td>
-                          <td className="px-5 py-4 whitespace-nowrap border-b border-border/70 border-l border-border/70">
-                            {ticket.nim}
+                          <td className="px-5 py-4 font-mono font-semibold text-slate-800 whitespace-nowrap border-b border-border/70 border-l border-border/70">
+                            {ticket.nim || "-"}
                           </td>
                           <td className="px-5 py-4 max-w-[200px] border-b border-border/70 border-l border-border/70">
-                            <span className="text-navy-900 font-medium block truncate">
+                            <span className="text-navy-950 font-bold block truncate">
                               {ticket.studyProgram}
                             </span>
-                            <span className="text-[10px] text-muted-foreground truncate block">
+                            <span className="text-[10px] text-slate-600 font-medium truncate block">
                               {ticket.faculty}
                             </span>
                           </td>
                           <td className="px-5 py-4 whitespace-nowrap border-b border-border/70 border-l border-border/70">
                             <div className="flex flex-col gap-1">
-                              <span className="font-bold text-gold-600">
+                              <span className="font-bold text-navy-950">
                                 {ticket.ticketName}
                               </span>
                               {ticket.hasOnlineTicket ? (
@@ -1027,7 +1027,7 @@ function OrdersPageContent() {
                     </td>
                     <td className="px-5 py-4 whitespace-nowrap border-b border-border/70 border-l border-border/70">
                       <div className="flex flex-col gap-1">
-                        <span className="font-bold text-gold-600">
+                        <span className="font-bold text-navy-950">
                           {order.ticketName}
                         </span>
                         <div className="flex items-center gap-1.5 flex-wrap">

@@ -31,7 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       lang="en"
       className={`${fontSans.variable} ${fontDisplay.variable} h-full antialiased dark`}
     >
-      <body className="min-h-full flex flex-col font-sans bg-navy-950 text-ivory-100">
+      <body className="min-h-full flex flex-col font-sans">
         <GlobalLoader />
         {children}
       </body>

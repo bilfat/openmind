@@ -280,7 +280,7 @@ function StatCard({
       {href && !onAction && (
         <Link
           href={href}
-          className="mt-3 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-gold-600 hover:text-gold-500 hover:underline"
+          className="mt-3 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-[#856218] hover:text-gold-600 hover:underline"
         >
           Lihat Detail
           <ArrowRight className="h-3 w-3" />
@@ -290,7 +290,7 @@ function StatCard({
         <button
           type="button"
           onClick={onAction}
-          className="mt-3 inline-flex items-center gap-1 self-start text-[10px] font-bold uppercase tracking-wide text-gold-600 hover:text-gold-500 hover:underline cursor-pointer"
+          className="mt-3 inline-flex items-center gap-1 self-start text-[10px] font-bold uppercase tracking-wide text-[#856218] hover:text-gold-600 hover:underline cursor-pointer"
         >
           Lihat Detail
           <ArrowRight className="h-3 w-3" />
@@ -341,7 +341,7 @@ function SummaryCard({
       {href && (
         <Link
           href={href}
-          className="mt-2 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-gold-600 hover:text-gold-500 hover:underline"
+          className="mt-2 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-[#856218] hover:text-gold-600 hover:underline"
         >
           Lihat Semua
           <ArrowRight className="h-3 w-3" />
@@ -385,7 +385,7 @@ function OrderRow({
       >
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-1.5">
-            <span className="truncate font-mono text-[10px] font-bold text-gold-600 sm:text-[11px]">
+            <span className="truncate font-mono text-[10px] font-bold text-navy-950 sm:text-[11px]">
               {order.order_code}
             </span>
             <span className={cn("h-1.5 w-1.5 flex-shrink-0 rounded-full", dot.cls)} />

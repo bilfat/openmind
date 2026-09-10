@@ -421,7 +421,7 @@ export default function WalkInPage() {
                       placeholder="Masukkan nama lengkap"
                       value={p.fullName}
                       onChange={(e) => handleParticipantChange(index, "fullName", e.target.value)}
-                      className="w-full rounded-xl border bg-secondary/20 px-3.5 py-2.5 text-sm"
+                      className="w-full rounded-xl border border-border bg-white text-navy-950 font-medium placeholder:text-slate-400 px-3.5 py-2.5 text-sm focus:border-gold-500 focus:outline-none focus:ring-2 focus:ring-gold-500/20"
                     />
                   </div>
 
@@ -434,7 +434,7 @@ export default function WalkInPage() {
                         placeholder="6706220014"
                         value={p.nim}
                         onChange={(e) => handleParticipantChange(index, "nim", e.target.value)}
-                        className="w-full rounded-xl border bg-secondary/20 px-3.5 py-2.5 text-sm"
+                        className="w-full rounded-xl border border-border bg-white text-navy-950 font-medium placeholder:text-slate-400 px-3.5 py-2.5 text-sm focus:border-gold-500 focus:outline-none focus:ring-2 focus:ring-gold-500/20"
                       />
                     </div>
                     <div>
@@ -445,7 +445,7 @@ export default function WalkInPage() {
                         placeholder="email@domain.com"
                         value={p.email}
                         onChange={(e) => handleParticipantChange(index, "email", e.target.value)}
-                        className="w-full rounded-xl border bg-secondary/20 px-3.5 py-2.5 text-sm"
+                        className="w-full rounded-xl border border-border bg-white text-navy-950 font-medium placeholder:text-slate-400 px-3.5 py-2.5 text-sm focus:border-gold-500 focus:outline-none focus:ring-2 focus:ring-gold-500/20"
                       />
                     </div>
                   </div>
@@ -459,7 +459,7 @@ export default function WalkInPage() {
                         placeholder="08123456789"
                         value={p.whatsapp}
                         onChange={(e) => handleParticipantChange(index, "whatsapp", e.target.value)}
-                        className="w-full rounded-xl border bg-secondary/20 px-3.5 py-2.5 text-sm"
+                        className="w-full rounded-xl border border-border bg-white text-navy-950 font-medium placeholder:text-slate-400 px-3.5 py-2.5 text-sm focus:border-gold-500 focus:outline-none focus:ring-2 focus:ring-gold-500/20"
                       />
                     </div>
                     <div>
@@ -467,7 +467,7 @@ export default function WalkInPage() {
                       <select
                         value={p.faculty}
                         onChange={(e) => handleParticipantChange(index, "faculty", e.target.value)}
-                        className="w-full rounded-xl border bg-secondary/20 px-3.5 py-2.5 text-sm"
+                        className="w-full rounded-xl border border-border bg-white text-navy-950 font-medium px-3.5 py-2.5 text-sm focus:border-gold-500 focus:outline-none focus:ring-2 focus:ring-gold-500/20"
                       >
                         {faculties.map((f) => (
                           <option key={f} value={f}>{f}</option>
@@ -484,7 +484,7 @@ export default function WalkInPage() {
                       placeholder="D3 Sistem Informasi"
                       value={p.studyProgram}
                       onChange={(e) => handleParticipantChange(index, "studyProgram", e.target.value)}
-                      className="w-full rounded-xl border bg-secondary/20 px-3.5 py-2.5 text-sm"
+                      className="w-full rounded-xl border border-border bg-white text-navy-950 font-medium placeholder:text-slate-400 px-3.5 py-2.5 text-sm focus:border-gold-500 focus:outline-none focus:ring-2 focus:ring-gold-500/20"
                     />
                   </div>
                 </div>

@@ -289,6 +289,8 @@ function TiketPageContent() {
     performSearch(searchQuery);
   };
 
+  const tabIndex = activeTab === "catalog" ? 0 : activeTab === "check" ? 1 : 2;
+
   return (
     <div className="pt-24 pb-20 bg-navy-950 min-h-[calc(100vh-4rem)] flex flex-col justify-between">
       {/* ================= PAGE HEADER (Dark Cinematic) ================= */}
@@ -329,77 +331,64 @@ function TiketPageContent() {
             Dapatkan tiket seminar eksklusif Anda atau lacak status pesanan dan E-Ticket digital yang sudah dibeli.
           </motion.p>
 
-          {/* Glass Tab Switcher */}
+          {/* Glass Tab Switcher (Pure GPU Accelerated) */}
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.3 }}
             className="mt-8 flex items-center justify-center px-1"
           >
-            <LayoutGroup id="ticket-tab-group">
-              <div className="grid grid-cols-3 w-full max-w-xl rounded-full border border-white/15 bg-white/10 p-1 sm:p-1.5 shadow-xl backdrop-blur-md">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("catalog")}
-                  className={cn(
-                    "relative flex items-center justify-center gap-1 sm:gap-2 rounded-full px-1 py-2 text-[10px] min-[400px]:text-[11px] sm:px-5 sm:py-2.5 sm:text-sm font-bold transition-colors duration-300 min-w-0 touch-manipulation",
-                    activeTab === "catalog" ? "text-navy-950" : "text-ivory-200/80 hover:text-ivory-100"
-                  )}
-                >
-                  {activeTab === "catalog" && (
-                    <motion.span
-                      layoutId="ticket-tab-pill"
-                      className="absolute inset-0 rounded-full bg-gold-500 shadow-md shadow-gold-500/40 transform-gpu will-change-transform"
-                      transition={{ type: "spring", stiffness: 450, damping: 35, mass: 0.5 }}
-                    />
-                  )}
-                  <Ticket className="relative z-10 h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
-                  <span className="relative z-10 truncate">
-                    Pesan Tiket<span className="hidden min-[380px]:inline"> Baru</span>
-                  </span>
-                </button>
+            <div className="relative grid grid-cols-3 w-full max-w-xl rounded-full border border-white/15 bg-white/10 p-1 sm:p-1.5 shadow-xl backdrop-blur-md overflow-hidden">
+              {/* Pure GPU Accelerated Sliding Background Pill */}
+              <div
+                className="absolute top-1 bottom-1 sm:top-1.5 sm:bottom-1.5 rounded-full bg-gold-500 shadow-md shadow-gold-500/40 transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] transform-gpu pointer-events-none"
+                style={{
+                  width: "calc((100% - 8px) / 3)",
+                  left: "4px",
+                  transform: `translateX(calc(${tabIndex} * 100%))`,
+                }}
+              />
 
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("check")}
-                  className={cn(
-                    "relative flex items-center justify-center gap-1 sm:gap-2 rounded-full px-1 py-2 text-[10px] min-[400px]:text-[11px] sm:px-5 sm:py-2.5 sm:text-sm font-bold transition-colors duration-300 min-w-0 touch-manipulation",
-                    activeTab === "check" ? "text-navy-950" : "text-ivory-200/80 hover:text-ivory-100"
-                  )}
-                >
-                  {activeTab === "check" && (
-                    <motion.span
-                      layoutId="ticket-tab-pill"
-                      className="absolute inset-0 rounded-full bg-gold-500 shadow-md shadow-gold-500/40 transform-gpu will-change-transform"
-                      transition={{ type: "spring", stiffness: 450, damping: 35, mass: 0.5 }}
-                    />
-                  )}
-                  <Search className="relative z-10 h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
-                  <span className="relative z-10 truncate">
-                    Cek Status<span className="hidden min-[400px]:inline"> & E-Ticket</span>
-                  </span>
-                </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("catalog")}
+                className={cn(
+                  "relative z-10 flex items-center justify-center gap-1 sm:gap-2 rounded-full px-1 py-2 text-[10px] min-[400px]:text-[11px] sm:px-5 sm:py-2.5 sm:text-sm font-bold transition-colors duration-200 min-w-0 touch-manipulation",
+                  activeTab === "catalog" ? "text-navy-950" : "text-ivory-200/80 hover:text-ivory-100"
+                )}
+              >
+                <Ticket className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+                <span className="truncate">
+                  Pesan Tiket<span className="hidden min-[380px]:inline"> Baru</span>
+                </span>
+              </button>
 
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("referral")}
-                  className={cn(
-                    "relative flex items-center justify-center gap-1 sm:gap-2 rounded-full px-1 py-2 text-[10px] min-[400px]:text-[11px] sm:px-5 sm:py-2.5 sm:text-sm font-bold transition-colors duration-300 min-w-0 touch-manipulation",
-                    activeTab === "referral" ? "text-navy-950" : "text-ivory-200/80 hover:text-ivory-100"
-                  )}
-                >
-                  {activeTab === "referral" && (
-                    <motion.span
-                      layoutId="ticket-tab-pill"
-                      className="absolute inset-0 rounded-full bg-gold-500 shadow-md shadow-gold-500/40 transform-gpu will-change-transform"
-                      transition={{ type: "spring", stiffness: 450, damping: 35, mass: 0.5 }}
-                    />
-                  )}
-                  <Gift className="relative z-10 h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
-                  <span className="relative z-10 truncate">Kode Referal</span>
-                </button>
-              </div>
-            </LayoutGroup>
+              <button
+                type="button"
+                onClick={() => setActiveTab("check")}
+                className={cn(
+                  "relative z-10 flex items-center justify-center gap-1 sm:gap-2 rounded-full px-1 py-2 text-[10px] min-[400px]:text-[11px] sm:px-5 sm:py-2.5 sm:text-sm font-bold transition-colors duration-200 min-w-0 touch-manipulation",
+                  activeTab === "check" ? "text-navy-950" : "text-ivory-200/80 hover:text-ivory-100"
+                )}
+              >
+                <Search className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+                <span className="truncate">
+                  Cek Status<span className="hidden min-[400px]:inline"> & E-Ticket</span>
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab("referral")}
+                className={cn(
+                  "relative z-10 flex items-center justify-center gap-1 sm:gap-2 rounded-full px-1 py-2 text-[10px] min-[400px]:text-[11px] sm:px-5 sm:py-2.5 sm:text-sm font-bold transition-colors duration-200 min-w-0 touch-manipulation",
+                  activeTab === "referral" ? "text-navy-950" : "text-ivory-200/80 hover:text-ivory-100"
+                )}
+              >
+                <Gift className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+                <span className="truncate">Kode Referal</span>
+              </button>
+            </div>
           </motion.div>
         </div>
       </section>

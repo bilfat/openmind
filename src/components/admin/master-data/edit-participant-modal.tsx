@@ -101,7 +101,7 @@ export function EditParticipantModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="relative w-full max-w-xl bg-white rounded-3xl shadow-2xl border border-navy-700/20 overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 bg-navy-900 text-white">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 bg-navy-900 text-white">
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-gold-500/20 text-gold-400">
               <User className="h-5 w-5" />
@@ -121,122 +121,122 @@ export function EditParticipantModal({
         </div>
 
         {/* Notice */}
-        <div className="bg-amber-500/10 border-b border-amber-500/20 px-6 py-2.5 flex items-center gap-2 text-xs font-semibold text-amber-800">
+        <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 sm:px-6 py-2 sm:py-2.5 flex items-center gap-2 text-[10px] sm:text-xs font-semibold text-amber-800">
           <ShieldAlert className="h-4 w-4 text-amber-600 flex-shrink-0" />
-          <span>Pengubahan data ini akan berdampak ke semua tiket, check-in, dan e-ticket peserta.</span>
+          <span className="leading-tight">Pengubahan data berdampak ke semua tiket & check-in.</span>
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-4 flex-1">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 overflow-y-auto space-y-3 sm:space-y-4 flex-1">
           {errorMsg && (
             <div className="p-3.5 rounded-2xl bg-burgundy-50 border border-burgundy-200 text-xs font-semibold text-burgundy-700">
               {errorMsg}
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4">
             {/* Nama Lengkap */}
-            <div className="sm:col-span-2 space-y-1.5">
-              <label className="block text-xs font-bold text-navy-900">
+            <div className="col-span-2 sm:col-span-1 space-y-1 sm:space-y-1.5">
+              <label className="block text-[10px] sm:text-xs font-bold text-navy-900">
                 Nama Lengkap <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
-                <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-navy-900/40" />
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 text-navy-900/40" />
                 <input
                   type="text"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   placeholder="Contoh: Budi Santoso"
-                  className="w-full rounded-xl border border-border bg-secondary/10 py-2.5 pl-10 pr-4 text-xs font-semibold text-navy-900 focus:border-gold-500 focus:bg-white focus:outline-none"
+                  className="w-full rounded-xl border border-border bg-secondary/10 py-2 sm:py-2.5 pl-9 sm:pl-10 pr-3 sm:pr-4 text-[11px] sm:text-xs font-semibold text-navy-900 focus:border-gold-500 focus:bg-white focus:outline-none"
                   required
                 />
               </div>
             </div>
 
             {/* Email */}
-            <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-navy-900">
+            <div className="space-y-1 sm:space-y-1.5">
+              <label className="block text-[10px] sm:text-xs font-bold text-navy-900">
                 Email / Gmail <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
-                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-navy-900/40" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 text-navy-900/40" />
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="budi@gmail.com"
-                  className="w-full rounded-xl border border-border bg-secondary/10 py-2.5 pl-10 pr-4 text-xs font-semibold text-navy-900 focus:border-gold-500 focus:bg-white focus:outline-none"
+                  className="w-full rounded-xl border border-border bg-secondary/10 py-2 sm:py-2.5 pl-9 sm:pl-10 pr-3 sm:pr-4 text-[11px] sm:text-xs font-semibold text-navy-900 focus:border-gold-500 focus:bg-white focus:outline-none"
                   required
                 />
               </div>
             </div>
 
             {/* WhatsApp */}
-            <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-navy-900">
+            <div className="space-y-1 sm:space-y-1.5">
+              <label className="block text-[10px] sm:text-xs font-bold text-navy-900">
                 No. WhatsApp <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
-                <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-navy-900/40" />
+                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 text-navy-900/40" />
                 <input
                   type="text"
                   value={whatsapp}
                   onChange={(e) => setWhatsapp(e.target.value)}
-                  placeholder="08123456789"
-                  className="w-full rounded-xl border border-border bg-secondary/10 py-2.5 pl-10 pr-4 text-xs font-semibold text-navy-900 focus:border-gold-500 focus:bg-white focus:outline-none"
+                  placeholder="0812..."
+                  className="w-full rounded-xl border border-border bg-secondary/10 py-2 sm:py-2.5 pl-9 sm:pl-10 pr-3 sm:pr-4 text-[11px] sm:text-xs font-semibold text-navy-900 focus:border-gold-500 focus:bg-white focus:outline-none"
                   required
                 />
               </div>
             </div>
 
             {/* NIM */}
-            <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-navy-900">NIM</label>
+            <div className="space-y-1 sm:space-y-1.5">
+              <label className="block text-[10px] sm:text-xs font-bold text-navy-900">NIM</label>
               <div className="relative">
-                <BookOpen className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-navy-900/40" />
+                <BookOpen className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 text-navy-900/40" />
                 <input
                   type="text"
                   value={nim}
                   onChange={(e) => setNim(e.target.value)}
-                  placeholder="670123456"
-                  className="w-full rounded-xl border border-border bg-secondary/10 py-2.5 pl-10 pr-4 text-xs font-semibold text-navy-900 focus:border-gold-500 focus:bg-white focus:outline-none"
+                  placeholder="6701..."
+                  className="w-full rounded-xl border border-border bg-secondary/10 py-2 sm:py-2.5 pl-9 sm:pl-10 pr-3 sm:pr-4 text-[11px] sm:text-xs font-semibold text-navy-900 focus:border-gold-500 focus:bg-white focus:outline-none"
                 />
               </div>
             </div>
 
             {/* Fakultas */}
-            <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-navy-900">Fakultas</label>
+            <div className="space-y-1 sm:space-y-1.5">
+              <label className="block text-[10px] sm:text-xs font-bold text-navy-900">Fakultas</label>
               <div className="relative">
-                <GraduationCap className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-navy-900/40" />
+                <GraduationCap className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 text-navy-900/40" />
                 <input
                   type="text"
                   value={faculty}
                   onChange={(e) => setFaculty(e.target.value)}
-                  placeholder="Fakultas Ilmu Terapan"
-                  className="w-full rounded-xl border border-border bg-secondary/10 py-2.5 pl-10 pr-4 text-xs font-semibold text-navy-900 focus:border-gold-500 focus:bg-white focus:outline-none"
+                  placeholder="Ilmu Terapan"
+                  className="w-full rounded-xl border border-border bg-secondary/10 py-2 sm:py-2.5 pl-9 sm:pl-10 pr-3 sm:pr-4 text-[11px] sm:text-xs font-semibold text-navy-900 focus:border-gold-500 focus:bg-white focus:outline-none"
                 />
               </div>
             </div>
 
             {/* Program Studi */}
-            <div className="space-y-1.5 font-bold">
-              <label className="block text-xs font-bold text-navy-900">Program Studi</label>
+            <div className="space-y-1 sm:space-y-1.5">
+              <label className="block text-[10px] sm:text-xs font-bold text-navy-900">Program Studi</label>
               <div className="relative">
-                <GraduationCap className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-navy-900/40" />
+                <GraduationCap className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 text-navy-900/40" />
                 <input
                   type="text"
                   value={studyProgram}
                   onChange={(e) => setStudyProgram(e.target.value)}
                   placeholder="D3 Sistem Informasi"
-                  className="w-full rounded-xl border border-border bg-secondary/10 py-2.5 pl-10 pr-4 text-xs font-semibold text-navy-900 focus:border-gold-500 focus:bg-white focus:outline-none"
+                  className="w-full rounded-xl border border-border bg-secondary/10 py-2 sm:py-2.5 pl-9 sm:pl-10 pr-3 sm:pr-4 text-[11px] sm:text-xs font-semibold text-navy-900 focus:border-gold-500 focus:bg-white focus:outline-none"
                 />
               </div>
             </div>
           </div>
 
           {/* Actions */}
-          <div className="pt-4 flex items-center justify-end gap-2.5 border-t border-border">
+          <div className="pt-3 sm:pt-4 flex items-center justify-end gap-2.5 border-t border-border">
             <button
               type="button"
               onClick={onClose}

@@ -7,6 +7,7 @@ import { ZoomLinkConfig } from "@/components/admin/zoom/zoom-link-config";
 import { ZoomSessionQR } from "@/components/admin/zoom/zoom-session-qr";
 import { ZoomLiveMonitor } from "@/components/admin/zoom/zoom-live-monitor";
 import { createClient } from "@/lib/supabase/browser";
+import { cn } from "@/lib/utils";
 
 function useZoomDashboard() {
   const [data, setData] = useState<any>(null);
@@ -92,39 +93,39 @@ export default function AdminZoomPage() {
       {/* Stats */}
       <ZoomStatsCards stats={data?.stats} loading={loading} />
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <div className="lg:col-span-7 space-y-6">
-          {/* Session QR */}
-          <ZoomSessionQR
-            sessionActive={data?.sessionActive}
-            sessionExpiresAt={data?.sessionExpiresAt}
-            zoomLinkReady={data?.zoomLinkReady}
-            initialQrCodeUrl={data?.qrCodeDataUrl}
-          />
-          
-          {/* Zoom Link Config — Super Admin Only */}
-          {role === "SUPER_ADMIN" && (
-            <ZoomLinkConfig
-              zoomEnabled={data?.zoomEnabled}
-              zoomLinkReady={data?.zoomLinkReady}
-              zoomLinkUpdatedAt={data?.zoomLinkUpdatedAt}
-              zoomMeetingLink={data?.zoomMeetingLink}
-            />
-          )}
-        </div>
+      {/* Top Section: QR & Konfigurasi (bersebelahan pada PC) */}
+      <div
+        className={cn(
+          "grid grid-cols-1 gap-6",
+          role === "SUPER_ADMIN" ? "lg:grid-cols-2" : "grid-cols-1"
+        )}
+      >
+        {/* Session QR */}
+        <ZoomSessionQR
+          sessionActive={data?.sessionActive}
+          sessionExpiresAt={data?.sessionExpiresAt}
+          zoomLinkReady={data?.zoomLinkReady}
+          initialQrCodeUrl={data?.qrCodeDataUrl}
+        />
 
-        <div className="lg:col-span-5">
-          {/* Right Column */}
-          <div className="space-y-6">
-            <ZoomLiveMonitor 
-              recentAccess={data?.recentAccess} 
-              isSuperAdmin={isSuperAdmin}
-              canResetToken={canResetToken}
-              zoomLiveTrackingEnabled={data?.zoomLiveTrackingEnabled}
-            />
-          </div>
-        </div>
+        {/* Zoom Link Config — Super Admin Only */}
+        {role === "SUPER_ADMIN" && (
+          <ZoomLinkConfig
+            zoomEnabled={data?.zoomEnabled}
+            zoomLinkReady={data?.zoomLinkReady}
+            zoomLinkUpdatedAt={data?.zoomLinkUpdatedAt}
+            zoomMeetingLink={data?.zoomMeetingLink}
+          />
+        )}
       </div>
+
+      {/* Bottom Section: Live Join Activity (Full Width) */}
+      <ZoomLiveMonitor
+        recentAccess={data?.recentAccess}
+        isSuperAdmin={isSuperAdmin}
+        canResetToken={canResetToken}
+        zoomLiveTrackingEnabled={data?.zoomLiveTrackingEnabled}
+      />
     </div>
   );
 }

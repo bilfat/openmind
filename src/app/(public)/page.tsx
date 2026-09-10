@@ -439,7 +439,7 @@ export default function BerandaPage() {
             subtitle="Tersedia kuota Free Pass untuk mahasiswa serta paket Early Bird dengan merchandise eksklusif."
           />
 
-          <div className="mt-14 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 items-start">
+          <div className="mt-14 grid grid-cols-2 items-start gap-3 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
             {homeTickets.map((ticket, idx) => (
               <TicketVoucherCard
                 key={ticket.id}

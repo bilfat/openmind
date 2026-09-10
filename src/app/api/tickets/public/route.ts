@@ -166,7 +166,7 @@ async function handleGetPublicTickets(request: Request) {
 
     const now = new Date().toISOString()
 
-    // 2. Fetch public, active ticket types for the active event
+    // 2. Fetch public, active ticket types for the active event (including ended sales)
     const { data: tickets, error: ticketError } = await catalogSupabase
       .from('ticket_types')
       .select('*')
@@ -174,7 +174,7 @@ async function handleGetPublicTickets(request: Request) {
       .eq('status', 'ACTIVE')
       .eq('visibility', 'PUBLIC')
       .lte('sales_start_at', now)
-      .gte('sales_end_at', now)
+      .order('sales_start_at', { ascending: true })
 
     if (ticketError) {
       throw new Error(`Failed to fetch ticket types: ${ticketError.message}`)

@@ -16,6 +16,7 @@ import {
   ChevronLeft,
   X,
   Radio,
+  Database,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -49,6 +50,7 @@ const navGroups: NavGroup[] = [
   {
     label: "Management",
     items: [
+      { label: "Master Data", href: "/admin/master-data", icon: Database, superAdminOnly: true },
       { label: "Tickets", href: "/admin/tickets", icon: Ticket, superAdminOnly: true },
       { label: "Referrals", href: "/admin/referrals", icon: Tag, superAdminOnly: true },
     ],

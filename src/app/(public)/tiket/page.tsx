@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, LayoutGroup } from "framer-motion";
 import { TicketVoucherCard } from "@/components/ticket/ticket-voucher-card";
 import { PublicReferralVoucher } from "@/components/public/public-referral-voucher";
 import { SectionHeading } from "@/components/ui/section-heading";
@@ -336,68 +336,70 @@ function TiketPageContent() {
             transition={{ duration: 0.5, delay: 0.3 }}
             className="mt-8 flex items-center justify-center px-1"
           >
-            <div className="grid grid-cols-3 w-full max-w-xl rounded-full border border-white/15 bg-white/10 p-1 sm:p-1.5 shadow-2xl backdrop-blur-2xl">
-              <button
-                type="button"
-                onClick={() => setActiveTab("catalog")}
-                className={cn(
-                  "relative flex items-center justify-center gap-1 sm:gap-2 rounded-full px-1 py-2 text-[10px] min-[400px]:text-[11px] sm:px-5 sm:py-2.5 sm:text-sm font-bold transition-colors duration-300 min-w-0",
-                  activeTab === "catalog" ? "text-navy-950" : "text-ivory-200/80 hover:text-ivory-100"
-                )}
-              >
-                {activeTab === "catalog" && (
-                  <motion.span
-                    layoutId="ticket-tab-pill"
-                    className="absolute inset-0 rounded-full bg-gold-500 shadow-lg shadow-gold-500/40"
-                    transition={{ type: "spring", stiffness: 400, damping: 32 }}
-                  />
-                )}
-                <Ticket className="relative z-10 h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
-                <span className="relative z-10 truncate">
-                  Pesan Tiket<span className="hidden min-[380px]:inline"> Baru</span>
-                </span>
-              </button>
+            <LayoutGroup id="ticket-tab-group">
+              <div className="grid grid-cols-3 w-full max-w-xl rounded-full border border-white/15 bg-white/10 p-1 sm:p-1.5 shadow-2xl backdrop-blur-2xl">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("catalog")}
+                  className={cn(
+                    "relative flex items-center justify-center gap-1 sm:gap-2 rounded-full px-1 py-2 text-[10px] min-[400px]:text-[11px] sm:px-5 sm:py-2.5 sm:text-sm font-bold transition-colors duration-300 min-w-0 touch-manipulation",
+                    activeTab === "catalog" ? "text-navy-950" : "text-ivory-200/80 hover:text-ivory-100"
+                  )}
+                >
+                  {activeTab === "catalog" && (
+                    <motion.span
+                      layoutId="ticket-tab-pill"
+                      className="absolute inset-0 rounded-full bg-gold-500 shadow-lg shadow-gold-500/40 transform-gpu will-change-transform"
+                      transition={{ type: "spring", stiffness: 380, damping: 30, mass: 0.8 }}
+                    />
+                  )}
+                  <Ticket className="relative z-10 h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+                  <span className="relative z-10 truncate">
+                    Pesan Tiket<span className="hidden min-[380px]:inline"> Baru</span>
+                  </span>
+                </button>
 
-              <button
-                type="button"
-                onClick={() => setActiveTab("check")}
-                className={cn(
-                  "relative flex items-center justify-center gap-1 sm:gap-2 rounded-full px-1 py-2 text-[10px] min-[400px]:text-[11px] sm:px-5 sm:py-2.5 sm:text-sm font-bold transition-colors duration-300 min-w-0",
-                  activeTab === "check" ? "text-navy-950" : "text-ivory-200/80 hover:text-ivory-100"
-                )}
-              >
-                {activeTab === "check" && (
-                  <motion.span
-                    layoutId="ticket-tab-pill"
-                    className="absolute inset-0 rounded-full bg-gold-500 shadow-lg shadow-gold-500/40"
-                    transition={{ type: "spring", stiffness: 400, damping: 32 }}
-                  />
-                )}
-                <Search className="relative z-10 h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
-                <span className="relative z-10 truncate">
-                  Cek Status<span className="hidden min-[400px]:inline"> & E-Ticket</span>
-                </span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("check")}
+                  className={cn(
+                    "relative flex items-center justify-center gap-1 sm:gap-2 rounded-full px-1 py-2 text-[10px] min-[400px]:text-[11px] sm:px-5 sm:py-2.5 sm:text-sm font-bold transition-colors duration-300 min-w-0 touch-manipulation",
+                    activeTab === "check" ? "text-navy-950" : "text-ivory-200/80 hover:text-ivory-100"
+                  )}
+                >
+                  {activeTab === "check" && (
+                    <motion.span
+                      layoutId="ticket-tab-pill"
+                      className="absolute inset-0 rounded-full bg-gold-500 shadow-lg shadow-gold-500/40 transform-gpu will-change-transform"
+                      transition={{ type: "spring", stiffness: 380, damping: 30, mass: 0.8 }}
+                    />
+                  )}
+                  <Search className="relative z-10 h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+                  <span className="relative z-10 truncate">
+                    Cek Status<span className="hidden min-[400px]:inline"> & E-Ticket</span>
+                  </span>
+                </button>
 
-              <button
-                type="button"
-                onClick={() => setActiveTab("referral")}
-                className={cn(
-                  "relative flex items-center justify-center gap-1 sm:gap-2 rounded-full px-1 py-2 text-[10px] min-[400px]:text-[11px] sm:px-5 sm:py-2.5 sm:text-sm font-bold transition-colors duration-300 min-w-0",
-                  activeTab === "referral" ? "text-navy-950" : "text-ivory-200/80 hover:text-ivory-100"
-                )}
-              >
-                {activeTab === "referral" && (
-                  <motion.span
-                    layoutId="ticket-tab-pill"
-                    className="absolute inset-0 rounded-full bg-gold-500 shadow-lg shadow-gold-500/40"
-                    transition={{ type: "spring", stiffness: 400, damping: 32 }}
-                  />
-                )}
-                <Gift className="relative z-10 h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
-                <span className="relative z-10 truncate">Kode Referal</span>
-              </button>
-            </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("referral")}
+                  className={cn(
+                    "relative flex items-center justify-center gap-1 sm:gap-2 rounded-full px-1 py-2 text-[10px] min-[400px]:text-[11px] sm:px-5 sm:py-2.5 sm:text-sm font-bold transition-colors duration-300 min-w-0 touch-manipulation",
+                    activeTab === "referral" ? "text-navy-950" : "text-ivory-200/80 hover:text-ivory-100"
+                  )}
+                >
+                  {activeTab === "referral" && (
+                    <motion.span
+                      layoutId="ticket-tab-pill"
+                      className="absolute inset-0 rounded-full bg-gold-500 shadow-lg shadow-gold-500/40 transform-gpu will-change-transform"
+                      transition={{ type: "spring", stiffness: 380, damping: 30, mass: 0.8 }}
+                    />
+                  )}
+                  <Gift className="relative z-10 h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+                  <span className="relative z-10 truncate">Kode Referal</span>
+                </button>
+              </div>
+            </LayoutGroup>
           </motion.div>
         </div>
       </section>
@@ -443,7 +445,7 @@ function TiketPageContent() {
                 </motion.div>
 
                 {/* Voucher Cards Grid */}
-                <div className="grid grid-cols-1 items-start gap-8 md:grid-cols-2 lg:grid-cols-3">
+                <div className="grid grid-cols-2 items-start gap-3 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
                   {loadingTickets ? (
                     <div className="col-span-full py-12 text-center font-light text-ivory-200/70">
                       <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-b-2 border-t-2 border-gold-500" />

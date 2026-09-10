@@ -22,7 +22,8 @@ export function TicketVoucherCard({ ticket, featured = false, index = 0 }: Ticke
   const max = ticket.maxPurchase || 5;
   const [quantity, setQuantity] = useState(min);
 
-  const isSoldOut = ticket.status === "SOLD_OUT" || ticket.issued >= ticket.quota;
+  const isExpired = ticket.salesEnd ? new Date(ticket.salesEnd).getTime() < Date.now() : false;
+  const isSoldOut = ticket.status === "SOLD_OUT" || ticket.issued >= ticket.quota || isExpired;
   const isFree = ticket.type === "FREE";
   const remaining = Math.max(0, ticket.quota - ticket.issued);
 
@@ -70,33 +71,33 @@ export function TicketVoucherCard({ ticket, featured = false, index = 0 }: Ticke
 
           {/* Top Header Badge */}
           {ticket.badge && (
-            <div className="absolute right-6 top-0 z-10">
+            <div className="absolute right-3 sm:right-6 top-0 z-10">
               <span
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-b-2xl px-4 py-1.5 text-[11px] font-black uppercase tracking-wider shadow-lg",
+                  "inline-flex items-center gap-1 sm:gap-1.5 rounded-b-xl sm:rounded-b-2xl px-2 py-1 sm:px-4 sm:py-1.5 text-[9px] sm:text-[11px] font-black uppercase tracking-wider shadow-lg",
                   featured
                     ? "bg-gold-500 text-navy-950 shadow-gold-500/30"
                     : "bg-navy-950/80 text-gold-300 ring-1 ring-gold-500/40 backdrop-blur-md"
                 )}
               >
-                {featured ? <Crown className="h-3 w-3" /> : <Flame className="h-3 w-3" />}
+                {featured ? <Crown className="h-2.5 w-2.5 sm:h-3 sm:w-3" /> : <Flame className="h-2.5 w-2.5 sm:h-3 sm:w-3" />}
                 {ticket.badge}
               </span>
             </div>
           )}
 
           {/* Main Ticket Stub Area (Top) */}
-          <div className={cn("relative flex flex-col p-6 sm:p-8", isSoldOut && "opacity-60")}>
+          <div className={cn("relative flex flex-col p-3.5 sm:p-6 md:p-8", isSoldOut && "opacity-60")}>
             {/* Ticket series label */}
-            <div className="mb-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.25em] text-gold-400">
-              <Sparkles className="h-3.5 w-3.5 text-gold-400" />
-              <span>{displayName} · Official Pass</span>
+            <div className="mb-2 sm:mb-3 flex items-center gap-1.5 sm:gap-2 text-[8px] sm:text-[10px] font-bold uppercase tracking-[0.15em] sm:tracking-[0.25em] text-gold-400">
+              <Sparkles className="h-2.5 w-2.5 sm:h-3.5 sm:w-3.5 text-gold-400 shrink-0" />
+              <span className="truncate">{displayName} · Pass</span>
             </div>
 
             {/* Title */}
             <h3
               className={cn(
-                "font-display text-3xl font-black tracking-tight sm:text-4xl",
+                "font-display text-lg sm:text-2xl md:text-3xl font-black tracking-tight leading-tight",
                 featured
                   ? "text-gold-gradient"
                   : "text-ivory-100"
@@ -106,33 +107,33 @@ export function TicketVoucherCard({ ticket, featured = false, index = 0 }: Ticke
             </h3>
 
             {/* Description */}
-            <p className="mt-2.5 text-xs leading-relaxed text-ivory-200/65 font-light line-clamp-2 sm:text-sm">
+            <p className="mt-1.5 sm:mt-2.5 text-[10px] sm:text-xs md:text-sm leading-normal sm:leading-relaxed text-ivory-200/65 font-light line-clamp-2">
               {ticket.description}
             </p>
 
             {/* Pricing Display */}
-            <div className="mt-6">
+            <div className="mt-3 sm:mt-6">
               {isFree ? (
-                <div className="flex items-end gap-3">
-                  <span className="font-display text-4xl font-black text-gold-gradient sm:text-5xl">
+                <div className="flex items-end gap-1.5 sm:gap-3">
+                  <span className="font-display text-2xl sm:text-4xl md:text-5xl font-black text-gold-gradient">
                     FREE
                   </span>
-                  <span className="pb-1.5 text-xs font-medium text-ivory-200/50">/ Mahasiswa Tel-U</span>
+                  <span className="pb-1 text-[10px] sm:text-xs font-medium text-ivory-200/50">/ Mahasiswa Tel-U</span>
                 </div>
               ) : (
                 <div>
-                  <div className="flex items-baseline gap-2">
-                    <span className="font-display text-4xl font-black text-ivory-100 sm:text-5xl">
+                  <div className="flex items-baseline gap-1 sm:gap-2 flex-wrap">
+                    <span className="font-display text-xl sm:text-3xl md:text-4xl font-black text-ivory-100">
                       Rp {ticket.finalPrice.toLocaleString("id-ID")}
                     </span>
-                    <span className="text-xs font-medium text-ivory-200/50">/ tiket</span>
+                    <span className="text-[10px] sm:text-xs font-medium text-ivory-200/50">/ tiket</span>
                   </div>
                   {ticket.discountPercentage > 0 && (
-                    <div className="mt-2 flex items-center gap-2 text-xs">
+                    <div className="mt-1 sm:mt-2 flex items-center gap-1.5 text-[10px] sm:text-xs">
                       <span className="text-ivory-200/40 line-through">
                         Rp {ticket.price.toLocaleString("id-ID")}
                       </span>
-                      <span className="rounded-md bg-gold-500/20 px-2 py-0.5 text-[10px] font-black text-gold-300 ring-1 ring-gold-500/30">
+                      <span className="rounded-md bg-gold-500/20 px-1.5 py-0.5 text-[9px] sm:text-[10px] font-black text-gold-300 ring-1 ring-gold-500/30">
                         Hemat {ticket.discountPercentage}%
                       </span>
                     </div>
@@ -142,17 +143,17 @@ export function TicketVoucherCard({ ticket, featured = false, index = 0 }: Ticke
             </div>
 
             {/* Benefits List */}
-            <div className="mt-6 space-y-2.5 border-t border-white/10 pt-5">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gold-400/80">
+            <div className="mt-4 sm:mt-6 space-y-2 border-t border-white/10 pt-3 sm:pt-5">
+              <p className="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.15em] sm:tracking-[0.2em] text-gold-400/80">
                 Fasilitas Termasuk
               </p>
-              <ul className="space-y-2 text-xs text-ivory-200/80">
+              <ul className="space-y-1.5 text-[10px] sm:text-xs text-ivory-200/80">
                 {ticket.benefits.map((benefit, idx) => (
-                  <li key={idx} className="flex items-start gap-2.5">
-                    <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-gold-500/20 text-gold-400">
-                      <Check className="h-2.5 w-2.5 stroke-[3.5]" />
+                  <li key={idx} className="flex items-start gap-1.5 sm:gap-2.5">
+                    <span className="mt-0.5 flex h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0 items-center justify-center rounded-full bg-gold-500/20 text-gold-400">
+                      <Check className="h-2 w-2 sm:h-2.5 sm:w-2.5 stroke-[3.5]" />
                     </span>
-                    <span className="leading-snug">{benefit}</span>
+                    <span className="leading-tight sm:leading-snug">{benefit}</span>
                   </li>
                 ))}
               </ul>
@@ -160,33 +161,33 @@ export function TicketVoucherCard({ ticket, featured = false, index = 0 }: Ticke
           </div>
 
           {/* Perforated Ticket Divider */}
-          <div className="relative my-1 flex items-center justify-between">
-            <div className="absolute left-0 top-1/2 h-7 w-3.5 -translate-y-1/2 rounded-r-full border border-r border-t border-b border-gold-500/30 bg-navy-950" />
-            <div className="absolute right-0 top-1/2 h-7 w-3.5 -translate-y-1/2 rounded-l-full border border-l border-t border-b border-gold-500/30 bg-navy-950" />
-            <div className="mx-5 flex-1 border-b-2 border-dashed border-gold-500/25" />
+          <div className="relative my-0.5 flex items-center justify-between">
+            <div className="absolute left-0 top-1/2 h-5 w-2.5 sm:h-7 sm:w-3.5 -translate-y-1/2 rounded-r-full border border-r border-t border-b border-gold-500/30 bg-navy-950" />
+            <div className="absolute right-0 top-1/2 h-5 w-2.5 sm:h-7 sm:w-3.5 -translate-y-1/2 rounded-l-full border border-l border-t border-b border-gold-500/30 bg-navy-950" />
+            <div className="mx-4 sm:mx-5 flex-1 border-b-2 border-dashed border-gold-500/25" />
           </div>
 
           {/* Bottom Action Stub */}
-          <div className="relative flex flex-col gap-4 p-6 pt-4 sm:p-8 sm:pt-4">
+          <div className="relative flex flex-col gap-2.5 sm:gap-4 p-3.5 pt-3 sm:p-6 sm:pt-4 md:p-8 md:pt-4">
             {/* Quantity Selector for Paid Tickets */}
             {!isFree && !isSoldOut && (
-              <div className="flex items-center justify-between rounded-2xl border border-gold-500/30 bg-navy-950/60 p-2 backdrop-blur-md">
-                <span className="pl-2 text-xs font-semibold text-ivory-100">Jumlah:</span>
-                <div className="flex items-center gap-3">
+              <div className="flex items-center justify-between rounded-xl sm:rounded-2xl border border-gold-500/30 bg-navy-950/60 p-1.5 sm:p-2 backdrop-blur-md">
+                <span className="pl-1 sm:pl-2 text-[10px] sm:text-xs font-semibold text-ivory-100">Jumlah:</span>
+                <div className="flex items-center gap-1.5 sm:gap-3">
                   <button
                     type="button"
                     onClick={handleDecrement}
                     disabled={quantity <= min}
-                    className="flex h-8 w-8 items-center justify-center rounded-xl bg-gold-500/20 text-gold-300 ring-1 ring-gold-500/40 transition-all duration-200 hover:bg-gold-500 hover:text-navy-950 active:scale-90 disabled:opacity-30 touch-target"
+                    className="flex h-6 w-6 sm:h-8 sm:w-8 items-center justify-center rounded-lg sm:rounded-xl bg-gold-500/20 text-gold-300 ring-1 ring-gold-500/40 transition-all duration-200 hover:bg-gold-500 hover:text-navy-950 active:scale-90 disabled:opacity-30 touch-target"
                     aria-label="Kurangi jumlah"
                   >
-                    <Minus className="h-3.5 w-3.5" />
+                    <Minus className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                   </button>
                   <motion.span
                     key={quantity}
                     initial={{ scale: 0.7, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
-                    className="w-4 text-center text-sm font-black text-gold-300"
+                    className="w-3.5 text-center text-xs sm:text-sm font-black text-gold-300"
                     aria-live="polite"
                   >
                     {quantity}
@@ -195,10 +196,10 @@ export function TicketVoucherCard({ ticket, featured = false, index = 0 }: Ticke
                     type="button"
                     onClick={handleIncrement}
                     disabled={quantity >= max || quantity >= remaining}
-                    className="flex h-8 w-8 items-center justify-center rounded-xl bg-gold-500/20 text-gold-300 ring-1 ring-gold-500/40 transition-all duration-200 hover:bg-gold-500 hover:text-navy-950 active:scale-90 disabled:opacity-30 touch-target"
+                    className="flex h-6 w-6 sm:h-8 sm:w-8 items-center justify-center rounded-lg sm:rounded-xl bg-gold-500/20 text-gold-300 ring-1 ring-gold-500/40 transition-all duration-200 hover:bg-gold-500 hover:text-navy-950 active:scale-90 disabled:opacity-30 touch-target"
                     aria-label="Tambah jumlah"
                   >
-                    <Plus className="h-3.5 w-3.5" />
+                    <Plus className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                   </button>
                 </div>
               </div>
@@ -206,30 +207,30 @@ export function TicketVoucherCard({ ticket, featured = false, index = 0 }: Ticke
 
             {/* CTA Button */}
             {isSoldOut ? (
-              <div className="w-full rounded-2xl border border-white/10 bg-white/5 py-4 text-center text-xs font-black uppercase tracking-wider text-ivory-200/40">
+              <div className="w-full rounded-xl sm:rounded-2xl border border-white/10 bg-white/5 py-2.5 sm:py-4 text-center text-[10px] sm:text-xs font-black uppercase tracking-wider text-ivory-200/40">
                 Sold Out
               </div>
             ) : (
               <Link
                 href={`/checkout?ticket=${ticket.id}&qty=${quantity}`}
                 className={cn(
-                  "group/cta flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-xs font-black uppercase tracking-wider transition-all duration-300 btn-scale",
+                  "group/cta flex w-full items-center justify-center gap-1.5 sm:gap-2 rounded-xl sm:rounded-2xl py-2.5 sm:py-4 px-2 text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all duration-300 btn-scale text-center",
                   featured
                     ? "bg-gradient-to-r from-gold-500 to-gold-400 text-navy-950 shadow-lg shadow-gold-500/30 hover:shadow-gold-500/50"
                     : "border border-gold-500/40 bg-white/5 text-ivory-100 hover:border-gold-500 hover:bg-gold-500 hover:text-navy-950"
                 )}
                 aria-label={`Beli tiket ${ticket.name}`}
               >
-                <Ticket className="h-4 w-4 transition-transform duration-300 group-hover/cta:rotate-12" />
-                <span>
-                  {isFree ? "Pesan Tiket Gratis" : `Beli Tiket — Rp ${totalPrice.toLocaleString("id-ID")}`}
+                <Ticket className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0 transition-transform duration-300 group-hover/cta:rotate-12" />
+                <span className="truncate">
+                  {isFree ? "Pesan Tiket" : `Beli — Rp ${totalPrice.toLocaleString("id-ID")}`}
                 </span>
               </Link>
             )}
 
             {/* Hover hint for glass sheen */}
-            <span className="text-center text-[10px] font-medium uppercase tracking-[0.2em] text-ivory-200/30">
-              Perforated E-Ticket · Valid One Time Use
+            <span className="text-center text-[8px] sm:text-[10px] font-medium uppercase tracking-[0.15em] sm:tracking-[0.2em] text-ivory-200/30 truncate">
+              Perforated E-Ticket · Valid One Time
             </span>
           </div>
         </div>

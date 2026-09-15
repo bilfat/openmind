@@ -53,11 +53,28 @@ export async function POST(request: Request) {
     }
 
     // 3. Cek zoom_status
-    if (ticket.zoom_status === 'USED') {
-      return NextResponse.json({ success: false, reason: 'already_used', message: 'Token sudah dipakai. Hubungi panitia jika kelempar dari Zoom.' }, { status: 403 });
-    }
     if (ticket.zoom_status === 'EXPIRED') {
       return NextResponse.json({ success: false, reason: 'expired', message: 'Token expired' }, { status: 403 });
+    }
+
+    // Hitung jumlah Re-Join yang sudah dilakukan peserta untuk tiket ini
+    const { count: currentJoinCount } = await supabase
+      .from('check_ins')
+      .select('id', { count: 'exact', head: true })
+      .eq('issued_ticket_id', ticket.id)
+      .eq('method', 'ZOOM_JOIN');
+
+    const joinCount = currentJoinCount || 0;
+    const MAX_JOINS = 5;
+
+    if (joinCount >= MAX_JOINS) {
+      return NextResponse.json({
+        success: false,
+        reason: 'rejoin_limit_reached',
+        message: 'Kamu telah menggunakan batas Re-Join mandiri (5x). Jika kamu masih terlempar dari Zoom karena kendala koneksi, silakan hubungi panitia.',
+        joinCount,
+        maxJoins: MAX_JOINS,
+      }, { status: 403 });
     }
 
     // @ts-ignore
@@ -81,23 +98,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, reason: 'access_closed', message: 'Sesi Zoom belum dibuka oleh panitia. Silakan tunggu hingga sesi dibuka di hari H.' }, { status: 403 });
     }
 
-    // 6. Optimistic Lock UPDATE (Hanya update jika status masih PENDING)
     const nowStr = new Date().toISOString();
-    const { data: updatedTicket, error: updateError } = await supabase
+    
+    // Update status tiket ke CHECKED_IN dan zoom_status ke USED
+    await supabase
       .from('issued_tickets')
       .update({ 
         zoom_status: 'USED', 
         zoom_used_at: nowStr,
         status: 'CHECKED_IN'
       })
-      .eq('id', ticket.id)
-      .eq('zoom_status', 'PENDING') // Optimistic lock
-      .select('id')
-      .single();
-
-    if (updateError || !updatedTicket) {
-      return NextResponse.json({ success: false, reason: 'already_used', message: 'Token sudah dipakai' }, { status: 403 });
-    }
+      .eq('id', ticket.id);
 
     // Record check-in di tabel check_ins
     try {
@@ -107,21 +118,23 @@ export async function POST(request: Request) {
           issued_ticket_id: ticket.id,
           checked_in_at: nowStr,
           method: 'ZOOM_JOIN',
-          notes: 'Otomatis Check-In via Zoom Join',
+          notes: `Otomatis Check-In via Zoom Join (Ke-${joinCount + 1})`,
         });
     } catch {
-      // Ignore if check_in record already exists (e.g. re-entry or unique constraint)
+      // Ignore
     }
 
-    // 7. Bangun deep link zoommtg:// agar tidak terlihat URL Zoom aslinya
+    // 5. Bangun deep link zoomus://
     const deepLink = buildZoomDeepLink(event.zoom_meeting_link);
+    const newJoinCount = joinCount + 1;
 
     return NextResponse.json({ 
       success: true, 
       data: { 
         deepLink,
-        // Sertakan https link sebagai fallback di client jika zoommtg tidak tersedia
-        fallbackUrl: event.zoom_meeting_link 
+        fallbackUrl: event.zoom_meeting_link,
+        joinCount: newJoinCount,
+        maxJoins: MAX_JOINS,
       } 
     });
 

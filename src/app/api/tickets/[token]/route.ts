@@ -74,6 +74,8 @@ type TicketPayload = {
   zoomToken?: string
   zoomStatus?: string
   zoomAccessUnlocked?: boolean
+  zoomJoinCount?: number
+  zoomMaxJoins?: number
 }
 
 function one<T>(value: T | T[] | null | undefined): T | null {
@@ -189,19 +191,36 @@ export async function GET(
         zoomToken: issued.zoom_token,
         zoomStatus: issued.zoom_status,
         zoomAccessUnlocked,
+        zoomJoinCount: 0,
+        zoomMaxJoins: 5,
       })
     }
 
     if (issuedIds.length) {
       const { data: checkIns } = await supabase
         .from('check_ins')
-        .select('issued_ticket_id, checked_in_at')
+        .select('issued_ticket_id, checked_in_at, method')
         .in('issued_ticket_id', issuedIds)
-      const checkInByTicket = new Map((checkIns ?? []).map((c) => [c.issued_ticket_id, c.checked_in_at]))
+
+      const checkInByTicket = new Map<string, string>()
+      const zoomJoinCountByTicket = new Map<string, number>()
+
+      for (const c of checkIns ?? []) {
+        if (!checkInByTicket.has(c.issued_ticket_id)) {
+          checkInByTicket.set(c.issued_ticket_id, c.checked_in_at)
+        }
+        if (c.method === 'ZOOM_JOIN') {
+          const current = zoomJoinCountByTicket.get(c.issued_ticket_id) || 0
+          zoomJoinCountByTicket.set(c.issued_ticket_id, current + 1)
+        }
+      }
+
       for (let i = 0; i < tickets.length; i++) {
         const checkedInAt = checkInByTicket.get(issuedIds[i])
         tickets[i].checkedIn = Boolean(checkedInAt)
         tickets[i].checkedInAt = checkedInAt ?? undefined
+        tickets[i].zoomJoinCount = zoomJoinCountByTicket.get(issuedIds[i]) || 0
+        tickets[i].zoomMaxJoins = 5
       }
     }
 

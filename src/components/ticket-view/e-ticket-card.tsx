@@ -34,6 +34,8 @@ export function ETicketCard({ order }: ETicketCardProps) {
     zoomToken?: string;
     zoomStatus?: string;
     zoomAccessUnlocked?: boolean;
+    zoomJoinCount?: number;
+    zoomMaxJoins?: number;
   };
   const qrValue = issuedTicket.qrToken
     ? ticketUrl(issuedTicket.qrToken)
@@ -224,6 +226,8 @@ export function ETicketCard({ order }: ETicketCardProps) {
                 zoomAccessUnlocked={issuedTicket.zoomAccessUnlocked ?? true}
                 participantName={order.customerName}
                 ticketCode={issuedTicket.ticketCode || order.orderId}
+                zoomJoinCount={issuedTicket.zoomJoinCount}
+                zoomMaxJoins={issuedTicket.zoomMaxJoins}
               />
             </div>
           </div>

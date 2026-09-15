@@ -20,23 +20,26 @@ export async function POST(request: Request) {
         zoom_used_at: null 
       })
       .eq('ticket_code', ticketCode)
-      .eq('zoom_status', 'USED') // Hanya reset yang statusnya USED
       .select('id, ticket_code')
       .single();
 
-    if (error) {
-      console.error('[reset-zoom-token] DB error:', error.message, error.details);
+    if (error || !data) {
+      console.error('[reset-zoom-token] DB error:', error?.message);
       return NextResponse.json({ 
         success: false, 
-        message: 'Gagal mereset token: ' + error.message
+        message: 'Gagal mereset token: ' + (error?.message || 'Tiket tidak ditemukan')
       }, { status: 500 });
     }
 
-    if (!data) {
-      return NextResponse.json({ 
-        success: false, 
-        message: 'Tiket tidak ditemukan atau statusnya bukan USED' 
-      }, { status: 404 });
+    // Hapus rekaman ZOOM_JOIN di check_ins agar jatah 5x Re-Join kembali ke 0
+    try {
+      await supabase
+        .from('check_ins')
+        .delete()
+        .eq('issued_ticket_id', data.id)
+        .eq('method', 'ZOOM_JOIN');
+    } catch (cleanErr) {
+      console.error('[reset-zoom-token] Failed to clear check_ins:', cleanErr);
     }
 
     console.log(`[AUDIT] Reset zoom token for ticket: ${ticketCode}`);

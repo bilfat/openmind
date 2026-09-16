@@ -108,8 +108,11 @@ function ParticipantsPageContent() {
         participant.email,
         participant.whatsapp,
         participant.is_present ? "Sudah Hadir" : "Belum Hadir",
+        participant.checked_in_at
+          ? new Date(participant.checked_in_at).toLocaleString("id-ID", { timeZone: "Asia/Jakarta", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" })
+          : "-",
       ]);
-      const csv = [["Order", "Nama", "NIM", "Fakultas", "Prodi", "Gmail", "No HP", "Keterangan"], ...rows].map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(",")).join("\n");
+      const csv = [["Order", "Nama", "NIM", "Fakultas", "Prodi", "Gmail", "No HP", "Keterangan", "Waktu Check-in"], ...rows].map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(",")).join("\n");
       const link = document.createElement("a");
       link.href = `data:text/csv;charset=utf-8,\uFEFF${encodeURIComponent(csv)}`;
       link.download = "open_mind_2026_participants.csv";
@@ -240,6 +243,7 @@ function ParticipantsPageContent() {
                   <th className="px-5 py-4 text-center border-b border-navy-700 border-l border-navy-700">Gmail</th>
                   <th className="px-5 py-4 text-center border-b border-navy-700 border-l border-navy-700">No HP</th>
                   <th className="px-5 py-4 text-center border-b border-navy-700 border-l border-navy-700">Keterangan</th>
+                  <th className="px-5 py-4 text-center border-b border-navy-700 border-l border-navy-700">Waktu Check-in</th>
                 </tr>
               </thead>
               <tbody>
@@ -287,6 +291,23 @@ function ParticipantsPageContent() {
                           <AlertTriangle className="h-3 w-3" />
                           Belum Hadir
                         </span>
+                      )}
+                    </td>
+                    <td className="px-5 py-4 font-mono text-slate-600 text-[10px] whitespace-nowrap border-b border-border/70 border-l border-border/70">
+                      {participant.checked_in_at ? (
+                        <span className="text-emerald-700 font-semibold">
+                          {new Date(participant.checked_in_at).toLocaleString("id-ID", {
+                            timeZone: "Asia/Jakarta",
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            second: "2-digit",
+                          })}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">—</span>
                       )}
                     </td>
                   </tr>

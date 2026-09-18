@@ -1,6 +1,7 @@
 import { Navbar } from "@/components/landing/navbar";
 import { Footer } from "@/components/landing/footer";
 import { MobileCtaBar } from "@/components/ui/mobile-cta-bar";
+import { NimLookupSticky } from "@/components/public/nim-lookup-sticky";
 import { ActiveEventProvider } from "@/hooks/use-active-event";
 
 export default function PublicLayout({ children }: { children: React.ReactNode }) {
@@ -12,7 +13,9 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
       <Navbar />
       <main id="main-content" className="flex-1 page-enter has-mobile-cta bg-navy-950">{children}</main>
       <Footer />
+      <NimLookupSticky />
       <MobileCtaBar />
     </ActiveEventProvider>
   );
 }
+

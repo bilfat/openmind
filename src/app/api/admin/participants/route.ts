@@ -57,19 +57,25 @@ async function handleGetParticipants(request: Request) {
     
     // If attendance filter is applied, we need to fetch all data first to compute is_present
     if (attendance) {
-      const { data, error } = await query.order('created_at', { ascending: false }).order('id', { ascending: false })
+      const { data, error } = await query.order('created_at', { ascending: false }).order('id', { ascending: false }).limit(5000)
       if (error) throw new Error(error.message)
       
       const participants = data ?? []
       const participantIds = participants.map((participant) => participant.id)
       let itemRows: any[] = []
       if (participantIds.length) {
-        const itemsQuery = await supabase.from('order_items').select('id, order_id, participant_id, ticket_type_id, orders(id, order_code, status), ticket_types(id, name, code, ticket_type), issued_tickets(id, ticket_code, status, issued_at, check_ins(id, checked_in_at, method))').in('participant_id', participantIds).order('created_at', { ascending: false })
-        if (itemsQuery.error) throw new Error(itemsQuery.error.message)
-        itemRows = (itemsQuery.data ?? []).filter((item: any) => {
-          const ticket = item.issued_tickets
-          return Boolean(ticket) && ticket.status !== 'CANCELLED'
-        })
+        // Batch .in() queries to avoid PostgREST URL length limit
+        const BATCH_SIZE = 200
+        for (let i = 0; i < participantIds.length; i += BATCH_SIZE) {
+          const batch = participantIds.slice(i, i + BATCH_SIZE)
+          const itemsQuery = await supabase.from('order_items').select('id, order_id, participant_id, ticket_type_id, orders(id, order_code, status), ticket_types(id, name, code, ticket_type), issued_tickets(id, ticket_code, status, issued_at, updated_at, check_ins(id, checked_in_at, method))').in('participant_id', batch).order('created_at', { ascending: false }).limit(5000)
+          if (itemsQuery.error) throw new Error(itemsQuery.error.message)
+          const filtered = (itemsQuery.data ?? []).filter((item: any) => {
+            const ticket = item.issued_tickets
+            return Boolean(ticket) && ticket.status !== 'CANCELLED'
+          })
+          itemRows.push(...filtered)
+        }
       }
       const rowsByParticipant = itemRows.reduce((acc: Record<string, any[]>, item: any) => { (acc[item.participant_id] ??= []).push(item); return acc }, {})
       let items = participants.map((participant: any) => {
@@ -79,9 +85,15 @@ async function handleGetParticipants(request: Request) {
           const checkIns = Array.isArray(ticket?.check_ins) ? ticket.check_ins : []
           return ticket?.status === 'CHECKED_IN' || checkIns.length > 0
         })
-        const checkedInAt = allocations
+        const checkInFromRecord = allocations
           .flatMap((item: any) => (Array.isArray(item.issued_tickets?.check_ins) ? item.issued_tickets.check_ins : []))
           .sort((a: any, b: any) => new Date(a.checked_in_at).getTime() - new Date(b.checked_in_at).getTime())[0]?.checked_in_at ?? null
+        // Fallback: jika check_ins kosong tapi tiket sudah CHECKED_IN, gunakan updated_at
+        const checkedInAt = checkInFromRecord ?? (
+          isPresent
+            ? allocations.find((item: any) => item.issued_tickets?.status === 'CHECKED_IN')?.issued_tickets?.updated_at ?? null
+            : null
+        )
         return { ...participant, is_present: isPresent, checked_in_at: checkedInAt, orders: allocations.map((item: any) => ({ order_item_id: item.id, order: item.orders, ticket_type: item.ticket_types, issued_ticket: item.issued_tickets })) }
       })
 
@@ -96,6 +108,7 @@ async function handleGetParticipants(request: Request) {
       return NextResponse.json({ success: true, items: paginatedItems, pagination: { page: pagination.page, limit: pagination.limit, total, totalPages: Math.ceil(total / pagination.limit) } })
     }
 
+
     const { data, count, error } = await query.order('created_at', { ascending: false }).order('id', { ascending: false }).range(pagination.offset, pagination.offset + pagination.limit - 1)
     if (error) throw new Error(error.message)
 
@@ -103,7 +116,7 @@ async function handleGetParticipants(request: Request) {
     const participantIds = participants.map((participant) => participant.id)
     let itemRows: any[] = []
     if (participantIds.length) {
-      const itemsQuery = await supabase.from('order_items').select('id, order_id, participant_id, ticket_type_id, orders(id, order_code, status), ticket_types(id, name, code, ticket_type), issued_tickets(id, ticket_code, status, issued_at, check_ins(id, checked_in_at, method))').in('participant_id', participantIds).order('created_at', { ascending: false })
+      const itemsQuery = await supabase.from('order_items').select('id, order_id, participant_id, ticket_type_id, orders(id, order_code, status), ticket_types(id, name, code, ticket_type), issued_tickets(id, ticket_code, status, issued_at, updated_at, check_ins(id, checked_in_at, method))').in('participant_id', participantIds).order('created_at', { ascending: false })
       if (itemsQuery.error) throw new Error(itemsQuery.error.message)
       // Hanya item pesanan yang tiketnya telah terbit (bukan CANCELLED).
       itemRows = (itemsQuery.data ?? []).filter((item: any) => {
@@ -119,9 +132,15 @@ async function handleGetParticipants(request: Request) {
         const checkIns = Array.isArray(ticket?.check_ins) ? ticket.check_ins : []
         return ticket?.status === 'CHECKED_IN' || checkIns.length > 0
       })
-      const checkedInAt = allocations
+      const checkInFromRecord = allocations
         .flatMap((item: any) => (Array.isArray(item.issued_tickets?.check_ins) ? item.issued_tickets.check_ins : []))
         .sort((a: any, b: any) => new Date(a.checked_in_at).getTime() - new Date(b.checked_in_at).getTime())[0]?.checked_in_at ?? null
+      // Fallback: jika check_ins kosong tapi tiket sudah CHECKED_IN, gunakan updated_at
+      const checkedInAt = checkInFromRecord ?? (
+        isPresent
+          ? allocations.find((item: any) => item.issued_tickets?.status === 'CHECKED_IN')?.issued_tickets?.updated_at ?? null
+          : null
+      )
       return { ...participant, is_present: isPresent, checked_in_at: checkedInAt, orders: allocations.map((item: any) => ({ order_item_id: item.id, order: item.orders, ticket_type: item.ticket_types, issued_ticket: item.issued_tickets })) }
     })
     const total = count ?? 0

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Users, Search, Download, ChevronLeft, ChevronRight, CheckCircle2, AlertTriangle, Filter, Loader2 } from "lucide-react";
+import { Users, Search, Download, ChevronLeft, ChevronRight, CheckCircle2, AlertTriangle, Filter, Loader2, Wifi, Monitor, UserCheck } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
 import { LogoSpinner } from "@/components/ui/logo-spinner";
@@ -22,6 +22,14 @@ type ParticipantRow = {
 
 const PAGE_SIZE = 50;
 
+type ParticipantStats = {
+  total: number;
+  checkedIn: number;
+  notCheckedIn: number;
+  offline: { total: number; checkedIn: number; notCheckedIn: number };
+  online: { total: number; checkedIn: number; notCheckedIn: number };
+} | null;
+
 function ParticipantsPageContent() {
   const [participants, setParticipants] = useState<ParticipantRow[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -34,6 +42,8 @@ function ParticipantsPageContent() {
   const [isFilterLoading, setIsFilterLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [allFaculties, setAllFaculties] = useState<string[]>([]);
+  const [stats, setStats] = useState<ParticipantStats>(null);
+  const [statsLoading, setStatsLoading] = useState(true);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -69,6 +79,21 @@ function ParticipantsPageContent() {
         }
       })
       .catch((error) => { if (error.name !== "AbortError") console.error(error); });
+    return () => controller.abort();
+  }, []);
+
+  // Fetch participant stats
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/admin/participants/stats", { cache: "no-store", signal: controller.signal })
+      .then(async (response) => {
+        const payload = await response.json();
+        if (response.ok && payload.data) {
+          setStats(payload.data);
+        }
+      })
+      .catch((error) => { if (error.name !== "AbortError") console.error(error); })
+      .finally(() => setStatsLoading(false));
     return () => controller.abort();
   }, []);
 
@@ -158,6 +183,75 @@ function ParticipantsPageContent() {
           <Download className="h-4 w-4" />
           <span>{exporting ? "Mengekspor..." : "Ekspor CSV"}</span>
         </button>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-2.5">
+        {statsLoading ? (
+          Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="rounded-2xl border border-border bg-white px-4 py-3 shadow-sm animate-pulse">
+              <div className="h-3 w-16 bg-secondary/60 rounded mb-2" />
+              <div className="h-6 w-10 bg-secondary/60 rounded" />
+            </div>
+          ))
+        ) : stats ? (
+          <>
+            {/* Total Offline */}
+            <div className="rounded-2xl border border-border bg-white px-4 py-3 shadow-sm">
+              <div className="flex items-center gap-1.5 mb-1">
+                <Monitor className="h-3.5 w-3.5 text-navy-900/50" />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-navy-900/50">Offline</span>
+              </div>
+              <p className="text-xl font-display font-bold text-navy-900">{stats.offline.total}</p>
+              <p className="text-[10px] text-navy-900/50 mt-0.5">peserta</p>
+            </div>
+            {/* Total Online */}
+            <div className="rounded-2xl border border-border bg-white px-4 py-3 shadow-sm">
+              <div className="flex items-center gap-1.5 mb-1">
+                <Wifi className="h-3.5 w-3.5 text-blue-500/70" />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-blue-500/70">Online</span>
+              </div>
+              <p className="text-xl font-display font-bold text-navy-900">{stats.online.total}</p>
+              <p className="text-[10px] text-navy-900/50 mt-0.5">peserta</p>
+            </div>
+            {/* Hadir Offline */}
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 px-4 py-3 shadow-sm">
+              <div className="flex items-center gap-1.5 mb-1">
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">Hadir Offline</span>
+              </div>
+              <p className="text-xl font-display font-bold text-emerald-700">{stats.offline.checkedIn}</p>
+              <p className="text-[10px] text-emerald-600/70 mt-0.5">dari {stats.offline.total}</p>
+            </div>
+            {/* Hadir Online */}
+            <div className="rounded-2xl border border-blue-200 bg-blue-50/50 px-4 py-3 shadow-sm">
+              <div className="flex items-center gap-1.5 mb-1">
+                <CheckCircle2 className="h-3.5 w-3.5 text-blue-600" />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600">Hadir Online</span>
+              </div>
+              <p className="text-xl font-display font-bold text-blue-700">{stats.online.checkedIn}</p>
+              <p className="text-[10px] text-blue-600/70 mt-0.5">dari {stats.online.total}</p>
+            </div>
+            {/* Belum Hadir Offline */}
+            <div className="rounded-2xl border border-amber-200 bg-amber-50/50 px-4 py-3 shadow-sm">
+              <div className="flex items-center gap-1.5 mb-1">
+                <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600">Belum Offline</span>
+              </div>
+              <p className="text-xl font-display font-bold text-amber-700">{stats.offline.notCheckedIn}</p>
+              <p className="text-[10px] text-amber-600/70 mt-0.5">dari {stats.offline.total}</p>
+            </div>
+            {/* Belum Hadir Online */}
+            <div className="rounded-2xl border border-orange-200 bg-orange-50/50 px-4 py-3 shadow-sm">
+              <div className="flex items-center gap-1.5 mb-1">
+                <AlertTriangle className="h-3.5 w-3.5 text-orange-600" />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-orange-600">Belum Online</span>
+              </div>
+              <p className="text-xl font-display font-bold text-orange-700">{stats.online.notCheckedIn}</p>
+              <p className="text-[10px] text-orange-600/70 mt-0.5">dari {stats.online.total}</p>
+            </div>
+          </>
+        ) : null}
       </div>
 
       {/* Filter Bar */}
